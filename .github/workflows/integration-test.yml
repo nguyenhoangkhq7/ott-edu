@@ -1,0 +1,42 @@
+name: Integration Test
+
+on:
+  pull_request:
+    branches: ["main", "develop"]
+  push:
+    branches: ["develop"]
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start services
+        run: docker compose up -d --build
+
+      - name: Wait for services to be ready
+        run: sleep 60
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Newman
+        run: npm install -g newman
+
+      - name: Run ALL Tests
+        run: |
+          for file in tests/postman/*.json; do
+            echo "Testing $file..."
+            newman run "$file" --env-var baseUrl=http://localhost:8000 || exit 1
+          done

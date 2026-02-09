@@ -1,0 +1,96 @@
+version: "3.8"
+
+services:
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: always
+    env_file: .env
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "${MYSQL_PORT}:3306"
+    networks:
+      - app-network
+
+  mongo-db:
+    image: mongo:6.0
+    container_name: mongo-db
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "${MONGO_PORT}:27017"
+    networks:
+      - app-network
+
+  core-service:
+    build: ./services/core-service
+    container_name: core-service
+    restart: on-failure
+    env_file: .env
+    ports:
+      - "${CORE_PORT}:8080"
+    depends_on:
+      - mysql-db
+    networks:
+      - app-network
+
+  chat-service:
+    build:
+      context: ./services/chat-service
+      target: dev
+    container_name: chat-service
+    restart: on-failure
+    command: npm run dev
+    env_file: .env
+    volumes:
+      - ./services/chat-service:/app
+      - /app/node_modules
+    ports:
+      - "${CHAT_PORT}:3001"
+    depends_on:
+      - mongo-db
+    networks:
+      - app-network
+
+  web-app:
+    build:
+      context: ./apps/web-app
+      target: deps
+    container_name: web-app
+    restart: always
+    command: npm run dev
+    env_file: .env
+    environment:
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./apps/web-app:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "${WEB_PORT}:3000"
+    networks:
+      - app-network
+
+  gateway:
+    image: nginx:alpine
+    container_name: gateway
+    restart: always
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "${GATEWAY_PORT}:80"
+    networks:
+      - app-network
+
+volumes:
+  db_data:
+  mongo_data:
+
+networks:
+  app-network:
+    driver: bridge
