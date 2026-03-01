@@ -12,8 +12,8 @@ export function SplashProvider({ children }: { children: React.ReactNode }) {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    // Show splash for at least 1.5s, or until video ends (whichever is longer)
-    let timeout = setTimeout(() => setDone(true), 1800);
+    // Show splash for at least 1.5s, hoặc cho đến khi video kết thúc (cái nào lâu hơn)
+    const timeout = setTimeout(() => setDone(true), 1800);
     return () => clearTimeout(timeout);
   }, []);
 
