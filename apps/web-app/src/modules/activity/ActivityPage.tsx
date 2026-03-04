@@ -8,7 +8,7 @@ export default function ActivityPage() {
       </div>
       <h2 className="text-2xl font-semibold text-slate-900 mb-2">Activity</h2>
       <p className="text-slate-500 max-w-md">
-        Stay up-to-date with your team's latest activities and notifications. This page will show your activity feed.
+        Stay up-to-date with your team&apos;s latest activities and notifications. This page will show your activity feed.
       </p>
     </div>
   );

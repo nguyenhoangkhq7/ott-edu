@@ -214,7 +214,7 @@ export default function TeamsMainPage() {
               No teams found
             </h3>
             <p className="text-slate-500 max-w-md">
-              We couldn't find any teams matching your search. Try adjusting your search terms or create a new team.
+               We couldn&apos;t find any teams matching your search. Try adjusting your search terms or create a new team.
             </p>
           </div>
         )}
