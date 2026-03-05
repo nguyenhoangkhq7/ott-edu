@@ -78,7 +78,7 @@ export default function JoinTeamPage() {
         {/* Message */}
         <div className="text-center mb-8">
           <h3 className="text-xl font-semibold text-slate-900 mb-2">
-            You don't have any teams discoverable
+            You don&apos;t have any teams discoverable
           </h3>
           <p className="text-slate-600 mb-1">
             Try searching, join with a code, or create one.
