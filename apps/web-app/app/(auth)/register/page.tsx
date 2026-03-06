@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   type RegisterValidationInput,
   validateRegisterForm,
 } from "@/modules/auth/validators";
+import {
+  getDepartmentsBySchoolId,
+  getSchools,
+  registerAccount,
+  type DepartmentOption,
+  type SchoolOption,
+} from "@/services/auth/auth.service";
 import Input from "@/shared/components/ui/Input";
 import {
   AuthCard,
@@ -18,6 +25,7 @@ import {
 } from "../component";
 
 type RegisterFormState = RegisterValidationInput;
+type ExtraFieldKey = "code" | "schoolId" | "departmentId" | "customSchool" | "customDepartment";
 
 const INITIAL_FORM: RegisterFormState = {
   email: "",
@@ -27,27 +35,166 @@ const INITIAL_FORM: RegisterFormState = {
   birthday: "",
 };
 
+function splitFullName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName
+    .trim()
+    .split(/\s+/)
+    .filter((part) => part.length > 0);
+
+  if (parts.length <= 1) {
+    return {
+      firstName: parts[0] ?? "",
+      lastName: "",
+    };
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
 export default function RegisterPage() {
   const [form, setForm] = useState<RegisterFormState>(INITIAL_FORM);
+  const [code, setCode] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<"student" | "teacher">("student");
+  const [schoolId, setSchoolId] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [customSchool, setCustomSchool] = useState("");
+  const [customDepartment, setCustomDepartment] = useState("");
+  const [useCustomSchool, setUseCustomSchool] = useState(false);
+  const [useCustomDepartment, setUseCustomDepartment] = useState(false);
 
-  const [touched, setTouched] = useState<Record<keyof RegisterFormState | "terms", boolean>>({
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [isSchoolsLoading, setIsSchoolsLoading] = useState(false);
+  const [isDepartmentsLoading, setIsDepartmentsLoading] = useState(false);
+  const [metaLoadError, setMetaLoadError] = useState<string | null>(null);
+
+  const [touched, setTouched] = useState<Record<keyof RegisterFormState | "terms" | ExtraFieldKey, boolean>>({
     email: false,
     fullName: false,
     password: false,
     confirmPassword: false,
     birthday: false,
     terms: false,
+    code: false,
+    schoolId: false,
+    departmentId: false,
+    customSchool: false,
+    customDepartment: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
-  const errors = useMemo(() => validateRegisterForm(form, acceptedTerms), [form, acceptedTerms]);
-  const isFormValid = Object.values(errors).every((value) => !value);
+  const errors = useMemo(() => validateRegisterForm(form, acceptedTerms), [acceptedTerms, form]);
+  const extraErrors = useMemo<Partial<Record<ExtraFieldKey, string>>>(() => {
+    const nextErrors: Partial<Record<ExtraFieldKey, string>> = {};
+
+    if (!code.trim()) {
+      nextErrors.code = "Vui lòng nhập mã sinh viên/giảng viên.";
+    }
+
+    if (useCustomSchool) {
+      if (!customSchool.trim()) {
+        nextErrors.customSchool = "Vui lòng nhập tên trường.";
+      }
+    } else if (!schoolId) {
+      nextErrors.schoolId = "Vui lòng chọn trường.";
+    }
+
+    if (useCustomDepartment) {
+      if (!customDepartment.trim()) {
+        nextErrors.customDepartment = "Vui lòng nhập tên khoa/phòng ban.";
+      }
+    } else if (!departmentId) {
+      nextErrors.departmentId = "Vui lòng chọn khoa/phòng ban.";
+    }
+
+    return nextErrors;
+  }, [code, customDepartment, customSchool, departmentId, schoolId, useCustomDepartment, useCustomSchool]);
+
+  const isFormValid =
+    Object.values(errors).every((value) => !value) &&
+    Object.values(extraErrors).every((value) => !value);
   const maxBirthDate = useMemo(() => new Date().toISOString().split("T")[0], []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSchools() {
+      try {
+        setIsSchoolsLoading(true);
+        setMetaLoadError(null);
+        const data = await getSchools();
+
+        if (!mounted) {
+          return;
+        }
+
+        setSchools(data);
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setMetaLoadError(error instanceof Error ? error.message : "Không tải được danh sách trường.");
+      } finally {
+        if (mounted) {
+          setIsSchoolsLoading(false);
+        }
+      }
+    }
+
+    void loadSchools();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadDepartments() {
+      if (useCustomSchool || !schoolId) {
+        setDepartments([]);
+        setDepartmentId("");
+        return;
+      }
+
+      try {
+        setIsDepartmentsLoading(true);
+        setMetaLoadError(null);
+        const data = await getDepartmentsBySchoolId(Number(schoolId));
+
+        if (!mounted) {
+          return;
+        }
+
+        setDepartments(data);
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        setMetaLoadError(error instanceof Error ? error.message : "Không tải được danh sách khoa/phòng ban.");
+      } finally {
+        if (mounted) {
+          setIsDepartmentsLoading(false);
+        }
+      }
+    }
+
+    void loadDepartments();
+
+    return () => {
+      mounted = false;
+    };
+  }, [schoolId, useCustomSchool]);
 
   const handleChange =
     (field: keyof RegisterFormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,7 +206,7 @@ export default function RegisterPage() {
       setSubmitSuccess(null);
     };
 
-  const handleBlur = (field: keyof RegisterFormState | "terms") => () => {
+  const handleBlur = (field: keyof RegisterFormState | "terms" | ExtraFieldKey) => () => {
     setTouched((current) => ({
       ...current,
       [field]: true,
@@ -76,6 +223,11 @@ export default function RegisterPage() {
       confirmPassword: true,
       birthday: true,
       terms: true,
+      code: true,
+      schoolId: true,
+      departmentId: true,
+      customSchool: true,
+      customDepartment: true,
     });
 
     setSubmitError(null);
@@ -85,24 +237,39 @@ export default function RegisterPage() {
       return;
     }
 
-    const submitPayload = {
-      ...form,
-      role: role,
-    };
-
     try {
       setIsSubmitting(true);
 
-      await new Promise((resolve) => {
-        setTimeout(resolve, 900);
+      const normalizedName = splitFullName(form.fullName);
+      const roleName = role === "student" ? "ROLE_STUDENT" : "ROLE_INSTRUCTOR";
+
+      const responseMessage = await registerAccount({
+        email: form.email.trim(),
+        password: form.password,
+        firstName: normalizedName.firstName,
+        lastName: normalizedName.lastName,
+        roleName,
+        code: code.trim(),
+        schoolId: useCustomSchool ? null : Number(schoolId),
+        departmentId: useCustomDepartment ? null : Number(departmentId),
+        customSchool: useCustomSchool ? customSchool.trim() : null,
+        customDepartment: useCustomDepartment ? customDepartment.trim() : null,
       });
 
       const roleText = role === "student" ? "Sinh viên" : "Giảng viên";
-      setSubmitSuccess(`Đăng ký thành công tài khoản ${roleText} cho ${form.fullName.trim()}. Bạn có thể đăng nhập ngay.`);
-      
+      setSubmitSuccess(responseMessage || `Đăng ký thành công tài khoản ${roleText} cho ${form.fullName.trim()}. Bạn có thể đăng nhập ngay.`);
+
       setForm(INITIAL_FORM);
+      setCode("");
       setAcceptedTerms(false);
       setRole("student");
+      setSchoolId("");
+      setDepartmentId("");
+      setCustomSchool("");
+      setCustomDepartment("");
+      setUseCustomSchool(false);
+      setUseCustomDepartment(false);
+      setDepartments([]);
       setTouched({
         email: false,
         fullName: false,
@@ -110,10 +277,19 @@ export default function RegisterPage() {
         confirmPassword: false,
         birthday: false,
         terms: false,
+        code: false,
+        schoolId: false,
+        departmentId: false,
+        customSchool: false,
+        customDepartment: false,
       });
       setShowPassword(false);
-    } catch {
-      setSubmitError("Không thể đăng ký lúc này, vui lòng thử lại.");
+    } catch (error) {
+      if (error instanceof Error) {
+        setSubmitError(error.message);
+      } else {
+        setSubmitError("Không thể đăng ký lúc này, vui lòng thử lại.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -190,6 +366,173 @@ export default function RegisterPage() {
 
             <div className="space-y-1">
               <Input
+                label={role === "student" ? "Mã sinh viên" : "Mã giảng viên"}
+                name="code"
+                placeholder={role === "student" ? "VD: 20000001" : "VD: GV00123"}
+                value={code}
+                onChange={(event) => {
+                  setCode(event.target.value);
+                  setSubmitError(null);
+                  setSubmitSuccess(null);
+                }}
+                onBlur={handleBlur("code")}
+              />
+              <AuthFieldError message={touched.code ? extraErrors.code : undefined} />
+            </div>
+
+            <div className="space-y-1">
+              <label className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium text-slate-600">Trường</span>
+                <select
+                  value={schoolId}
+                  onChange={(event) => {
+                    setSchoolId(event.target.value);
+                    setDepartmentId("");
+                    setUseCustomDepartment(false);
+                    setCustomDepartment("");
+                    setSubmitError(null);
+                    setSubmitSuccess(null);
+                  }}
+                  onBlur={handleBlur("schoolId")}
+                  disabled={useCustomSchool || isSchoolsLoading || isSubmitting}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100"
+                >
+                  <option value="">{isSchoolsLoading ? "Đang tải danh sách trường..." : "Chọn trường"}</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={String(school.id)}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="pt-1">
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={useCustomSchool}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setUseCustomSchool(checked);
+                      setSchoolId("");
+                      setDepartmentId("");
+                      setDepartments([]);
+                      setCustomSchool(checked ? customSchool : "");
+                      setUseCustomDepartment(checked);
+                      if (!checked) {
+                        setCustomDepartment("");
+                      }
+                      setSubmitError(null);
+                      setSubmitSuccess(null);
+                    }}
+                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  Trường của tôi chưa có trong danh sách
+                </label>
+              </div>
+
+              {useCustomSchool ? (
+                <>
+                  <Input
+                    label="Tên trường"
+                    name="customSchool"
+                    placeholder="Nhập tên trường"
+                    value={customSchool}
+                    onChange={(event) => {
+                      setCustomSchool(event.target.value);
+                      setSubmitError(null);
+                      setSubmitSuccess(null);
+                    }}
+                    onBlur={handleBlur("customSchool")}
+                  />
+                  <AuthFieldError message={touched.customSchool ? extraErrors.customSchool : undefined} />
+                </>
+              ) : (
+                <AuthFieldError message={touched.schoolId ? extraErrors.schoolId : undefined} />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium text-slate-600">Khoa / Phòng ban</span>
+                <select
+                  value={departmentId}
+                  onChange={(event) => {
+                    setDepartmentId(event.target.value);
+                    setSubmitError(null);
+                    setSubmitSuccess(null);
+                  }}
+                  onBlur={handleBlur("departmentId")}
+                  disabled={
+                    useCustomDepartment ||
+                    useCustomSchool ||
+                    isDepartmentsLoading ||
+                    !schoolId ||
+                    isSubmitting
+                  }
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-100"
+                >
+                  <option value="">
+                    {isDepartmentsLoading
+                      ? "Đang tải danh sách khoa..."
+                      : !schoolId
+                        ? "Vui lòng chọn trường trước"
+                        : "Chọn khoa / phòng ban"}
+                  </option>
+                  {departments.map((department) => (
+                    <option key={department.id} value={String(department.id)}>
+                      {department.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="pt-1">
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={useCustomDepartment}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setUseCustomDepartment(checked);
+                      setDepartmentId("");
+                      if (!checked) {
+                        setCustomDepartment("");
+                      }
+                      setSubmitError(null);
+                      setSubmitSuccess(null);
+                    }}
+                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
+                  />
+                  Khoa/phòng ban của tôi chưa có trong danh sách
+                </label>
+              </div>
+
+              {useCustomDepartment ? (
+                <>
+                  <Input
+                    label="Tên khoa / phòng ban"
+                    name="customDepartment"
+                    placeholder="Nhập tên khoa hoặc phòng ban"
+                    value={customDepartment}
+                    onChange={(event) => {
+                      setCustomDepartment(event.target.value);
+                      setSubmitError(null);
+                      setSubmitSuccess(null);
+                    }}
+                    onBlur={handleBlur("customDepartment")}
+                  />
+                  <AuthFieldError
+                    message={touched.customDepartment ? extraErrors.customDepartment : undefined}
+                  />
+                </>
+              ) : (
+                <AuthFieldError message={touched.departmentId ? extraErrors.departmentId : undefined} />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <Input
                 label="Ngày sinh"
                 type="date"
                 name="birthday"
@@ -226,7 +569,7 @@ export default function RegisterPage() {
                 onChange={handleChange("confirmPassword")}
                 onBlur={handleBlur("confirmPassword")}
               />
-              
+
               <div className="pt-2">
                 <div className="flex items-center gap-2">
                   <input
@@ -274,6 +617,7 @@ export default function RegisterPage() {
             </div>
           </div>
 
+          <AuthStatusAlert type="error" message={metaLoadError} />
           <AuthStatusAlert type="error" message={submitError} />
           <AuthStatusAlert type="success" message={submitSuccess} />
 

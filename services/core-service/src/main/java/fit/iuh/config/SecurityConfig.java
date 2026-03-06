@@ -29,6 +29,7 @@ public class SecurityConfig {
                         // Cho phép bất kỳ ai cũng có thể gọi API có tiền tố /auth/ (gồm register và login)
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/api/schools/**").permitAll()
+                    .requestMatchers("/schools/**").permitAll()
                         // Các API khác yêu cầu phải đăng nhập mới được gọi
                         .anyRequest().authenticated()
                 );

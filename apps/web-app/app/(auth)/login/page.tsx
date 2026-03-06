@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { validateLoginForm } from "@/modules/auth/validators";
-import { mockLogin } from "@/services/auth.service";
+import { mockLogin } from "@/services/auth/auth.service";
 import Input from "@/shared/components/ui/Input";
 import {
   AuthCard,
