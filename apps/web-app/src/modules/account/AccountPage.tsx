@@ -39,7 +39,7 @@ export default function AccountPage() {
   };
 
   const handleUpdatePassword = () => {
-    console.log("Update password");
+    router.push("/account/change-password");
   };
 
   return (
