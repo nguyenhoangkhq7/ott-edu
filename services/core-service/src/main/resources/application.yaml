@@ -26,3 +26,9 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+
+jwt:
+  # Base64-encoded secret for HMAC signing (replace in production via JWT_SECRET env var).
+  secret: ${JWT_SECRET:QmFzZTY0U2VjcmV0Rm9ySmF2YVNwcmluZ0Jvb3Q0SldUU2lnbmluZ1Nob3VsZEJlMzJCdHl0ZXM=}
+  access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
+  refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
