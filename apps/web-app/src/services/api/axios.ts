@@ -1,6 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 
-import { clearAccessToken, getAccessToken, setAccessToken } from "./token-store";
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
 
 type RefreshResponse = {
   accessToken: string;

@@ -23,7 +23,7 @@ function getBaseUrl(): string {
   return `${API_URL.replace(/\/$/, "")}/api/core`;
 }
 
-const axiosClient = axios.create({
+export const axiosClient = axios.create({
   baseURL: getBaseUrl(),
   headers: {
     "Content-Type": "application/json",
