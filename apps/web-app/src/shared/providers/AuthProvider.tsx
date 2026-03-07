@@ -10,7 +10,7 @@ import {
   type AuthUser,
   type LoginPayload,
 } from "@/services/auth/auth.service";
-import { clearAccessToken, setAccessToken } from "@/shared/api/token-store";
+import { clearAccessToken, setAccessToken } from "@/services/api/token-store";
 
 type AuthContextValue = {
   user: AuthUser | null;
