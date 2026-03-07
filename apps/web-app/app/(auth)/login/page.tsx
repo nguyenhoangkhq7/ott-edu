@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { validateLoginForm } from "@/modules/auth/validators";
-import { mockLogin } from "@/services/auth/auth.service";
+import { useAuth } from "@/shared/providers/AuthProvider";
 import Input from "@/shared/components/ui/Input";
 import {
   AuthCard,
@@ -26,6 +27,8 @@ const INITIAL_FORM: LoginFormState = {
 };
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useAuth();
   const [form, setForm] = useState<LoginFormState>(INITIAL_FORM);
   const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState<Record<keyof LoginFormState, boolean>>({
@@ -68,10 +71,11 @@ export default function LoginPage() {
 
     try {
       setIsSubmitting(true);
-      const response = await mockLogin(form);
-      setSubmitSuccess(`Xin chào ${response.user.name}, đăng nhập thành công.`);
+      await login({ email: form.email.trim(), password: form.password });
+      setSubmitSuccess("Dang nhap thanh cong, dang chuyen huong...");
       setForm(INITIAL_FORM);
       setTouched({ email: false, password: false });
+      router.replace("/dashboard");
     } catch (error) {
       if (error instanceof Error) {
         setSubmitError(error.message);
@@ -162,9 +166,6 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <p className="mt-8 text-center text-xs font-medium text-slate-400">
-          Demo: admin@ott.edu.vn / 12345678
-        </p>
       </AuthCard>
     </AuthPageContainer>
   );

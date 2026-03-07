@@ -1,6 +1,23 @@
-type LoginPayload = {
+import { AxiosError } from "axios";
+
+import apiClient from "@/shared/api/axios";
+
+export type LoginPayload = {
   email: string;
   password: string;
+};
+
+export type AuthUser = {
+  accountId: number;
+  email: string;
+  roles: string[];
+  firstName: string | null;
+  lastName: string | null;
+  code: string | null;
+  schoolId: number | null;
+  departmentId: number | null;
+  customSchool: string | null;
+  customDepartment: string | null;
 };
 
 export type SchoolOption = {
@@ -29,109 +46,94 @@ export type RegisterPayload = {
 
 type LoginResponse = {
   accessToken: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-  };
+  refreshToken: string;
+  expiresIn: number;
+  user: AuthUser;
 };
 
-const MOCK_EMAIL = "admin@ott.edu.vn";
-const MOCK_PASSWORD = "12345678";
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+type RefreshResponse = {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+};
 
-function getApiBaseUrl(): string {
-  const value = process.env.NEXT_PUBLIC_API_URL?.trim();
-  return value && value.length > 0 ? value.replace(/\/$/, "") : DEFAULT_API_BASE_URL;
-}
+function mapApiError(error: unknown): Error {
+  if (error instanceof AxiosError) {
+    const message =
+      typeof error.response?.data === "string"
+        ? error.response.data
+        : (error.response?.data as { message?: string } | undefined)?.message;
 
-async function parseErrorResponse(response: Response): Promise<string> {
-  const text = await response.text();
-  if (!text) {
-    return "Không thể xử lý yêu cầu lúc này.";
+    return new Error(message || "Khong the xu ly yeu cau luc nay.");
   }
 
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error("Khong the xu ly yeu cau luc nay.");
+}
+
+export async function login(payload: LoginPayload): Promise<LoginResponse> {
   try {
-    const data = JSON.parse(text) as { message?: string };
-    if (typeof data.message === "string" && data.message.trim().length > 0) {
-      return data.message;
-    }
-  } catch {
-    // Keep plain text fallback below when response is not JSON.
+    const response = await apiClient.post<LoginResponse>("/auth/login", payload);
+    return response.data;
+  } catch (error) {
+    throw mapApiError(error);
   }
-
-  return text;
 }
 
-function sleep(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, milliseconds);
-  });
+export async function refreshSession(): Promise<RefreshResponse> {
+  try {
+    const response = await apiClient.post<RefreshResponse>("/auth/refresh", {});
+    return response.data;
+  } catch (error) {
+    throw mapApiError(error);
+  }
 }
 
-export async function mockLogin(payload: LoginPayload): Promise<LoginResponse> {
-  await sleep(900);
-
-  const email = payload.email.trim().toLowerCase();
-  const password = payload.password;
-
-  if (email !== MOCK_EMAIL || password !== MOCK_PASSWORD) {
-    throw new Error("Email hoặc mật khẩu chưa chính xác.");
+export async function logout(): Promise<void> {
+  try {
+    await apiClient.post("/auth/logout", {});
+  } catch (error) {
+    throw mapApiError(error);
   }
+}
 
-  return {
-    accessToken: "mock-jwt-token",
-    user: {
-      id: "user-admin",
-      name: "OTT Admin",
-      email: MOCK_EMAIL,
-    },
-  };
+export async function getCurrentUser(): Promise<AuthUser> {
+  try {
+    const response = await apiClient.get<AuthUser>("/auth/me");
+    return response.data;
+  } catch (error) {
+    throw mapApiError(error);
+  }
 }
 
 export async function getSchools(): Promise<SchoolOption[]> {
-  const response = await fetch(`${getApiBaseUrl()}/api/core/schools`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(await parseErrorResponse(response));
+  try {
+    const response = await apiClient.get<SchoolOption[]>("/schools");
+    return response.data;
+  } catch (error) {
+    throw mapApiError(error);
   }
-
-  return (await response.json()) as SchoolOption[];
 }
 
 export async function getDepartmentsBySchoolId(schoolId: number): Promise<DepartmentOption[]> {
-  const response = await fetch(`${getApiBaseUrl()}/api/core/schools/${schoolId}/departments`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(await parseErrorResponse(response));
+  try {
+    const response = await apiClient.get<DepartmentOption[]>(`/schools/${schoolId}/departments`);
+    return response.data;
+  } catch (error) {
+    throw mapApiError(error);
   }
-
-  return (await response.json()) as DepartmentOption[];
 }
 
 export async function registerAccount(payload: RegisterPayload): Promise<string> {
-  const response = await fetch(`${getApiBaseUrl()}/api/core/auth/register`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(await parseErrorResponse(response));
+  try {
+    const response = await apiClient.post<string>("/auth/register", payload, {
+      responseType: "text",
+    });
+    return response.data || "Tao tai khoan thanh cong!";
+  } catch (error) {
+    throw mapApiError(error);
   }
-
-  const text = await response.text();
-  return text || "Tạo tài khoản thành công!";
 }

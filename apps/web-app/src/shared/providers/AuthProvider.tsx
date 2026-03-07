@@ -1,0 +1,93 @@
+"use client";
+
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+import {
+  getCurrentUser,
+  login as loginApi,
+  logout as logoutApi,
+  refreshSession,
+  type AuthUser,
+  type LoginPayload,
+} from "@/services/auth/auth.service";
+import { clearAccessToken, setAccessToken } from "@/shared/api/token-store";
+
+type AuthContextValue = {
+  user: AuthUser | null;
+  isAuthenticated: boolean;
+  isInitializing: boolean;
+  login: (payload: LoginPayload) => Promise<void>;
+  logout: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function bootstrapSession() {
+      try {
+        const refreshResult = await refreshSession();
+        setAccessToken(refreshResult.accessToken);
+
+        const currentUser = await getCurrentUser();
+        if (isMounted) {
+          setUser(currentUser);
+        }
+      } catch {
+        clearAccessToken();
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsInitializing(false);
+        }
+      }
+    }
+
+    void bootstrapSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      isAuthenticated: user !== null,
+      isInitializing,
+      login: async (payload: LoginPayload) => {
+        const loginResponse = await loginApi(payload);
+        setAccessToken(loginResponse.accessToken);
+        setUser(loginResponse.user);
+      },
+      logout: async () => {
+        try {
+          await logoutApi();
+        } finally {
+          clearAccessToken();
+          setUser(null);
+        }
+      },
+    }),
+    [isInitializing, user]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuth phai duoc su dung ben trong AuthProvider.");
+  }
+
+  return context;
+}

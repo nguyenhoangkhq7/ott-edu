@@ -41,6 +41,7 @@ services:
     build: ./services/core-service
     container_name: core-service
     restart: on-failure
+    env_file: .env
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/ott_education_db
       SPRING_DATASOURCE_USERNAME: admin
