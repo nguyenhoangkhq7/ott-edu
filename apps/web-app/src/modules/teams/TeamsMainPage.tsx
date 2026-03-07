@@ -192,7 +192,9 @@ export default function TeamsMainPage() {
                   className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-in fade-in slide-in-from-top-2 duration-200"
                 >
                   {section.items.map((item) => (
-                    <TeamCard key={item.id} item={item} />
+                    <Link href={`/teams/${item.id}`} key={item.id} className="block hover:opacity-95 transition-opacity">
+                      <TeamCard item={item} />
+                    </Link>
                   ))}
                 </div>
               )}
