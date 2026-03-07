@@ -86,6 +86,7 @@ export default function DashboardLayout({
     searchValue,
     onSearchChange: setSearchValue,
     userName: "David Nguyen",
+    userEmail: "david.nguyen@iuh.edu.vn",
     userRole: "Faculty",
     notifications: 3,
   };

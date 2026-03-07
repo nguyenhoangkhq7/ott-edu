@@ -1,0 +1,90 @@
+import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
+
+type RefreshResponse = {
+  accessToken: string;
+};
+
+declare module "axios" {
+  interface InternalAxiosRequestConfig {
+    _retry?: boolean;
+  }
+}
+
+const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const DEFAULT_TIMEOUT_MS = 30000;
+
+function getApiBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
+  const value = raw && raw.length > 0 ? raw : DEFAULT_API_BASE_URL;
+  const normalized = value.replace(/\/$/, "");
+
+  return normalized.endsWith("/api/core") ? normalized : `${normalized}/api/core`;
+}
+
+function getApiTimeout(): number {
+  const raw = process.env.NEXT_PUBLIC_API_TIMEOUT;
+  const parsed = Number(raw);
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
+}
+
+const baseConfig = {
+  baseURL: getApiBaseUrl(),
+  timeout: getApiTimeout(),
+  withCredentials: true,
+  headers: {
+    "Content-Type": "application/json",
+  },
+};
+
+const apiClient = axios.create(baseConfig);
+const refreshClient = axios.create(baseConfig);
+
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config;
+    const statusCode = error.response?.status;
+
+    if (!originalRequest || statusCode !== 401 || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+
+    const requestUrl = originalRequest.url ?? "";
+    if (requestUrl.includes("/auth/login") || requestUrl.includes("/auth/refresh")) {
+      return Promise.reject(error);
+    }
+
+    originalRequest._retry = true;
+
+    try {
+      const refreshResponse = await refreshClient.post<RefreshResponse>("/auth/refresh", {});
+      const nextAccessToken = refreshResponse.data.accessToken;
+
+      if (!nextAccessToken) {
+        throw new Error("Missing access token after refresh.");
+      }
+
+      setAccessToken(nextAccessToken);
+      originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`;
+
+      return apiClient(originalRequest);
+    } catch (refreshError) {
+      clearAccessToken();
+      return Promise.reject(refreshError);
+    }
+  }
+);
+
+export default apiClient;

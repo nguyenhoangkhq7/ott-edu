@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import SearchInput from "@/shared/components/ui/SearchInput";
-import IconButton from "@/shared/components/ui/IconButton";
+import ProfileDropdown from "@/shared/components/common/ProfileDropdown";
 
 interface HeaderProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
   userName: string;
+  userEmail: string;
   userRole: string;
   notifications: number;
 }
@@ -16,10 +18,12 @@ export default function Header({
   searchValue,
   onSearchChange,
   userName,
+  userEmail,
   userRole,
   notifications,
 }: HeaderProps) {
   const router = useRouter();
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   const handleBack = () => {
     router.back();
@@ -101,16 +105,29 @@ export default function Header({
             </p>
           </div>
 
-          {/* Avatar - Bỏ viền border-slate-200 nếu muốn phẳng hoàn toàn */}
-          <button className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-[11px] font-bold text-[#4b53bc] hover:opacity-80 transition-opacity">
-            {userName
-              .split(" ")
-              .map((part) => part[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2)}
-            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-white"></span>
-          </button>
+          {/* Avatar - Profile dropdown trigger */}
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+              className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-[11px] font-bold text-[#4b53bc] hover:opacity-80 transition-opacity"
+            >
+              {userName
+                .split(" ")
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase()
+                .slice(0, 2)}
+              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-white"></span>
+            </button>
+
+            <ProfileDropdown
+              isOpen={showProfileDropdown}
+              onClose={() => setShowProfileDropdown(false)}
+              userName={userName}
+              userEmail={userEmail}
+              userRole={userRole}
+            />
+          </div>
         </div>
 
       </div>
