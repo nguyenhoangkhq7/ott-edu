@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import AppProviders from "@/shared/providers/AppProviders";
 
 import "./globals.css";
+import { SplashProvider } from "@/shared/components/common/SplashProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OTT Education",
-  description: "OTT Education Platform",
+  title: "Teams Dashboard",
+  description: "Enterprise Teams dashboard UI",
 };
 
 export default function RootLayout({
@@ -27,8 +28,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AppProviders>{children}</AppProviders>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <AppProviders>
+          <SplashProvider>
+            {children}
+          </SplashProvider>
+        </AppProviders>
       </body>
     </html>
   );

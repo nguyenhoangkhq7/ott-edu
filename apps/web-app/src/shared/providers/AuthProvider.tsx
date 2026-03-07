@@ -20,6 +20,23 @@ type AuthContextValue = {
   logout: () => Promise<void>;
 };
 
+const fallbackAuthContext: AuthContextValue = {
+  user: null,
+  isAuthenticated: false,
+  isInitializing: false,
+  login: async (payload: LoginPayload) => {
+    const loginResponse = await loginApi(payload);
+    setAccessToken(loginResponse.accessToken);
+  },
+  logout: async () => {
+    try {
+      await logoutApi();
+    } finally {
+      clearAccessToken();
+    }
+  },
+};
+
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -86,7 +103,8 @@ export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
 
   if (!context) {
-    throw new Error("useAuth phai duoc su dung ben trong AuthProvider.");
+    console.error("Auth context missing. Falling back to stateless auth mode.");
+    return fallbackAuthContext;
   }
 
   return context;
