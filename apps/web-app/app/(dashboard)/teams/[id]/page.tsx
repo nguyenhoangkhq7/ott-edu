@@ -23,7 +23,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
           </Link>
         </div>
 
-        <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-slate-200/50 rounded-md mx-2 transition-colors">
+        <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-slate-200/50 rounded-md mx-2 transition-colors mb-2">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">AM</div>
             <span className="font-semibold text-sm truncate">Advanced Math...</span>
@@ -34,10 +34,11 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
-          <div className="px-4 mb-2">
+          {/* SECTION 1: KÊNH CHÍNH (MAIN CHANNELS) */}
+          <div className="px-4 mb-2 mt-2">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Main Channels</h3>
           </div>
-          <ul className="space-y-0.5 px-2">
+          <ul className="space-y-0.5 px-2 mb-6">
             <li>
               <button className="w-full flex items-center text-left px-3 py-2 text-sm font-medium bg-white text-slate-900 rounded border-l-[3px] border-blue-600 shadow-sm">
                 General
@@ -46,6 +47,45 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
             <li>
               <button className="w-full flex items-center text-left px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 rounded border-l-[3px] border-transparent transition-colors">
                 Homework & Assignments
+              </button>
+            </li>
+          </ul>
+
+          {/* SECTION 2: CÔNG CỤ LỚP HỌC (CLASS TOOLS) */}
+          <div className="px-4 mb-2">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+              Class Tools
+              <div className="flex-1 h-px bg-slate-200"></div>
+            </h3>
+          </div>
+          <ul className="space-y-1 px-3">
+            {/* Giao bài tập */}
+            <li>
+              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
+                <div className="w-6 h-6 rounded flex items-center justify-center bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                </div>
+                Assignments
+              </button>
+            </li>
+
+            {/* Trắc nghiệm online */}
+            <li>
+              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
+                <div className="w-6 h-6 rounded flex items-center justify-center bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+                Online Quizzes
+              </button>
+            </li>
+
+            {/* Quản lý điểm */}
+            <li>
+              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
+                <div className="w-6 h-6 rounded flex items-center justify-center bg-amber-100 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </div>
+                Gradebook
               </button>
             </li>
           </ul>
@@ -87,10 +127,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
           <div className="max-w-6xl mx-auto flex gap-8">
             
             {activeTab === 'posts' && <TeamPostsTab />}
-            
             {activeTab === 'files' && <TeamFilesTab />}
-            
-            {/* Đã thêm component TeamMembersTab thay cho dòng text coming soon */}
             {activeTab === 'members' && <TeamMembersTab />}
 
           </div>
