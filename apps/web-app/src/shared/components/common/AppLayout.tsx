@@ -10,6 +10,7 @@ interface AppLayoutProps {
     searchValue: string;
     onSearchChange: (value: string) => void;
     userName: string;
+    userEmail: string;
     userRole: string;
     notifications: number;
     onNavigateBack?: () => void;

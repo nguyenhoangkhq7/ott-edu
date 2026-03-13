@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
+import AppProviders from "@/shared/providers/AppProviders";
+
 import "./globals.css";
 import { SplashProvider } from "@/shared/components/common/SplashProvider";
 
@@ -28,9 +31,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SplashProvider>
-          {children}
-        </SplashProvider>
+        <AppProviders>
+          <SplashProvider>
+            {children}
+          </SplashProvider>
+        </AppProviders>
       </body>
     </html>
   );
