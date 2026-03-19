@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
-import { ActivityIndicator, SafeAreaView, StyleSheet } from "react-native";
-
+import { ActivityIndicator,  StyleSheet } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from "../src/modules/auth/AuthProvider";
 
 function RootNavigator() {
@@ -10,21 +10,20 @@ function RootNavigator() {
 	const { isAuthenticated, isInitializing } = useAuth();
 
 	useEffect(() => {
-		if (isInitializing) {
-			return;
-		}
+        if (isInitializing) return;
 
-		const inAuthGroup = segments[0] === "(auth)";
+        const inAuthGroup = segments[0] === "(auth)";
+        const inDashboardGroup = segments[0] === "(dashboard)";
 
-		if (!isAuthenticated && !inAuthGroup) {
-			router.replace("/(auth)/login");
-			return;
-		}
-
-		if (isAuthenticated && inAuthGroup) {
-			router.replace("/(dashboard)");
-		}
-	}, [isAuthenticated, isInitializing, router, segments]);
+        // 1. Nếu CHƯA đăng nhập mà lại KHÔNG ở trong nhóm (auth) -> Ép về Login
+        if (!isAuthenticated && !inAuthGroup) {
+            router.replace("/(auth)/login");
+        } 
+        
+        else if (isAuthenticated && !inDashboardGroup) {
+            router.replace("/teams");
+        }
+    }, [isAuthenticated, isInitializing, segments]); // <-- xóa router khỏi mảng dependency cũng được
 
 	if (isInitializing) {
 		return (
@@ -36,6 +35,7 @@ function RootNavigator() {
 
 	return (
 		<Stack screenOptions={{ headerShown: false }}>
+			<Stack.Screen name="index" />
 			<Stack.Screen name="(auth)" />
 			<Stack.Screen name="(dashboard)" />
 		</Stack>
