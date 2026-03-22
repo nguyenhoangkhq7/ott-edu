@@ -17,11 +17,11 @@ export default function DashboardLayout() {
         mà bạn đã tạo trong (dashboard).
         Thuộc tính 'name' phải viết y hệt tên thư mục!
       */}
-      <Tabs.Screen name="teams" options={{ title: 'Teams' }} />
-      <Tabs.Screen name="activity" options={{ title: 'Activity' }} />
-      <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
-      <Tabs.Screen name="calendar" options={{ title: 'Calendar' }} />
-      <Tabs.Screen name="more" options={{ title: 'More' }} />
+      <Tabs.Screen name="teams/index" options={{ title: 'Teams' /* các option khác giữ nguyên */ }} />
+      <Tabs.Screen name="activity/index" options={{ title: 'Activity' }} />
+      <Tabs.Screen name="chat/index" options={{ title: 'Chat' }} />
+      <Tabs.Screen name="calendar/index" options={{ title: 'Calendar' }} />
+      <Tabs.Screen name="more/index" options={{ title: 'More' }} />
     </Tabs>
   );
 }

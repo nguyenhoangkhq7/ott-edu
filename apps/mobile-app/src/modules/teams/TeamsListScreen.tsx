@@ -5,7 +5,10 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+
+// Import các màn hình con cùng thư mục
 import CreateTeam from './CreateTeam'; 
+import TeamDetailScreen from './TeamDetailScreen';
 
 // Dữ liệu mẫu khớp với ảnh thiết kế
 const TEAMS_DATA = [
@@ -19,8 +22,27 @@ const TEAMS_DATA = [
 
 export default function TeamsListScreen() {
   const router = useRouter();
+  
+  // --- QUẢN LÝ TRẠNG THÁI GIAO DIỆN ---
+  const [selectedTeam, setSelectedTeam] = useState<any>(null); // Lưu team đang xem chi tiết
+  const [isCreating, setIsCreating] = useState(false);      // Trạng thái đang tạo nhóm mới
 
-  // Hàm render Icon (Xử lý icon text hoặc icon vector)
+  // 1. Nếu đang chọn xem chi tiết một Team
+  if (selectedTeam) {
+    return (
+      <TeamDetailScreen 
+        team={selectedTeam} 
+        onBack={() => setSelectedTeam(null)} 
+      />
+    );
+  }
+
+  // 2. Nếu đang ở trạng thái "Tạo nhóm/Tham gia nhóm"
+  if (isCreating) {
+    return <CreateTeam onBack={() => setIsCreating(false)} />;
+  }
+
+  // --- CÁC HÀM HỖ TRỢ RENDER ---
   const renderIcon = (item: typeof TEAMS_DATA[0]) => {
     if (item.iconType === 'text') {
       return <Text style={styles.iconText}>{item.iconName}</Text>;
@@ -34,8 +56,9 @@ export default function TeamsListScreen() {
   const renderTeamCard = ({ item }: { item: typeof TEAMS_DATA[0] }) => (
     <TouchableOpacity 
       style={styles.card}
-      // Nút bấm sẽ chuyển sang màn hình chi tiết nhóm sau này
-      onPress={() => console.log('Chuyển vào team: ', item.id)} 
+      activeOpacity={0.7}
+      // KHI NHẤN VÀO THẺ: Lưu thông tin team vào state để hiện màn hình chi tiết
+      onPress={() => setSelectedTeam(item)} 
     >
       <View style={[styles.iconBox, { backgroundColor: item.color }]}>
         {renderIcon(item)}
@@ -51,15 +74,11 @@ export default function TeamsListScreen() {
       </TouchableOpacity>
     </TouchableOpacity>
   );
-// 3. Khai báo biến trạng thái để chuyển đổi giao diện
-  const [isCreating, setIsCreating] = useState(false);
 
-  // Nếu đang ở trạng thái "Tạo nhóm", thì hiện component CreateTeam
-  if (isCreating) {
-    return <CreateTeam onBack={() => setIsCreating(false)} />;
-  }
+  // 3. Giao diện danh sách chính
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" />
       <View style={styles.container}>
         
         {/* Header */}
@@ -83,7 +102,6 @@ export default function TeamsListScreen() {
         
         <Text style={styles.sectionTitle}>YOUR TEAMS</Text>
 
-        {/* Danh sách lớp học */}
         <FlatList
           data={TEAMS_DATA}
           keyExtractor={item => item.id}
@@ -92,9 +110,10 @@ export default function TeamsListScreen() {
           contentContainerStyle={styles.listContent}
         />
 
-        {/* Nút FAB dấu + ở góc dưới bên phải */}
+        {/* Nút FAB dấu + */}
         <TouchableOpacity 
           style={styles.fab} 
+          activeOpacity={0.8}
           onPress={() => setIsCreating(true)}
         >
           <Ionicons name="add" size={32} color="white" />
@@ -113,7 +132,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc', // Màu nền nhạt giống ảnh
+    backgroundColor: '#f8fafc', 
   },
   header: {
     flexDirection: 'row',
@@ -122,6 +141,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -132,7 +153,6 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     marginRight: 12,
-    backgroundColor: '#fcd34d', // Nền màu cam nhạt cho avatar
   },
   headerTitle: {
     fontSize: 22,
@@ -158,7 +178,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 90, // Để không bị đè bởi nút FAB
+    paddingBottom: 100, 
   },
   card: {
     backgroundColor: '#ffffff',
@@ -169,12 +189,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#f1f5f9',
-    // Bóng đổ nhẹ
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    elevation: 2,
   },
   iconBox: {
     width: 52,
