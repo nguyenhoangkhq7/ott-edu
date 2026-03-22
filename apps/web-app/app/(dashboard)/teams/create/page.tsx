@@ -2,14 +2,15 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-// Import 2 component trực tiếp từ thư mục modules/teams
-import SelectTeamType from '@/modules/teams/SelectTeamType';
+
+// Chỉ giữ lại import CreateClassForm
 import CreateClassForm from '@/modules/teams/CreateClassForm';
 
 export default function TeamTypePage() {
-  const [selectedType, setSelectedType] = useState<string>('class');
+  // Không cần selectedType nữa vì ta đi thẳng vào form
   const [activeMenu, setActiveMenu] = useState<string>('template');
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  // Thay đổi: Mặc định currentStep là 2 (tức là bước form) thay vì 1
+  const [currentStep, setCurrentStep] = useState<number>(2);
 
   return (
     <div className="flex h-[calc(100vh-60px)] w-full bg-white text-gray-800">
@@ -26,18 +27,9 @@ export default function TeamTypePage() {
         <nav className="flex-1 py-4">
           <ul className="space-y-1">
             <li>
-              <button onClick={() => { setActiveMenu('template'); setCurrentStep(1); }} className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${activeMenu === 'template' ? 'font-semibold border-l-[3px] border-black bg-gray-50' : 'text-gray-600 hover:bg-gray-50 border-l-[3px] border-transparent'}`}>
+              {/* Thay đổi: Đặt currentStep là 2 khi click */}
+              <button onClick={() => { setActiveMenu('template'); setCurrentStep(2); }} className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${activeMenu === 'template' ? 'font-semibold border-l-[3px] border-black bg-gray-50' : 'text-gray-600 hover:bg-gray-50 border-l-[3px] border-transparent'}`}>
                 From template
-              </button>
-            </li>
-            <li>
-              <button onClick={() => { setActiveMenu('other_group'); setCurrentStep(1); }} className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${activeMenu === 'other_group' ? 'font-semibold border-l-[3px] border-black bg-gray-50' : 'text-gray-600 hover:bg-gray-50 border-l-[3px] border-transparent'}`}>
-                From another group
-              </button>
-            </li>
-            <li>
-              <button onClick={() => { setActiveMenu('from_team'); setCurrentStep(1); }} className={`w-full text-left px-6 py-2.5 text-sm transition-colors ${activeMenu === 'from_team' ? 'font-semibold border-l-[3px] border-black bg-gray-50' : 'text-gray-600 hover:bg-gray-50 border-l-[3px] border-transparent'}`}>
-                From a team
               </button>
             </li>
           </ul>
@@ -47,17 +39,14 @@ export default function TeamTypePage() {
       {/* ================= CỘT PHẢI: Nội dung chính ================= */}
       <div className="flex-1 flex flex-col items-center overflow-y-auto bg-[#f0f4f8] p-6 relative">
         
-        {activeMenu === 'template' && currentStep === 1 && (
-          <SelectTeamType 
-            selectedType={selectedType} 
-            setSelectedType={setSelectedType} 
-            onNextStep={() => setCurrentStep(2)} 
-          />
-        )}
+        {/* Đã xóa khối render SelectTeamType (currentStep === 1) */}
 
+        {/* Thay đổi: Nếu chọn template và step là 2 thì hiển thị form */}
         {activeMenu === 'template' && currentStep === 2 && (
           <CreateClassForm 
-            onBack={() => setCurrentStep(1)} 
+            // Nếu bạn không còn component nào trước đó để back về, 
+            // có thể sửa onBack thành hàm rỗng hoặc bỏ đi nếu CreateClassForm cho phép
+            onBack={() => {}} 
           />
         )}
 
