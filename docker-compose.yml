@@ -58,6 +58,19 @@ services:
     networks:
       - app-network
 
+  assignment-service:
+    build: ./services/assignment-service
+    container_name: assignment-service
+    restart: on-failure
+    env_file: .env
+    ports:
+      - "${ASSIGNMENT_PORT}:8080"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - app-network
+
   chat-service:
     build:
       context: ./services/chat-service
