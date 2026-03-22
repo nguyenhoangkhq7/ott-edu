@@ -1,6 +1,6 @@
-import { Redirect } from "expo-router";
+import { View } from "react-native";
 
 export default function IndexRoute() {
-	return <Redirect href="/(auth)/login" />;
+    // Chỉ là một màn hình trống chớp mắt, nhường toàn quyền điều hướng cho _layout.tsx
+    return <View style={{ flex: 1, backgroundColor: "#f8fafc" }} />;
 }
-
