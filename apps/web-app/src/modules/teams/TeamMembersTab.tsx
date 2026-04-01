@@ -21,12 +21,12 @@ interface FilterState {
 
 export default function TeamMembersTab() {
   // Mock data - sẽ thay bằng API call
-  const mockMembers: TeamMember[] = [
+  const mockMembers: TeamMember[] = useMemo(() => [
     { id: '1', name: 'Alex Rivera', email: 'a.rivera@school.edu', role: 'Owner', status: 'Active', joinDate: '2024-01-15', avatar: '👨' },
     { id: '2', name: 'Marcus Chen', email: 'm.chen@school.edu', role: 'Member', status: 'Away', joinDate: '2024-02-20', avatar: '👨' },
     { id: '3', name: 'Jordan Day', email: 'j.day@school.edu', role: 'Member', status: 'Active', joinDate: '2024-03-10', avatar: '👨' },
     { id: '4', name: 'Elena Sofia', email: 'e.sofia@school.edu', role: 'Member', status: 'Pending', joinDate: '2024-04-01', avatar: '👩' },
-  ];
+  ], []);
 
   // State
   const [currentTab, setCurrentTab] = useState<'Students' | 'Teachers'>('Students');
@@ -69,7 +69,7 @@ export default function TeamMembersTab() {
     }
 
     return result;
-  }, [filters]);
+  }, [filters, mockMembers]);
 
   // Stats
   const stats = {
@@ -195,7 +195,7 @@ export default function TeamMembersTab() {
                 <tr key={member.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                      <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
                         {member.avatar}
                       </div>
                       <div>
@@ -260,7 +260,7 @@ export default function TeamMembersTab() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
+                className="bg-linear-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
                 style={{ width: `${(stats.total / stats.capacity) * 100}%` }}
               />
             </div>
@@ -320,18 +320,25 @@ export default function TeamMembersTab() {
                   SORT BY
                 </h3>
                 <div className="space-y-2">
-                  {['Name (A-Z)', 'Recent Activity', 'Joining Date'].map((option) => (
+                  {['Name (A-Z)', 'Recent Activity', 'Joining Date'].map((option) => {
+                    const getSortValue = (opt: string): 'name' | 'joinDate' | 'activity' => {
+                      if (opt === 'Name (A-Z)') return 'name';
+                      if (opt === 'Recent Activity') return 'activity';
+                      return 'joinDate';
+                    };
+                    return (
                     <label key={option} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded">
                       <input
                         type="radio"
                         name="sort"
-                        checked={filters.sortBy === option.toLowerCase().split(' ')[0]}
-                        onChange={() => setFilters(prev => ({ ...prev, sortBy: option.toLowerCase().split(' ')[0] as any }))}
+                        checked={filters.sortBy === getSortValue(option)}
+                        onChange={() => setFilters(prev => ({ ...prev, sortBy: getSortValue(option) }))}
                         className="w-4 h-4 border-gray-300 text-blue-600"
                       />
                       <span className="text-sm text-gray-700">{option}</span>
                     </label>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
