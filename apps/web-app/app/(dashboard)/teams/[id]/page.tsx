@@ -18,7 +18,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
     <div className="flex h-[calc(100vh-60px)] w-full bg-white text-slate-800">
       
       {/* ================= CỘT TRÁI: Sidebar của Nhóm ================= */}
-      <div className="w-[260px] border-r border-slate-200 bg-[#f8f9fa] flex flex-col flex-shrink-0">
+      <div className="w-65 border-r border-slate-200 bg-[#f8f9fa] flex flex-col shrink-0">
         <div className="p-3">
           <Link href="/teams" className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 font-medium w-fit transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -28,7 +28,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
 
         <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-slate-200/50 rounded-md mx-2 transition-colors mb-2">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">AM</div>
+            <div className="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">AM</div>
             <span className="font-semibold text-sm truncate">Advanced Math...</span>
           </div>
           <button className="text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100">

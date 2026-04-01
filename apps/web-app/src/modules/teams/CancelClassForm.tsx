@@ -57,7 +57,7 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
       // await cancelClassAPI(mockClassData.id, cancellationReason);
       
       setShowSuccessModal(true);
-    } catch (error) {
+    } catch {
       alert('Failed to cancel class. Please try again.');
       setIsLoading(false);
     }
@@ -85,10 +85,10 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
             </div>
 
             {/* CLASS INFORMATION CARD */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-lg border border-gray-200 p-6 mb-8">
+            <div className="bg-linear-to-br from-gray-50 to-gray-100/50 rounded-lg border border-gray-200 p-6 mb-8">
               <div className="flex items-center gap-4">
                 <div 
-                  className="w-20 h-20 rounded-xl flex items-center justify-center text-white font-bold text-3xl shadow-md flex-shrink-0"
+                  className="w-20 h-20 rounded-xl flex items-center justify-center text-white font-bold text-3xl shadow-md shrink-0"
                   style={{ backgroundColor: mockClassData.accentColor }}
                 >
                   {mockClassData.initials}
@@ -112,7 +112,7 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
             {/* WARNING BOX - CONSEQUENCES */}
             <div className="bg-red-50 border-l-4 border-red-500 rounded-r-lg p-4 mb-8">
               <div className="flex gap-3">
-                <div className="flex-shrink-0 mt-0.5">
+              <div className="shrink-0 mt-0.5">
                   <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                 </div>
                 <div>
@@ -213,7 +213,7 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
           <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 relative overflow-hidden animate-in zoom-in-95 duration-200">
             
             {/* Gradient border bottom */}
-            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-500 to-pink-400"></div>
+            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-linear-to-r from-red-500 to-pink-400"></div>
 
             {/* Success Icon */}
             <div className="relative w-20 h-20 mx-auto mb-6">
@@ -233,14 +233,14 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
             <p className="text-center text-slate-500 text-sm mb-2 leading-relaxed">
               &quot;{mockClassData.name}&quot; has been successfully cancelled.
             </p>
-            <p className="text-center text-slate-500 text-xs mb-8 leading-relaxed text-gray-400">
+            <p className="text-center text-slate-500 text-xs mb-8 leading-relaxed">
               All students have been notified. Class data has been permanently deleted.
             </p>
 
             {/* Action Buttons */}
             <button
               onClick={() => router.push('/teams')}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 mb-3 transition-all shadow-sm"
+              className="w-full bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 mb-3 transition-all shadow-sm"
             >
               Back to Teams
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
