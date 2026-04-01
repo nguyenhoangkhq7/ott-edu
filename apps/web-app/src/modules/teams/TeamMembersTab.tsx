@@ -1,347 +1,411 @@
-import React, { useState, useRef, useEffect } from 'react';
+'use client';
+
+import React, { useState, useMemo } from 'react';
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Owner' | 'Member' | 'Guest';
+  status: 'Active' | 'Away' | 'Pending';
+  joinDate: string;
+  avatar?: string;
+}
+
+interface FilterState {
+  searchTerm: string;
+  role: string[];
+  status: string[];
+  sortBy: 'name' | 'joinDate' | 'activity';
+}
 
 export default function TeamMembersTab() {
-  // Trạng thái đóng/mở của các danh sách
-  const [isOwnersOpen, setIsOwnersOpen] = useState(true);
-  const [isMembersOpen, setIsMembersOpen] = useState(true);
+  // Mock data - sẽ thay bằng API call
+  const mockMembers: TeamMember[] = [
+    { id: '1', name: 'Alex Rivera', email: 'a.rivera@school.edu', role: 'Owner', status: 'Active', joinDate: '2024-01-15', avatar: '👨' },
+    { id: '2', name: 'Marcus Chen', email: 'm.chen@school.edu', role: 'Member', status: 'Away', joinDate: '2024-02-20', avatar: '👨' },
+    { id: '3', name: 'Jordan Day', email: 'j.day@school.edu', role: 'Member', status: 'Active', joinDate: '2024-03-10', avatar: '👨' },
+    { id: '4', name: 'Elena Sofia', email: 'e.sofia@school.edu', role: 'Member', status: 'Pending', joinDate: '2024-04-01', avatar: '👩' },
+  ];
 
-  // States để quản lý Dropdown Menus
-  const [activeRoleMenuId, setActiveRoleMenuId] = useState<string | null>(null);
-  const [activeOptionsMenuId, setActiveOptionsMenuId] = useState<string | null>(null);
+  // State
+  const [currentTab, setCurrentTab] = useState<'Students' | 'Teachers'>('Students');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({
+    searchTerm: '',
+    role: [],
+    status: [],
+    sortBy: 'name',
+  });
 
-  // Dùng chung 1 ref cho tất cả các menu để tiện xử lý click outside
-  const menusRef = useRef<HTMLDivElement>(null);
+  // Filtered members
+  const filteredMembers = useMemo(() => {
+    let result = mockMembers;
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menusRef.current && !menusRef.current.contains(event.target as Node)) {
-        setActiveRoleMenuId(null);
-        setActiveOptionsMenuId(null);
-      }
+    // Search filter
+    if (filters.searchTerm) {
+      const query = filters.searchTerm.toLowerCase();
+      result = result.filter(m => 
+        m.name.toLowerCase().includes(query) || 
+        m.email.toLowerCase().includes(query)
+      );
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+
+    // Role filter
+    if (filters.role.length > 0) {
+      result = result.filter(m => filters.role.includes(m.role));
+    }
+
+    // Status filter
+    if (filters.status.length > 0) {
+      result = result.filter(m => filters.status.includes(m.status));
+    }
+
+    // Sorting
+    if (filters.sortBy === 'name') {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (filters.sortBy === 'joinDate') {
+      result.sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime());
+    }
+
+    return result;
+  }, [filters]);
+
+  // Stats
+  const stats = {
+    total: mockMembers.length,
+    capacity: 50,
+    onlineNow: mockMembers.filter(m => m.status === 'Active').length,
+    teachers: mockMembers.filter(m => m.role === 'Owner').length,
+    pending: mockMembers.filter(m => m.status === 'Pending').length,
+  };
+
+  const handleToggleRole = (role: string) => {
+    setFilters(prev => ({
+      ...prev,
+      role: prev.role.includes(role)
+        ? prev.role.filter(r => r !== role)
+        : [...prev.role, role],
+    }));
+  };
+
+  const handleToggleStatus = (status: string) => {
+    setFilters(prev => ({
+      ...prev,
+      status: prev.status.includes(status)
+        ? prev.status.filter(s => s !== status)
+        : [...prev.status, status],
+    }));
+  };
+
+  const handleReset = () => {
+    setFilters({
+      searchTerm: '',
+      role: [],
+      status: [],
+      sortBy: 'name',
+    });
+  };
 
   return (
-    <>
-      {/* Cột chính chứa danh sách Thành viên */}
-      <div className="flex-1 min-w-0 animate-in fade-in duration-300">
-        
-        {/* Thanh tìm kiếm và nút Add member */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+    <div className="flex gap-6">
+      {/* ========== LEFT: MAIN CONTENT ========== */}
+      <div className="flex-1 min-w-0">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Manage Members</h1>
+          
+          {/* Tabs & Actions */}
+          <div className="flex items-center justify-between mb-6 gap-4">
+            <div className="flex gap-2 border-b border-gray-200">
+              <button
+                onClick={() => setCurrentTab('Students')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                  currentTab === 'Students'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-600 border-transparent hover:text-gray-900'
+                }`}
+              >
+                Students
+              </button>
+              <button
+                onClick={() => setCurrentTab('Teachers')}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
+                  currentTab === 'Teachers'
+                    ? 'text-blue-600 border-blue-600'
+                    : 'text-gray-600 border-transparent hover:text-gray-900'
+                }`}
+              >
+                Teachers
+              </button>
             </div>
-            <input 
-              type="text" 
-              placeholder="Find a member" 
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm"
-            />
+
+            <div className="flex items-center gap-2">
+              <button className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                Bulk Invite
+              </button>
+              <button className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+                </svg>
+                Add Member
+              </button>
+            </div>
           </div>
-          <button className="bg-[#1868f0] hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap">
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" /></svg>
-            Add member
+
+          {/* Search & Filter */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder="Search members by name or email..."
+                value={filters.searchTerm}
+                onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <svg className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <button
+              onClick={() => setShowFilterModal(true)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              FILTER
+            </button>
+          </div>
+        </div>
+
+        {/* Members Table */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Member Name</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredMembers.map((member) => (
+                <tr key={member.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                        {member.avatar}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{member.name}</p>
+                        <p className="text-xs text-gray-500">{member.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      member.role === 'Owner'
+                        ? 'bg-purple-100 text-purple-800'
+                        : member.role === 'Member'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {member.role}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        member.status === 'Active' ? 'bg-green-500' :
+                        member.status === 'Away' ? 'bg-yellow-500' :
+                        'bg-gray-300'
+                      }`}></div>
+                      <span className="text-sm text-gray-700">{member.status}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <button className="text-gray-600 hover:text-gray-900 transition-colors">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.5 1.5H9.5A1.5 1.5 0 008 3v1H4a1 1 0 000 2v1a1 1 0 001 1h1v8a3 3 0 003 3h2a3 3 0 003-3v-8h1a1 1 0 001-1V6a1 1 0 000-2h-4V3a1.5 1.5 0 00-1.5-1.5z" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-xs text-gray-600">
+            Showing {filteredMembers.length} of {stats.total} members
+          </div>
+        </div>
+      </div>
+
+      {/* ========== RIGHT: SIDEBAR ========== */}
+      <div className="w-72 space-y-6">
+        {/* Class Limits */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+            </svg>
+            CLASS LIMITS
+          </h3>
+          <div className="mb-4">
+            <div className="flex justify-between mb-2">
+              <span className="text-lg font-bold text-gray-900">{stats.total}/{stats.capacity}</span>
+              <span className="text-xs text-orange-600 font-medium">{Math.round((stats.total / stats.capacity) * 100)}% Capacity</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
+                style={{ width: `${(stats.total / stats.capacity) * 100}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-600 mt-2">You have reached {Math.round((stats.total / stats.capacity) * 100)}% of your student limit.</p>
+          </div>
+          <button className="w-full text-center text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
+            Upgrade Seats →
           </button>
         </div>
 
-        <div ref={menusRef}>
-          {/* ================= SECTION: OWNERS ================= */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-6">
-            <button 
-              onClick={() => setIsOwnersOpen(!isOwnersOpen)}
-              className="w-full flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors rounded-t-xl"
-            >
-              <div className="flex items-center gap-3">
-                <svg className={`w-4 h-4 text-slate-500 transition-transform ${isOwnersOpen ? 'rotate-0' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                <h3 className="font-bold text-slate-900">Owners</h3>
-                <span className="text-sm text-slate-400 font-medium">1</span>
-              </div>
-            </button>
-
-            {isOwnersOpen && (
-              <div className="border-t border-slate-100 divide-y divide-slate-50">
-                {/* Owner Item */}
-                <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group rounded-b-xl">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <img src="https://i.pravatar.cc/150?img=11" alt="Dr. Aris Thorne" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm hover:underline cursor-pointer">Dr. Aris Thorne</h4>
-                      <p className="text-xs text-slate-500">Instructor</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <span className="text-sm text-slate-500 font-medium hidden sm:block">Owner</span>
-                    
-                    {/* Nút 3 chấm của Owner */}
-                    <div className="relative">
-                      <button 
-                        onClick={() => {
-                          setActiveOptionsMenuId(activeOptionsMenuId === 'owner-1' ? null : 'owner-1');
-                          setActiveRoleMenuId(null);
-                        }}
-                        className={`p-1.5 rounded-md transition-colors
-                          ${activeOptionsMenuId === 'owner-1' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 opacity-0 group-hover:opacity-100'}
-                        `}
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
-                      </button>
-
-                      {/* Menu tùy chọn của Owner */}
-                      {activeOptionsMenuId === 'owner-1' && (
-                        <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 animate-in zoom-in-95 duration-100">
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                            View profile
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                            Message
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ================= SECTION: MEMBERS AND GUESTS ================= */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-10">
-            <button 
-              onClick={() => setIsMembersOpen(!isMembersOpen)}
-              className="w-full flex items-center justify-between p-4 bg-white hover:bg-slate-50 transition-colors rounded-t-xl"
-            >
-              <div className="flex items-center gap-3">
-                <svg className={`w-4 h-4 text-slate-500 transition-transform ${isMembersOpen ? 'rotate-0' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                <h3 className="font-bold text-slate-900">Members and guests</h3>
-                <span className="text-sm text-slate-400 font-medium">24</span>
-              </div>
-            </button>
-
-            {isMembersOpen && (
-              <div className="border-t border-slate-100 divide-y divide-slate-50 pb-2">
-                
-                {/* Member Item 1 */}
-                <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <img src="https://i.pravatar.cc/150?img=32" alt="Elena Rodriguez" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm hover:underline cursor-pointer">Elena Rodriguez</h4>
-                      <p className="text-xs text-slate-500">Student • Mathematics Major</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    {/* Nút đổi Role (Vai trò) */}
-                    <div className="relative">
-                      <button 
-                        onClick={() => {
-                          setActiveRoleMenuId(activeRoleMenuId === 'member-1' ? null : 'member-1');
-                          setActiveOptionsMenuId(null);
-                        }}
-                        className={`flex items-center gap-1 text-sm font-medium transition-colors px-2 py-1 rounded
-                          ${activeRoleMenuId === 'member-1' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}
-                        `}
-                      >
-                        Member <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                      </button>
-                      
-                      {/* Dropdown đổi Role */}
-                      {activeRoleMenuId === 'member-1' && (
-                        <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 animate-in zoom-in-95 duration-100">
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Owner</button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-blue-600 font-medium bg-blue-50/50 flex justify-between items-center">
-                            Member
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Guest</button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Nút 3 chấm của Member */}
-                    <div className="relative">
-                      <button 
-                        onClick={() => {
-                          setActiveOptionsMenuId(activeOptionsMenuId === 'member-1' ? null : 'member-1');
-                          setActiveRoleMenuId(null);
-                        }}
-                        className={`p-1.5 rounded-md transition-colors
-                          ${activeOptionsMenuId === 'member-1' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 opacity-0 group-hover:opacity-100'}
-                        `}
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
-                      </button>
-
-                      {/* Menu tùy chọn của Member */}
-                      {activeOptionsMenuId === 'member-1' && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 animate-in zoom-in-95 duration-100">
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                            View profile
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                            Message
-                          </button>
-                          <div className="h-px bg-slate-100 my-1"></div>
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-                            Mute student
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 group/delete">
-                            <svg className="w-4 h-4 text-red-400 group-hover/delete:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" /></svg>
-                            Remove from class
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Member Item 2 */}
-                <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <img src="https://i.pravatar.cc/150?img=12" alt="Marcus Chen" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-slate-400 border-2 border-white rounded-full"></div>
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm hover:underline cursor-pointer">Marcus Chen</h4>
-                      <p className="text-xs text-slate-500">Student • Physics Major</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <div className="relative">
-                      <button 
-                        onClick={() => {
-                          setActiveRoleMenuId(activeRoleMenuId === 'member-2' ? null : 'member-2');
-                          setActiveOptionsMenuId(null);
-                        }}
-                        className={`flex items-center gap-1 text-sm font-medium transition-colors px-2 py-1 rounded
-                          ${activeRoleMenuId === 'member-2' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}
-                        `}
-                      >
-                        Member <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                      </button>
-                      
-                      {activeRoleMenuId === 'member-2' && (
-                        <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 animate-in zoom-in-95 duration-100">
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Owner</button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-blue-600 font-medium bg-blue-50/50 flex justify-between items-center">
-                            Member
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Guest</button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="relative">
-                      <button 
-                        onClick={() => {
-                          setActiveOptionsMenuId(activeOptionsMenuId === 'member-2' ? null : 'member-2');
-                          setActiveRoleMenuId(null);
-                        }}
-                        className={`p-1.5 rounded-md transition-colors
-                          ${activeOptionsMenuId === 'member-2' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 opacity-0 group-hover:opacity-100'}
-                        `}
-                      >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
-                      </button>
-
-                      {activeOptionsMenuId === 'member-2' && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 animate-in zoom-in-95 duration-100">
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                            View profile
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                            Message
-                          </button>
-                          <div className="h-px bg-slate-100 my-1"></div>
-                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-                            Mute student
-                          </button>
-                          <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 group/delete">
-                            <svg className="w-4 h-4 text-red-400 group-hover/delete:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" /></svg>
-                            Remove from class
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Widgets bên phải của tab Members (Giữ nguyên) */}
-      <div className="w-80 hidden xl:block space-y-8 animate-in fade-in duration-300 ml-8">
-        <div>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Upcoming Events</h3>
-          <div className="space-y-3">
-            <div className="bg-white border border-slate-200 rounded-lg p-3 flex gap-4 shadow-sm hover:border-blue-300 transition-colors cursor-pointer">
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded flex flex-col items-center justify-center flex-shrink-0">
-                <span className="text-[10px] font-bold uppercase">Aug</span>
-                <span className="text-lg font-bold leading-none">28</span>
-              </div>
-              <div className="flex flex-col justify-center">
-                <h4 className="font-semibold text-sm text-slate-900">Introductory Quiz</h4>
-                <p className="text-xs text-slate-500">10:00 AM - Online</p>
-              </div>
+        {/* Quick Stats */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h3 className="text-sm font-semibold text-gray-900 mb-4">QUICK STATS</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <span className="text-sm text-gray-700">Online Now</span>
+              <span className="text-lg font-bold text-green-600">{stats.onlineNow}</span>
             </div>
-            
-            <div className="bg-white border border-slate-200 rounded-lg p-3 flex gap-4 shadow-sm hover:border-blue-300 transition-colors cursor-pointer">
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded flex flex-col items-center justify-center flex-shrink-0">
-                <span className="text-[10px] font-bold uppercase">Sep</span>
-                <span className="text-lg font-bold leading-none">02</span>
-              </div>
-              <div className="flex flex-col justify-center">
-                <h4 className="font-semibold text-sm text-slate-900">Lab Session #1</h4>
-                <p className="text-xs text-slate-500">2:00 PM - Lab A</p>
-              </div>
+            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+              <span className="text-sm text-gray-700">Teachers</span>
+              <span className="text-lg font-bold text-blue-600">{stats.teachers}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+              <span className="text-sm text-gray-700">Pending Invites</span>
+              <span className="text-lg font-bold text-purple-600">{stats.pending}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        <div>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Class Materials</h3>
-          <div className="space-y-2">
-            <button className="w-full flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-                <span className="font-medium text-sm text-slate-700">Lecture Slides</span>
+      {/* ========== FILTER MODAL ========== */}
+      {showFilterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/20">
+          <div className="bg-white w-96 h-full shadow-xl overflow-y-auto animate-in slide-in-from-right">
+            <div className="p-6 border-b border-gray-200 sticky top-0 bg-white">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-900">Filters & Sorting</h2>
+                <button
+                  onClick={() => setShowFilterModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-            </button>
-            <button className="w-full flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 transition-colors">
-              <div className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span className="font-medium text-sm text-slate-700">Recordings</span>
+              <p className="text-sm text-gray-600">Refine your member view</p>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Sort By */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                  SORT BY
+                </h3>
+                <div className="space-y-2">
+                  {['Name (A-Z)', 'Recent Activity', 'Joining Date'].map((option) => (
+                    <label key={option} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                      <input
+                        type="radio"
+                        name="sort"
+                        checked={filters.sortBy === option.toLowerCase().split(' ')[0]}
+                        onChange={() => setFilters(prev => ({ ...prev, sortBy: option.toLowerCase().split(' ')[0] as any }))}
+                        className="w-4 h-4 border-gray-300 text-blue-600"
+                      />
+                      <span className="text-sm text-gray-700">{option}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-            </button>
+
+              {/* Role */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.856-1.487M15 20H9m8-4h.01M15 16h.01M9 20H4v-2a6 6 0 0112 0v2zm6-12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  ROLE
+                </h3>
+                <div className="space-y-2">
+                  {['Owner', 'Member', 'Guest'].map((role) => (
+                    <label key={role} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                      <input
+                        type="checkbox"
+                        checked={filters.role.includes(role)}
+                        onChange={() => handleToggleRole(role)}
+                        className="w-4 h-4 border-gray-300 text-blue-600 rounded"
+                      />
+                      <span className="text-sm text-gray-700">{role}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  STATUS
+                </h3>
+                <div className="space-y-2">
+                  {['Active', 'Away', 'Pending'].map((status) => (
+                    <label key={status} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                      <input
+                        type="checkbox"
+                        checked={filters.status.includes(status)}
+                        onChange={() => handleToggleStatus(status)}
+                        className="w-4 h-4 border-gray-300 text-blue-600 rounded"
+                      />
+                      <span className="text-sm text-gray-700">{status}</span>
+                      <span className="ml-auto text-xs text-gray-500">
+                        {mockMembers.filter(m => m.status === status).length}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-200 sticky bottom-0 bg-white space-y-2">
+              <button
+                onClick={handleReset}
+                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reset
+              </button>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                Apply Filters
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </>
+      )}
+    </div>
   );
 }
