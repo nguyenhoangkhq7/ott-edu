@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 // Import 3 file Tab mà chúng ta đã tạo
 import TeamPostsTab from '@/modules/teams/TeamPostsTab';
@@ -9,13 +10,15 @@ import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
 
 export default function TeamDetailPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('posts');
+  const [showActionMenu, setShowActionMenu] = useState(false);
 
   return (
     <div className="flex h-[calc(100vh-60px)] w-full bg-white text-slate-800">
       
       {/* ================= CỘT TRÁI: Sidebar của Nhóm ================= */}
-      <div className="w-[260px] border-r border-slate-200 bg-[#f8f9fa] flex flex-col flex-shrink-0">
+      <div className="w-65 border-r border-slate-200 bg-[#f8f9fa] flex flex-col shrink-0">
         <div className="p-3">
           <Link href="/teams" className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 font-medium w-fit transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -25,7 +28,7 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
 
         <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-slate-200/50 rounded-md mx-2 transition-colors mb-2">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">AM</div>
+            <div className="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">AM</div>
             <span className="font-semibold text-sm truncate">Advanced Math...</span>
           </div>
           <button className="text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100">
@@ -97,11 +100,62 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
         
         {/* Header & Tabs */}
         <div className="px-8 pt-8 border-b border-slate-200">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-2xl shadow-sm border border-blue-100">Σ</div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Advanced Mathematics - Section B</h1>
-              <p className="text-sm text-slate-500 mt-0.5">2024 Fall Semester • Room 402</p>
+          <div className="flex items-center gap-4 mb-6 justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-2xl shadow-sm border border-blue-100">Σ</div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">Advanced Mathematics - Section B</h1>
+                <p className="text-sm text-slate-500 mt-0.5">2024 Fall Semester • Room 402</p>
+              </div>
+            </div>
+            
+            {/* ACTION MENU DROPDOWN */}
+            <div className="relative">
+              <button
+                onClick={() => setShowActionMenu(!showActionMenu)}
+                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {showActionMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <button
+                    onClick={() => {
+                      setShowActionMenu(false);
+                      router.push(`/teams/${params.id}/edit`);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 transition-colors border-b border-slate-100"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Edit Class
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowActionMenu(false);
+                      // Archive class functionality
+                      alert('Archive class feature coming soon');
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-600 flex items-center gap-2 transition-colors border-b border-slate-100"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9-3h4m-3 4h.01M9 16h.01M15 16h.01" /></svg>
+                    Archive Class
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowActionMenu(false);
+                      router.push(`/teams/${params.id}/cancel`);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm text-red-700 hover:bg-red-50 flex items-center gap-2 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Cancel Class
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
