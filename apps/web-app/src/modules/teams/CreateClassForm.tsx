@@ -7,159 +7,428 @@ interface CreateClassFormProps {
   onBack: () => void;
 }
 
+interface ClassFormData {
+  name: string;
+  description: string;
+  isPrivate: boolean;
+  joinCode?: string;
+}
+
 export default function CreateClassForm({ onBack }: CreateClassFormProps) {
   const router = useRouter();
   
-  // State lưu tên lớp học người dùng nhập vào
-  const [className, setClassName] = useState('');
+  // State quản lý step của form
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+  
+  // State quản lý dữ liệu form - dễ mapping với API
+  const [formData, setFormData] = useState<ClassFormData>({
+    name: '',
+    description: '',
+    isPrivate: true,
+    joinCode: generateJoinCode(),
+  });
   
   // State điều khiển việc Ẩn/Hiện Modal thành công
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleCreate = () => {
-    // Nếu chưa nhập tên thì cảnh báo (UX cơ bản)
-    if (!className.trim()) {
-      alert("Please enter a class name!");
+  // Hàm sinh mã tham gia ngẫu nhiên
+  function generateJoinCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
+
+  // Xử lý thay đổi dữ liệu form
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  // Xử lý thay đổi privacy
+  const handlePrivacyChange = (isPrivate: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      isPrivate,
+    }));
+  };
+
+  // Xử lý bước tiếp theo
+  const handleNext = () => {
+    if (!formData.name.trim()) {
+      alert('Please enter a class name!');
       return;
     }
-    
-    // Gọi API lưu dữ liệu ở đây...
-    
-    // Hiện modal thành công
-    setShowSuccessModal(true);
+    setCurrentStep(2);
+  };
+
+  // Xử lý tạo lớp học
+  const handleCreate = async () => {
+    if (!formData.name.trim()) {
+      alert('Please enter a class name!');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // TODO: Uncomment khi backend sẵn sàng
+      /*
+      const response = await fetch('/api/teams', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          description: formData.description,
+          isPrivate: formData.isPrivate,
+          joinCode: formData.joinCode,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create class');
+      }
+
+      const result = await response.json();
+      console.log('Class created:', result);
+      */
+      
+      // Mock API - simulate delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Hiện modal thành công
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error('Error creating class:', error);
+      alert('Failed to create class. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <>
-      {/* FORM TẠO LỚP HỌC */}
-      <div className="flex flex-col items-center justify-center min-h-full w-full pt-10 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-300">
-        <div className="bg-white w-full max-w-xl rounded-xl shadow-lg border border-gray-200 overflow-hidden relative">
-          
-          <button onClick={onBack} className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+      {/* STEP 1: ESSENTIALS */}
+      {currentStep === 1 && (
+        <div className="flex flex-col items-center justify-center min-h-screen w-full py-10 px-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-gray-200 overflow-hidden relative max-h-[90vh] overflow-y-auto">
+            
+            {/* Close button */}
+            <button onClick={onBack} className="absolute top-5 right-5 text-gray-400 hover:text-gray-600 transition-colors z-10">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
 
-          <div className="p-8">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">Create a class</h2>
-              <p className="text-sm text-gray-500">Instructors use classes to organize students and assignments.</p>
+            <div className="p-8">
+              {/* Header */}
+              <div className="mb-8">
+                <div className="text-xs font-bold text-blue-600 tracking-widest mb-2">01 — ESSENTIALS</div>
+                <h2 className="text-4xl font-bold text-gray-900 mb-3">Design the future of your classroom</h2>
+                <p className="text-lg text-gray-600">Create a specialized space for collaboration, content sharing, and personalized learning journeys.</p>
+              </div>
+
+              {/* Form Fields */}
+              <div className="space-y-6">
+                {/* Class Name */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Class Name <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Advanced Economics 101"
+                    className="w-full border border-gray-300 rounded-lg p-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-700">Description</label>
+                    <span className="text-xs text-gray-500">(Optional)</span>
+                  </div>
+                  <textarea 
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    placeholder="Share the goals and vision for this group..."
+                    className="w-full border border-gray-300 rounded-lg p-3 text-base h-32 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  />
+                </div>
+
+                {/* Privacy Section */}
+                <div>
+                  <div className="text-xs font-bold text-gray-500 tracking-widest mb-4">02 — PRIVACY</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Private Option */}
+                    <button
+                      onClick={() => handlePrivacyChange(true)}
+                      className={`relative p-5 rounded-xl border-2 transition-all ${
+                        formData.isPrivate 
+                          ? 'border-blue-600 bg-blue-50' 
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 ${
+                          formData.isPrivate 
+                            ? 'border-blue-600 bg-blue-600' 
+                            : 'border-gray-300 bg-white'
+                        }`}>
+                          {formData.isPrivate && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="text-left">
+                          <h3 className="font-semibold text-gray-900">Private</h3>
+                          <p className="text-xs text-gray-600 mt-1">Only class owners can add members to this space.</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Public Option */}
+                    <button
+                      onClick={() => handlePrivacyChange(false)}
+                      className={`relative p-5 rounded-xl border-2 transition-all ${
+                        !formData.isPrivate 
+                          ? 'border-blue-600 bg-blue-50' 
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 ${
+                          !formData.isPrivate 
+                            ? 'border-blue-600 bg-blue-600' 
+                            : 'border-gray-300 bg-white'
+                        }`}>
+                          {!formData.isPrivate && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="text-left">
+                          <h3 className="font-semibold text-gray-900">Public</h3>
+                          <p className="text-xs text-gray-600 mt-1">Anyone in your organization can find and join.</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Join Code */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-semibold text-gray-700">Join Code</label>
+                    <button 
+                      onClick={() => setFormData(prev => ({ ...prev, joinCode: generateJoinCode() }))}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                  <input 
+                    type="text" 
+                    value={formData.joinCode}
+                    readOnly
+                    className="w-full border border-blue-300 rounded-lg p-2 text-sm font-mono bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <p className="text-xs text-gray-600 mt-2">Share this code with students to join your class.</p>
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex gap-3 mt-8">
+                <svg className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  By creating this class, you will be automatically assigned as the Primary Instructor. You can invite colleagues and students once the setup is complete.
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-5 mb-6">
-              <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-gray-400">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-gray-800">Class Avatar</h3>
-                <p className="text-xs text-gray-500 mb-2">Set a custom visual identity for your class. Recommended: 512x512px.</p>
-                <button className="px-4 py-1.5 border border-gray-300 rounded text-sm font-medium hover:bg-gray-50 transition-colors">
-                  Upload image
+            {/* Footer */}
+            <div className="border-t border-gray-200 bg-gray-50 p-6 flex justify-between items-center">
+              <button 
+                onClick={onBack} 
+                className="px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500">NEXT STEP</span>
+                <button 
+                  onClick={handleNext}
+                  className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                >
+                  Next Step →
                 </button>
               </div>
             </div>
-
-            <div className="mb-5">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
-              <input 
-                type="text" 
-                value={className}
-                onChange={(e) => setClassName(e.target.value)}
-                placeholder="e.g., Java Programming - K65"
-                className="w-full border border-gray-300 rounded-md p-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-              />
-            </div>
-
-            <div className="mb-6">
-              <div className="flex justify-between mb-1">
-                <label className="block text-sm font-semibold text-gray-700">Description</label>
-                <span className="text-xs text-gray-400">(Optional)</span>
-              </div>
-              <textarea 
-                placeholder="Tell your students what this class is about..."
-                className="w-full border border-gray-300 rounded-md p-2.5 text-sm h-28 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-              ></textarea>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 flex gap-3">
-              <div className="text-gray-400 mt-0.5">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-              </div>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                By creating this class, you will be automatically assigned as the Primary Instructor. You can invite colleagues and students once the setup is complete.
-              </p>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-100 bg-gray-50/50 p-6 flex justify-end gap-3">
-            <button onClick={onBack} className="px-5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
-              Cancel
-            </button>
-            <button 
-              onClick={handleCreate} 
-              className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
-            >
-              Create
-            </button>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* MODAL THÔNG BÁO THÀNH CÔNG */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 relative overflow-hidden animate-in zoom-in-95 duration-200">
+      {/* STEP 2: ADD MEMBERS (Optional) */}
+      {currentStep === 2 && (
+        <div className="flex flex-col items-center justify-center min-h-screen w-full py-10 px-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-white w-full max-w-2xl rounded-xl shadow-lg border border-gray-200 overflow-hidden max-h-[90vh] overflow-y-auto">
             
-            {/* Dải viền màu dưới cùng */}
-            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-emerald-400"></div>
+            <div className="p-8">
+              {/* Header */}
+              <div className="mb-8">
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">Add members to <span className="text-blue-600">{formData.name}</span></h2>
+                <p className="text-gray-600">Shape your cohort by inviting students and teachers to your digital workspace.</p>
+              </div>
 
-            {/* Icon Thành công */}
-            <div className="relative w-20 h-20 mx-auto mb-6">
-              {/* Các chấm trang trí */}
-              <div className="absolute top-1 right-2 w-2 h-2 bg-blue-400 rounded-full"></div>
-              <div className="absolute bottom-2 left-0 w-3 h-3 bg-emerald-300 rounded-full"></div>
-              {/* Vòng tròn xanh lá */}
-              <div className="absolute inset-0 m-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
-                <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-sm">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+              {/* Tabs */}
+              <div className="flex gap-2 mb-6 border-b border-gray-200">
+                <button className="px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-t-lg">Students</button>
+                <button className="px-4 py-3 text-sm font-medium text-gray-600 hover:text-gray-900">Teachers</button>
+              </div>
+
+              {/* Search and Selected Members */}
+              <div className="mb-8">
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <input 
+                    type="text" 
+                    placeholder="Search for students..." 
+                    className="flex-1 min-w-60 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                {/* Suggested */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-4">Suggested Candidates</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      { name: 'Alex Rivera', email: 'a.rivera@school.edu', avatar: '🧑' },
+                      { name: 'Elena Sofia', email: 'e.sofia@school.edu', avatar: '👩' },
+                      { name: 'James Wilson', email: 'j.wilson@school.edu', avatar: '🧑' },
+                      { name: 'Mia Chen', email: 'm.chen@school.edu', avatar: '👩' },
+                    ].map((member, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                            {member.avatar}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{member.name}</p>
+                            <p className="text-xs text-gray-500">{member.email}</p>
+                          </div>
+                        </div>
+                        <button className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right panel - Scale tip */}
+              <div className="bg-blue-600 text-white rounded-lg p-6">
+                <div className="flex items-start gap-3">
+                  <svg className="w-6 h-6 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <div>
+                    <h3 className="font-semibold mb-2">Scale your Classroom</h3>
+                    <p className="text-sm text-blue-100">Handing a large enrollment? Import your roster instantly via CSV and skip the manual search.</p>
+                    <button className="mt-3 text-sm font-medium bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                      Import CSV →
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Nội dung thông báo */}
-            <h3 className="text-xl font-bold text-center text-slate-900 mb-2">Your class is ready!</h3>
-            <p className="text-center text-slate-500 text-sm mb-8 leading-relaxed">
-              &quot;{className}&quot; has been successfully created. You can now start managing your curriculum and inviting students.
-            </p>
-
-            {/* Cụm Nút bấm */}
-            <button
-              onClick={() => router.push('/teams')}
-              className="w-full bg-[#1868f0] hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 mb-3 transition-colors"
-            >
-              Go to Class
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-            </button>
-
-            <button
-              onClick={() => alert('Chức năng thêm thành viên đang phát triển!')}
-              className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 mb-6 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" /></svg>
-              Add Members now
-            </button>
-
-            <div className="text-center">
-              <button
-                onClick={() => router.push('/teams')}
-                className="text-sm text-slate-400 hover:text-slate-600 font-medium transition-colors"
+            {/* Footer */}
+            <div className="border-t border-gray-200 bg-gray-50 p-6 flex justify-between items-center">
+              <button 
+                onClick={() => setCurrentStep(1)}
+                className="px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                Maybe later
+                Back
               </button>
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleCreate}
+                  disabled={isLoading}
+                  className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                >
+                  {isLoading ? 'Creating...' : 'Create Class'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUCCESS MODAL */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 relative overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Decorative stripe at bottom */}
+            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 to-emerald-400"></div>
+
+            {/* Success Icon */}
+            <div className="relative w-20 h-20 mx-auto mb-6">
+              <div className="absolute top-1 right-2 w-2 h-2 bg-blue-400 rounded-full"></div>
+              <div className="absolute bottom-2 left-0 w-3 h-3 bg-emerald-300 rounded-full"></div>
+              <div className="absolute inset-0 m-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-sm">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
             </div>
 
+            {/* Content */}
+            <h3 className="text-2xl font-bold text-center text-slate-900 mb-3">Class created successfully!</h3>
+            <p className="text-center text-slate-600 text-sm mb-8 leading-relaxed">
+              &quot;{formData.name}&quot; is ready for your students. We&apos;ve synchronized your syllabus and reading lists.
+            </p>
+
+            {/* Class Info */}
+            <div className="bg-slate-50 rounded-lg p-4 mb-8">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Class Code:</span>
+                  <span className="font-mono font-semibold text-gray-900">{formData.joinCode}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Privacy:</span>
+                  <span className="font-medium text-gray-900">{formData.isPrivate ? 'Private' : 'Public'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <button
+              onClick={() => router.push('/teams')}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors mb-3"
+            >
+              Go to Class
+            </button>
+
+            <button
+              onClick={() => setCurrentStep(1)}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-3 rounded-lg transition-colors"
+            >
+              Create Another Class
+            </button>
           </div>
         </div>
       )}
