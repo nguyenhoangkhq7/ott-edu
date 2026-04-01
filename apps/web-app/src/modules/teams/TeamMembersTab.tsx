@@ -21,12 +21,12 @@ interface FilterState {
 
 export default function TeamMembersTab() {
   // Mock data - sẽ thay bằng API call
-  const mockMembers: TeamMember[] = [
+  const mockMembers: TeamMember[] = useMemo(() => [
     { id: '1', name: 'Alex Rivera', email: 'a.rivera@school.edu', role: 'Owner', status: 'Active', joinDate: '2024-01-15', avatar: '👨' },
     { id: '2', name: 'Marcus Chen', email: 'm.chen@school.edu', role: 'Member', status: 'Away', joinDate: '2024-02-20', avatar: '👨' },
     { id: '3', name: 'Jordan Day', email: 'j.day@school.edu', role: 'Member', status: 'Active', joinDate: '2024-03-10', avatar: '👨' },
     { id: '4', name: 'Elena Sofia', email: 'e.sofia@school.edu', role: 'Member', status: 'Pending', joinDate: '2024-04-01', avatar: '👩' },
-  ];
+  ], []);
 
   // State
   const [currentTab, setCurrentTab] = useState<'Students' | 'Teachers'>('Students');
@@ -195,7 +195,7 @@ export default function TeamMembersTab() {
                 <tr key={member.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
+                      <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
                         {member.avatar}
                       </div>
                       <div>
@@ -260,7 +260,7 @@ export default function TeamMembersTab() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
+                className="bg-linear-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
                 style={{ width: `${(stats.total / stats.capacity) * 100}%` }}
               />
             </div>
