@@ -102,7 +102,7 @@ export default function MembersTab() {
             <View style={styles.headerLeft}>
               <Ionicons name={showMembers ? "chevron-down" : "chevron-forward"} size={18} color="#64748b" />
               <Text style={styles.headerTitle}>Members and guests</Text>
-              <View style={styles.badge}><Text style={styles.badgeText}>24</Text></View>
+              <View style={styles.badge}><Text style={styles.badgeText}>{MEMBERS.length}</Text></View>
             </View>
           </TouchableOpacity>
 
@@ -127,6 +127,7 @@ export default function MembersTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
   scrollContent: { padding: 16, paddingBottom: 100 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
   // Search Bar
   searchContainer: {

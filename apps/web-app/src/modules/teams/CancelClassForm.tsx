@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { httpService } from '@/services/api/http.service';
 
 interface CancelClassFormProps {
   onBack: () => void;
@@ -29,12 +30,12 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
   // State loading
   const [isLoading, setIsLoading] = useState(false);
 
-  const mockClassData = classData || {
-    id: '1',
-    name: 'Advanced Mathematics - Section B',
-    initials: 'AM',
-    accentColor: '#3498db',
-    memberCount: 28,
+  const displayData = classData || {
+    id: '0',
+    name: 'Unknown Class',
+    initials: '?',
+    accentColor: '#94a3b8',
+    memberCount: 0,
   };
 
   const handleCancel = async () => {
@@ -50,15 +51,17 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
 
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Call API để hủy lớp học
-      // await cancelClassAPI(mockClassData.id, cancellationReason);
+      // Call real backend API
+      if (displayData.id !== '0') {
+        await httpService.patch(`/teams/${displayData.id}/cancel`);
+      }
       
       setShowSuccessModal(true);
-    } catch {
-      alert('Failed to cancel class. Please try again.');
+    } catch (error: any) {
+      console.error(error);
+      const detail = error.message || 'Please check your role permissions.';
+      alert(`Failed to cancel class.\nDetails: ${detail}`);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -89,16 +92,16 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
               <div className="flex items-center gap-4">
                 <div 
                   className="w-20 h-20 rounded-xl flex items-center justify-center text-white font-bold text-3xl shadow-md shrink-0"
-                  style={{ backgroundColor: mockClassData.accentColor }}
+                  style={{ backgroundColor: displayData.accentColor }}
                 >
-                  {mockClassData.initials}
+                  {displayData.initials}
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{mockClassData.name}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{displayData.name}</h3>
                   <div className="flex gap-6">
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM9 10a6 6 0 016 6H3a6 6 0 016-6zM21 10a1 1 0 11-2 0 1 1 0 012 0z" /></svg>
-                      <span>{mockClassData.memberCount || 0} students</span>
+                      <span>{displayData.memberCount || 0} students</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0 4 4 0 008 0zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18a4 4 0 00-8 0 4 4 0 008 0z" /></svg>
@@ -231,7 +234,7 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
             {/* Notification Content */}
             <h3 className="text-xl font-bold text-center text-slate-900 mb-2">Class cancelled</h3>
             <p className="text-center text-slate-500 text-sm mb-2 leading-relaxed">
-              &quot;{mockClassData.name}&quot; has been successfully cancelled.
+              &quot;{displayData.name}&quot; has been successfully cancelled.
             </p>
             <p className="text-center text-slate-500 text-xs mb-8 leading-relaxed">
               All students have been notified. Class data has been permanently deleted.

@@ -1,18 +1,61 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { httpService } from '@/services/api/http.service';
 
 // Import 3 file Tab mà chúng ta đã tạo
 import TeamPostsTab from '@/modules/teams/TeamPostsTab';
 import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
 
-export default function TeamDetailPage({ params }: { params: { id: string } }) {
+export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
+  const { id } = React.use(params);
   const [activeTab, setActiveTab] = useState('posts');
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [teamData, setTeamData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTeam = async () => {
+      try {
+        const data = await httpService.get<any>(`/teams/${id}`);
+        setTeamData(data);
+      } catch (error) {
+        console.error("Failed to fetch team details:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (id) fetchTeam();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+          <p className="text-slate-500 font-medium animate-pulse">Loading class workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!teamData) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-center">
+        <h2 className="text-2xl font-bold text-slate-800 mb-2">Class Not Found</h2>
+        <p className="text-slate-600 mb-6">We couldn't find the class you're looking for or you may not have access.</p>
+        <button onClick={() => router.push('/teams')} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          Back to Teams
+        </button>
+      </div>
+    );
+  }
+
+  const initials = teamData.name ? teamData.name.substring(0, 2).toUpperCase() : '??';
 
   return (
     <div className="flex h-[calc(100vh-60px)] w-full bg-white text-slate-800">
@@ -28,8 +71,10 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
 
         <div className="px-4 py-3 flex items-center justify-between group cursor-pointer hover:bg-slate-200/50 rounded-md mx-2 transition-colors mb-2">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">AM</div>
-            <span className="font-semibold text-sm truncate">Advanced Math...</span>
+            <div className="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+              {initials}
+            </div>
+            <span className="font-semibold text-sm truncate">{teamData.name}</span>
           </div>
           <button className="text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
@@ -62,7 +107,6 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
             </h3>
           </div>
           <ul className="space-y-1 px-3">
-            {/* Giao bài tập */}
             <li>
               <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
                 <div className="w-6 h-6 rounded flex items-center justify-center bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
@@ -71,24 +115,12 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
                 Assignments
               </button>
             </li>
-
-            {/* Trắc nghiệm online */}
             <li>
               <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
                 <div className="w-6 h-6 rounded flex items-center justify-center bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
                 Online Quizzes
-              </button>
-            </li>
-
-            {/* Quản lý điểm */}
-            <li>
-              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
-                <div className="w-6 h-6 rounded flex items-center justify-center bg-amber-100 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                </div>
-                Gradebook
               </button>
             </li>
           </ul>
@@ -98,18 +130,42 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
       {/* ================= CỘT PHẢI: Nội dung chính ================= */}
       <div className="flex-1 flex flex-col min-w-0 bg-white">
         
+        {/* WARNING BANNER FOR CANCELLED CLASSES */}
+        {(teamData?.isActive === false || teamData?.active === false) && (
+          <div className="bg-red-600 text-white px-8 py-3 flex items-center justify-between shadow-md">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              <div className="text-sm font-medium">
+                <span className="font-bold">INACTIVE CLASS:</span> This class has been cancelled. It is hidden from students and all activities are suspended.
+              </div>
+            </div>
+            <button 
+              onClick={() => router.push(`/teams/${id}/edit`)}
+              className="text-xs font-bold bg-white text-red-600 px-3 py-1.5 rounded hover:bg-red-50 transition-colors uppercase"
+            >
+              Manage Status
+            </button>
+          </div>
+        )}
+
         {/* Header & Tabs */}
         <div className="px-8 pt-8 border-b border-slate-200">
           <div className="flex items-center gap-4 mb-6 justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-2xl shadow-sm border border-blue-100">Σ</div>
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-2xl shadow-sm border border-blue-100">
+                {initials[0]}
+              </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Advanced Mathematics - Section B</h1>
-                <p className="text-sm text-slate-500 mt-0.5">2024 Fall Semester • Room 402</p>
+                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                  {teamData.name}
+                  {(teamData.isActive === false || teamData.active === false) && (
+                    <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase tracking-tighter border border-red-200">Cancelled</span>
+                  )}
+                </h1>
+                <p className="text-sm text-slate-500 mt-0.5 truncate max-w-xl">{teamData.description || 'No description provided'}</p>
               </div>
             </div>
             
-            {/* ACTION MENU DROPDOWN */}
             <div className="relative">
               <button
                 onClick={() => setShowActionMenu(!showActionMenu)}
@@ -118,13 +174,12 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
               </button>
 
-              {/* Dropdown Menu */}
               {showActionMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                   <button
                     onClick={() => {
                       setShowActionMenu(false);
-                      router.push(`/teams/${params.id}/edit`);
+                      router.push(`/teams/${id}/edit`);
                     }}
                     className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 transition-colors border-b border-slate-100"
                   >
@@ -135,24 +190,12 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
                   <button
                     onClick={() => {
                       setShowActionMenu(false);
-                      // Archive class functionality
-                      alert('Archive class feature coming soon');
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-amber-50 hover:text-amber-600 flex items-center gap-2 transition-colors border-b border-slate-100"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9-3h4m-3 4h.01M9 16h.01M15 16h.01" /></svg>
-                    Archive Class
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowActionMenu(false);
-                      router.push(`/teams/${params.id}/cancel`);
+                      router.push(`/teams/${id}/cancel`);
                     }}
                     className="w-full px-4 py-2.5 text-left text-sm text-red-700 hover:bg-red-50 flex items-center gap-2 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    Cancel Class
+                    {(teamData.isActive === false || teamData.active === false) ? 'Restore Class (Soon)' : 'Cancel Class'}
                   </button>
                 </div>
               )}
@@ -176,14 +219,11 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* ================= GỌI COMPONENT TỪNG TAB Ở ĐÂY ================= */}
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] p-8">
-          <div className="max-w-6xl mx-auto flex gap-8">
-            
+          <div className="max-w-6xl mx-auto">
             {activeTab === 'posts' && <TeamPostsTab />}
             {activeTab === 'files' && <TeamFilesTab />}
             {activeTab === 'members' && <TeamMembersTab />}
-
           </div>
         </div>
       </div>

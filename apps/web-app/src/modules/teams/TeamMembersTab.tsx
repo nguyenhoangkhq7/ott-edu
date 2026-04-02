@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import { httpService } from '@/services/api/http.service';
 
 interface TeamMember {
   id: string;
@@ -10,6 +12,7 @@ interface TeamMember {
   status: 'Active' | 'Away' | 'Pending';
   joinDate: string;
   avatar?: string;
+  initials?: string;
 }
 
 interface FilterState {
@@ -20,15 +23,14 @@ interface FilterState {
 }
 
 export default function TeamMembersTab() {
-  // Mock data - sẽ thay bằng API call
-  const mockMembers: TeamMember[] = useMemo(() => [
-    { id: '1', name: 'Alex Rivera', email: 'a.rivera@school.edu', role: 'Owner', status: 'Active', joinDate: '2024-01-15', avatar: '👨' },
-    { id: '2', name: 'Marcus Chen', email: 'm.chen@school.edu', role: 'Member', status: 'Away', joinDate: '2024-02-20', avatar: '👨' },
-    { id: '3', name: 'Jordan Day', email: 'j.day@school.edu', role: 'Member', status: 'Active', joinDate: '2024-03-10', avatar: '👨' },
-    { id: '4', name: 'Elena Sofia', email: 'e.sofia@school.edu', role: 'Member', status: 'Pending', joinDate: '2024-04-01', avatar: '👩' },
-  ], []);
+  const params = useParams();
+  const teamId = params?.id;
 
   // State
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [currentTab, setCurrentTab] = useState<'Students' | 'Teachers'>('Students');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
@@ -38,9 +40,50 @@ export default function TeamMembersTab() {
     sortBy: 'name',
   });
 
-  // Filtered members
+  // Fetch real members from API
+  useEffect(() => {
+    if (!teamId) return;
+
+    const fetchMembers = async () => {
+      try {
+        setIsLoading(true);
+        const data = await httpService.get<any[]>(`/teams/${teamId}/members`);
+        
+        // Map backend response to UI interface
+        const mappedMembers: TeamMember[] = data.map(m => ({
+          id: String(m.id),
+          name: m.fullName || 'Unknown User',
+          email: m.email,
+          role: m.role === 'TEACHER' ? 'Owner' : 'Member',
+          status: 'Active', // For now, we don't have real-time status
+          joinDate: m.joinedAt ? new Date(m.joinedAt).toISOString().split('T')[0] : '',
+          avatar: m.avatarUrl,
+          initials: (m.fullName || 'U').substring(0, 2).toUpperCase()
+        }));
+
+        setMembers(mappedMembers);
+        setError(null);
+      } catch (err: any) {
+        console.error("Failed to fetch members:", err);
+        setError(err.message || "Failed to load class members.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMembers();
+  }, [teamId]);
+
+  // Filtered members based on Tab and Filters
   const filteredMembers = useMemo(() => {
-    let result = mockMembers;
+    let result = members;
+
+    // Tab filter: Students vs Teachers
+    if (currentTab === 'Students') {
+        result = result.filter(m => m.role === 'Member');
+    } else {
+        result = result.filter(m => m.role === 'Owner');
+    }
 
     // Search filter
     if (filters.searchTerm) {
@@ -51,33 +94,29 @@ export default function TeamMembersTab() {
       );
     }
 
-    // Role filter
+    // Role filter (within modal)
     if (filters.role.length > 0) {
       result = result.filter(m => filters.role.includes(m.role));
     }
 
-    // Status filter
-    if (filters.status.length > 0) {
-      result = result.filter(m => filters.status.includes(m.status));
-    }
-
     // Sorting
     if (filters.sortBy === 'name') {
-      result.sort((a, b) => a.name.localeCompare(b.name));
+      result = [...result].sort((a, b) => a.name.localeCompare(b.name));
     } else if (filters.sortBy === 'joinDate') {
-      result.sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime());
+      result = [...result].sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime());
     }
 
     return result;
-  }, [filters, mockMembers]);
+  }, [filters, members, currentTab]);
 
   // Stats
   const stats = {
-    total: mockMembers.length,
+    total: members.length,
     capacity: 50,
-    onlineNow: mockMembers.filter(m => m.status === 'Active').length,
-    teachers: mockMembers.filter(m => m.role === 'Owner').length,
-    pending: mockMembers.filter(m => m.status === 'Pending').length,
+    onlineNow: members.filter(m => m.status === 'Active').length,
+    teachers: members.filter(m => m.role === 'Owner').length,
+    students: members.filter(m => m.role === 'Member').length,
+    pending: members.filter(m => m.status === 'Pending').length,
   };
 
   const handleToggleRole = (role: string) => {
@@ -107,8 +146,38 @@ export default function TeamMembersTab() {
     });
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 w-full animate-in fade-in duration-500">
+        <div className="relative w-16 h-16">
+            <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-100 rounded-full"></div>
+            <div className="absolute top-0 left-0 w-full h-full border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+        </div>
+        <p className="text-gray-500 mt-6 font-medium animate-pulse">Syncing member directory...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center w-full max-w-2xl mx-auto mt-10">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            </div>
+            <h3 className="text-lg font-bold text-red-900 mb-2">Access Error</h3>
+            <p className="text-red-700 text-sm mb-6">{error}</p>
+            <button 
+                onClick={() => window.location.reload()}
+                className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors"
+            >
+                Retry Connection
+            </button>
+        </div>
+    );
+  }
+
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
       {/* ========== LEFT: MAIN CONTENT ========== */}
       <div className="flex-1 min-w-0">
         {/* Header */}
@@ -126,7 +195,7 @@ export default function TeamMembersTab() {
                     : 'text-gray-600 border-transparent hover:text-gray-900'
                 }`}
               >
-                Students
+                Students ({stats.students})
               </button>
               <button
                 onClick={() => setCurrentTab('Teachers')}
@@ -136,7 +205,7 @@ export default function TeamMembersTab() {
                     : 'text-gray-600 border-transparent hover:text-gray-900'
                 }`}
               >
-                Teachers
+                Teachers ({stats.teachers})
               </button>
             </div>
 
@@ -158,10 +227,10 @@ export default function TeamMembersTab() {
             <div className="flex-1 relative">
               <input
                 type="text"
-                placeholder="Search members by name or email..."
+                placeholder={`Search ${currentTab.toLowerCase()} by name or email...`}
                 value={filters.searchTerm}
                 onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-gray-400"
               />
               <svg className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -180,65 +249,76 @@ export default function TeamMembersTab() {
         </div>
 
         {/* Members Table */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-gray-50/50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Member Name</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Member</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined Date</th>
+                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Manage</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredMembers.map((member) => (
-                <tr key={member.id} className="hover:bg-gray-50 transition-colors">
+            <tbody className="divide-y divide-gray-100">
+              {filteredMembers.length > 0 ? filteredMembers.map((member) => (
+                <tr key={member.id} className="hover:bg-blue-50/30 transition-colors group">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold">
-                        {member.avatar}
-                      </div>
+                      {member.avatar ? (
+                          <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                            {member.initials}
+                        </div>
+                      )}
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{member.name}</p>
+                        <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{member.name}</p>
                         <p className="text-xs text-gray-500">{member.email}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
                       member.role === 'Owner'
-                        ? 'bg-purple-100 text-purple-800'
-                        : member.role === 'Member'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-gray-100 text-gray-800'
+                        ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                        : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                     }`}>
-                      {member.role}
+                      {member.role === 'Owner' ? 'Instructor' : 'Student'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        member.status === 'Active' ? 'bg-green-500' :
-                        member.status === 'Away' ? 'bg-yellow-500' :
-                        'bg-gray-300'
-                      }`}></div>
-                      <span className="text-sm text-gray-700">{member.status}</span>
-                    </div>
+                    <span className="text-xs text-gray-600 font-medium">{member.joinDate}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <button className="text-gray-600 hover:text-gray-900 transition-colors">
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10.5 1.5H9.5A1.5 1.5 0 008 3v1H4a1 1 0 000 2v1a1 1 0 001 1h1v8a3 3 0 003 3h2a3 3 0 003-3v-8h1a1 1 0 001-1V6a1 1 0 000-2h-4V3a1.5 1.5 0 00-1.5-1.5z" />
+                    <button className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-lg hover:bg-red-50">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                    <td colSpan={4} className="px-6 py-20 text-center">
+                        <div className="flex flex-col items-center">
+                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-dashed border-gray-200">
+                                <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.856-1.487M15 20H9m8-4h.01M15 16h.01M9 20H4v-2a6 6 0 0112 0v2zm6-12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            </div>
+                            <p className="text-gray-400 text-sm font-medium">No results found for this selection.</p>
+                        </div>
+                    </td>
+                </tr>
+              )}
             </tbody>
           </table>
           
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-xs text-gray-600">
-            Showing {filteredMembers.length} of {stats.total} members
+          <div className="px-6 py-3 bg-gray-50/50 border-t border-gray-200 flex justify-between items-center">
+            <span className="text-xs text-gray-500 italic font-medium">
+               Real-time member directory connected to server
+            </span>
+            <span className="text-xs text-slate-700 font-bold">
+               {filteredMembers.length} Members Listed
+            </span>
           </div>
         </div>
       </div>
@@ -246,46 +326,52 @@ export default function TeamMembersTab() {
       {/* ========== RIGHT: SIDEBAR ========== */}
       <div className="w-72 space-y-6">
         {/* Class Limits */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-            </svg>
-            CLASS LIMITS
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+          <h3 className="text-xs font-bold text-slate-900 mb-4 flex items-center gap-2 uppercase tracking-tight">
+            <div className="w-1.5 h-4 bg-blue-600 rounded-full"></div>
+            Class Capacity
           </h3>
           <div className="mb-4">
-            <div className="flex justify-between mb-2">
-              <span className="text-lg font-bold text-gray-900">{stats.total}/{stats.capacity}</span>
-              <span className="text-xs text-orange-600 font-medium">{Math.round((stats.total / stats.capacity) * 100)}% Capacity</span>
+            <div className="flex justify-between items-end mb-2">
+              <span className="text-2xl font-black text-slate-900 tracking-tighter">{stats.total}<span className="text-slate-300 text-lg font-medium mx-1">/</span>{stats.capacity}</span>
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                  (stats.total / stats.capacity) > 0.8 ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+              }`}>
+                  {Math.round((stats.total / stats.capacity) * 100)}% Used
+              </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-100">
               <div
-                className="bg-linear-to-r from-blue-500 to-blue-600 h-2 rounded-full transition-all"
+                className={`h-full transition-all duration-1000 ease-out ${
+                    (stats.total / stats.capacity) > 0.8 ? 'bg-red-500' : 'bg-blue-600'
+                }`}
                 style={{ width: `${(stats.total / stats.capacity) * 100}%` }}
               />
             </div>
-            <p className="text-xs text-gray-600 mt-2">You have reached {Math.round((stats.total / stats.capacity) * 100)}% of your student limit.</p>
+            <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+                Currently managing <strong>{stats.students} students</strong> and <strong>{stats.teachers} instructor(s)</strong>.
+            </p>
           </div>
-          <button className="w-full text-center text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
-            Upgrade Seats →
+          <button className="w-full text-center text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors pt-2 border-t border-slate-50">
+            Request More Seats →
           </button>
         </div>
 
         {/* Quick Stats */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">QUICK STATS</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-              <span className="text-sm text-gray-700">Online Now</span>
-              <span className="text-lg font-bold text-green-600">{stats.onlineNow}</span>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/30 rounded-full -mr-12 -mt-12"></div>
+          <h3 className="text-xs font-bold text-slate-900 mb-4 flex items-center gap-2 uppercase tracking-tight relative z-10">
+            <div className="w-1.5 h-4 bg-indigo-600 rounded-full"></div>
+            Directory Stats
+          </h3>
+          <div className="space-y-3 relative z-10">
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <span className="text-xs font-semibold text-slate-600">Active Now</span>
+              <span className="text-sm font-black text-emerald-600">{stats.onlineNow}</span>
             </div>
-            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-              <span className="text-sm text-gray-700">Teachers</span>
-              <span className="text-lg font-bold text-blue-600">{stats.teachers}</span>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
-              <span className="text-sm text-gray-700">Pending Invites</span>
-              <span className="text-lg font-bold text-purple-600">{stats.pending}</span>
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <span className="text-xs font-semibold text-slate-600">Pending Invite</span>
+              <span className="text-sm font-black text-slate-400">{stats.pending}</span>
             </div>
           </div>
         </div>
@@ -293,121 +379,75 @@ export default function TeamMembersTab() {
 
       {/* ========== FILTER MODAL ========== */}
       {showFilterModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/20">
-          <div className="bg-white w-96 h-full shadow-xl overflow-y-auto animate-in slide-in-from-right">
-            <div className="p-6 border-b border-gray-200 sticky top-0 bg-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-900/40 backdrop-blur-xs transition-all">
+          <div className="bg-white w-96 h-full shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300">
+            <div className="p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-900">Filters & Sorting</h2>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Advanced Filter</h2>
                 <button
                   onClick={() => setShowFilterModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-full transition-all"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              <p className="text-sm text-gray-600">Refine your member view</p>
+              <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Sort and filter member directory</p>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-8">
               {/* Sort By */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  SORT BY
-                </h3>
-                <div className="space-y-2">
-                  {['Name (A-Z)', 'Recent Activity', 'Joining Date'].map((option) => {
-                    const getSortValue = (opt: string): 'name' | 'joinDate' | 'activity' => {
-                      if (opt === 'Name (A-Z)') return 'name';
-                      if (opt === 'Recent Activity') return 'activity';
-                      return 'joinDate';
-                    };
-                    return (
-                    <label key={option} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                <h3 className="text-[11px] font-black text-slate-400 mb-4 tracking-widest uppercase">Sort Options</h3>
+                <div className="space-y-1">
+                  {[
+                      { label: 'Name (A-Z)', value: 'name' },
+                      { label: 'Joining Date', value: 'joinDate' }
+                  ].map((option) => (
+                    <label key={option.value} className={`flex items-center gap-3 cursor-pointer p-3 rounded-xl transition-all ${
+                        filters.sortBy === option.value ? 'bg-blue-50 border border-blue-100' : 'hover:bg-slate-50 border border-transparent'
+                    }`}>
                       <input
                         type="radio"
                         name="sort"
-                        checked={filters.sortBy === getSortValue(option)}
-                        onChange={() => setFilters(prev => ({ ...prev, sortBy: getSortValue(option) }))}
-                        className="w-4 h-4 border-gray-300 text-blue-600"
+                        checked={filters.sortBy === option.value}
+                        onChange={() => setFilters(prev => ({ ...prev, sortBy: option.value as any }))}
+                        className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm text-gray-700">{option}</span>
-                    </label>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Role */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.856-1.487M15 20H9m8-4h.01M15 16h.01M9 20H4v-2a6 6 0 0112 0v2zm6-12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  ROLE
-                </h3>
-                <div className="space-y-2">
-                  {['Owner', 'Member', 'Guest'].map((role) => (
-                    <label key={role} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded">
-                      <input
-                        type="checkbox"
-                        checked={filters.role.includes(role)}
-                        onChange={() => handleToggleRole(role)}
-                        className="w-4 h-4 border-gray-300 text-blue-600 rounded"
-                      />
-                      <span className="text-sm text-gray-700">{role}</span>
+                      <span className={`text-sm font-semibold ${filters.sortBy === option.value ? 'text-blue-700' : 'text-slate-700'}`}>{option.label}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
-              {/* Status */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  STATUS
-                </h3>
-                <div className="space-y-2">
-                  {['Active', 'Away', 'Pending'].map((status) => (
-                    <label key={status} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-50 rounded">
-                      <input
-                        type="checkbox"
-                        checked={filters.status.includes(status)}
-                        onChange={() => handleToggleStatus(status)}
-                        className="w-4 h-4 border-gray-300 text-blue-600 rounded"
-                      />
-                      <span className="text-sm text-gray-700">{status}</span>
-                      <span className="ml-auto text-xs text-gray-500">
-                        {mockMembers.filter(m => m.status === status).length}
-                      </span>
-                    </label>
-                  ))}
-                </div>
+              {/* Status Info */}
+              <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-50">
+                 <div className="flex gap-3">
+                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-blue-900 mb-1 leading-tight">Server-side Listing</p>
+                        <p className="text-[10px] text-blue-700 leading-normal">This directory is currently synced with the core student information service.</p>
+                    </div>
+                 </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-gray-200 sticky bottom-0 bg-white space-y-2">
+            <div className="p-6 border-t border-gray-100 sticky bottom-0 bg-white space-y-3">
               <button
                 onClick={handleReset}
-                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full px-4 py-2.5 text-xs font-bold text-slate-500 hover:text-slate-900 rounded-xl transition-colors"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Reset
+                Clear all filters
               </button>
               <button
                 onClick={() => setShowFilterModal(false)}
-                className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                className="w-full px-4 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95"
               >
-                Apply Filters
+                Apply Listing View
               </button>
             </div>
           </div>

@@ -29,6 +29,27 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
     async function bootstrapSession() {
       try {
+        // DEVELOPMENT: Auto-login with mock user to skip login screen
+        const mockUser: AuthUser = {
+          accountId: 1,
+          email: "student@example.com",
+          roles: ["ROLE_STUDENT"],
+          firstName: "John",
+          lastName: "Doe",
+          code: "STU001",
+          schoolId: 1,
+          departmentId: 1,
+          customSchool: null,
+          customDepartment: null,
+        };
+
+        if (mounted) {
+          setUser(mockUser);
+        }
+        return;
+
+        // Uncomment below to use real authentication
+        /*
         const restoredUser = await restoreSession();
 
         if (restoredUser) {
@@ -42,6 +63,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
         if (mounted) {
           setUser(null);
         }
+        */
       } catch {
         if (mounted) {
           setUser(null);

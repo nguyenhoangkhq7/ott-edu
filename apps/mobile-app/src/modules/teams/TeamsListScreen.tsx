@@ -6,8 +6,8 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-// Import các màn hình con cùng thư mục
-import CreateTeam from './CreateTeam'; 
+// Import màn hình con
+import CreateClassForm from './CreateClassForm';
 import TeamDetailScreen from './TeamDetailScreen';
 
 // Dữ liệu mẫu khớp với ảnh thiết kế
@@ -22,24 +22,17 @@ const TEAMS_DATA = [
 
 export default function TeamsListScreen() {
   const router = useRouter();
-  
-  // --- QUẢN LÝ TRẠNG THÁI GIAO DIỆN ---
-  const [selectedTeam, setSelectedTeam] = useState<any>(null); // Lưu team đang xem chi tiết
-  const [isCreating, setIsCreating] = useState(false);      // Trạng thái đang tạo nhóm mới
+  const [selectedTeam, setSelectedTeam] = useState<any>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
-  // 1. Nếu đang chọn xem chi tiết một Team
+  // Hiện màn hình chi tiết team
   if (selectedTeam) {
     return (
-      <TeamDetailScreen 
-        team={selectedTeam} 
-        onBack={() => setSelectedTeam(null)} 
+      <TeamDetailScreen
+        team={selectedTeam}
+        onBack={() => setSelectedTeam(null)}
       />
     );
-  }
-
-  // 2. Nếu đang ở trạng thái "Tạo nhóm/Tham gia nhóm"
-  if (isCreating) {
-    return <CreateTeam onBack={() => setIsCreating(false)} />;
   }
 
   // --- CÁC HÀM HỖ TRỢ RENDER ---
@@ -57,7 +50,6 @@ export default function TeamsListScreen() {
     <TouchableOpacity 
       style={styles.card}
       activeOpacity={0.7}
-      // KHI NHẤN VÀO THẺ: Lưu thông tin team vào state để hiện màn hình chi tiết
       onPress={() => setSelectedTeam(item)} 
     >
       <View style={[styles.iconBox, { backgroundColor: item.color }]}>
@@ -77,50 +69,61 @@ export default function TeamsListScreen() {
 
   // 3. Giao diện danh sách chính
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
-      <View style={styles.container}>
-        
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Image 
-              source={{ uri: 'https://i.pravatar.cc/150?img=68' }} 
-              style={styles.avatar}
-            />
-            <Text style={styles.headerTitle}>Teams</Text>
+    <>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.container}>
+
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Image
+                source={{ uri: 'https://i.pravatar.cc/150?img=68' }}
+                style={styles.avatar}
+              />
+              <Text style={styles.headerTitle}>Teams</Text>
+            </View>
+            <View style={styles.headerRight}>
+              <TouchableOpacity style={styles.iconButton}>
+                <Ionicons name="search-outline" size={24} color="#64748b" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconButton}>
+                <Ionicons name="ellipsis-vertical" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="search-outline" size={24} color="#64748b" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="ellipsis-vertical" size={24} color="#64748b" />
-            </TouchableOpacity>
-          </View>
+
+          <Text style={styles.sectionTitle}>YOUR TEAMS</Text>
+
+          <FlatList
+            data={TEAMS_DATA}
+            keyExtractor={item => item.id}
+            renderItem={renderTeamCard}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+          />
+
+          {/* FAB */}
+          <TouchableOpacity
+            style={styles.fab}
+            activeOpacity={0.8}
+            onPress={() => setShowCreateForm(true)}
+          >
+            <Ionicons name="add" size={32} color="white" />
+          </TouchableOpacity>
+
         </View>
-        
-        <Text style={styles.sectionTitle}>YOUR TEAMS</Text>
+      </SafeAreaView>
 
-        <FlatList
-          data={TEAMS_DATA}
-          keyExtractor={item => item.id}
-          renderItem={renderTeamCard}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
-
-        {/* Nút FAB dấu + */}
-        <TouchableOpacity 
-          style={styles.fab} 
-          activeOpacity={0.8}
-          onPress={() => setIsCreating(true)}
-        >
-          <Ionicons name="add" size={32} color="white" />
-        </TouchableOpacity>
-
-      </View>
-    </SafeAreaView>
+      {/* Create Class Form Modal */}
+      <CreateClassForm
+        visible={showCreateForm}
+        onClose={() => setShowCreateForm(false)}
+        onCreated={(name) => {
+          console.log('Class created:', name);
+        }}
+      />
+    </>
   );
 }
 

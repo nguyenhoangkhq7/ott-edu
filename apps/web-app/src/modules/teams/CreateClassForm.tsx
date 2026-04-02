@@ -11,7 +11,6 @@ interface CreateClassFormProps {
 interface ClassFormData {
   name: string;
   description: string;
-  isPrivate: boolean;
   joinCode?: string;
 }
 
@@ -25,7 +24,6 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
   const [formData, setFormData] = useState<ClassFormData>({
     name: '',
     description: '',
-    isPrivate: true,
     joinCode: generateJoinCode(),
   });
   
@@ -47,13 +45,6 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
     }));
   };
 
-  // Xử lý thay đổi privacy
-  const handlePrivacyChange = (isPrivate: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      isPrivate,
-    }));
-  };
 
   // Xử lý bước tiếp theo
   const handleNext = () => {
@@ -149,67 +140,6 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
                   />
                 </div>
 
-                {/* Privacy Section */}
-                <div>
-                  <div className="text-xs font-bold text-gray-500 tracking-widest mb-4">02 — PRIVACY</div>
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Private Option */}
-                    <button
-                      onClick={() => handlePrivacyChange(true)}
-                      className={`relative p-5 rounded-xl border-2 transition-all ${
-                        formData.isPrivate 
-                          ? 'border-blue-600 bg-blue-50' 
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 ${
-                          formData.isPrivate 
-                            ? 'border-blue-600 bg-blue-600' 
-                            : 'border-gray-300 bg-white'
-                        }`}>
-                          {formData.isPrivate && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="text-left">
-                          <h3 className="font-semibold text-gray-900">Private</h3>
-                          <p className="text-xs text-gray-600 mt-1">Only class owners can add members to this space.</p>
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* Public Option */}
-                    <button
-                      onClick={() => handlePrivacyChange(false)}
-                      className={`relative p-5 rounded-xl border-2 transition-all ${
-                        !formData.isPrivate 
-                          ? 'border-blue-600 bg-blue-50' 
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-0.5 ${
-                          !formData.isPrivate 
-                            ? 'border-blue-600 bg-blue-600' 
-                            : 'border-gray-300 bg-white'
-                        }`}>
-                          {!formData.isPrivate && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                        <div className="text-left">
-                          <h3 className="font-semibold text-gray-900">Public</h3>
-                          <p className="text-xs text-gray-600 mt-1">Anyone in your organization can find and join.</p>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
 
                 {/* Join Code */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -396,10 +326,6 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Class Code:</span>
                   <span className="font-mono font-semibold text-gray-900">{formData.joinCode}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Privacy:</span>
-                  <span className="font-medium text-gray-900">{formData.isPrivate ? 'Private' : 'Public'}</span>
                 </div>
               </div>
             </div>

@@ -29,6 +29,7 @@ interface Team {
   school?: string;
   initials?: string;
   createdAt?: string;
+  isActive?: boolean;
 }
 
 interface TeamDetailScreenProps {
@@ -47,19 +48,19 @@ export default function TeamDetailScreen({ team, onBack }: TeamDetailScreenProps
 
   const TABS = ['Posts', 'Files', 'Members', 'Assignments', 'Grades'];
 
-  // Convert Team → ClassData để truyền vào EditClassForm
   const classData: ClassData = {
     id: team.id,
     name: team.title,
-    code: team.code ?? 'N/A',
-    description: team.description ?? '',
+    code: team.code ?? 'CS101-A',
+    description: team.description ?? 'Introduction to core computer science concepts, algorithms, and data structures.',
     initials: team.initials ?? team.title.substring(0, 2).toUpperCase(),
     accentColor: team.color,
-    maxStudents: team.maxStudents,
-    currentStudents: team.currentStudents,
-    department: team.department,
-    school: team.school,
-    createdAt: team.createdAt,
+    maxStudents: team.maxStudents || 50,
+    currentStudents: team.currentStudents || 32,
+    isActive: team.isActive !== false,
+    createdAt: team.createdAt || 'Sep 12, 2023',
+    department: team.department || 'Computer Science',
+    school: team.school || 'University of Excellence',
   };
 
   const handleEditClass = () => {
@@ -81,6 +82,15 @@ export default function TeamDetailScreen({ team, onBack }: TeamDetailScreenProps
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
+
+      {/* ── CANCELLED WARNING ── */}
+      {team.isActive === false && (
+        <View style={{ backgroundColor: '#ef4444', paddingVertical: 8, paddingHorizontal: 16 }}>
+          <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>
+            THIS CLASS HAS BEEN CANCELLED AND IS INACTIVE
+          </Text>
+        </View>
+      )}
 
       {/* ── HEADER ── */}
       <View style={styles.header}>
@@ -119,9 +129,11 @@ export default function TeamDetailScreen({ team, onBack }: TeamDetailScreenProps
 
               <View style={styles.menuDivider} />
 
-              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-                <Ionicons name="trash" size={16} color="#ef4444" />
-                <Text style={[styles.menuItemText, { color: '#ef4444' }]}>Delete Class</Text>
+              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} disabled={team.isActive === false}>
+                <Ionicons name="trash-outline" size={16} color={team.isActive === false ? "#cbd5e1" : "#ef4444"} />
+                <Text style={[styles.menuItemText, { color: team.isActive === false ? "#cbd5e1" : "#ef4444" }]}>
+                   {team.isActive === false ? 'Already Cancelled' : 'Cancel Class'}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -160,8 +172,7 @@ export default function TeamDetailScreen({ team, onBack }: TeamDetailScreenProps
         classData={classData}
         onClose={() => setShowEditForm(false)}
         onSaveSuccess={() => {
-          // TODO: refresh class data từ API
-          console.log('Class updated');
+          console.log('Class updated (mock)');
         }}
       />
     </SafeAreaView>

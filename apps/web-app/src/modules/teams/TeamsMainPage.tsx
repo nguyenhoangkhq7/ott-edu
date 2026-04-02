@@ -47,7 +47,10 @@ export default function TeamsMainPage() {
           subtitle: t.description || t.schoolName || 'Lớp học',
           initials: t.name.substring(0, 2).toUpperCase(),
           accentColor: '#1868f0', // Có thể random màu nếu muốn
-          meta: `${t.memberCount} members · ${t.isPrivate === false ? 'Public class' : 'Private class'}`,
+          meta: (t.isActive === false || t.active === false) 
+            ? 'Cancelled Class • Inactive' 
+            : `${t.memberCount} members · ${t.isPrivate === false ? 'Public class' : 'Private class'}`,
+          isActive: t.isActive ?? t.active,
         }));
 
         setTeamSections([
