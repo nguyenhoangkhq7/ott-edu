@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { httpService } from '@/services/api/http.service';
 
 interface CreateClassFormProps {
   onBack: () => void;
@@ -72,37 +73,25 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
 
     setIsLoading(true);
     try {
-      // TODO: Uncomment khi backend sẵn sàng
-      /*
-      const response = await fetch('/api/teams', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          description: formData.description,
-          isPrivate: formData.isPrivate,
-          joinCode: formData.joinCode,
-        }),
+      // Call real backend API
+      const response = await httpService.post<any>('/teams', {
+        name: formData.name,
+        description: formData.description,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create class');
+      // Update form data with the actual join code from the server
+      if (response && response.joinCode) {
+        setFormData(prev => ({
+          ...prev,
+          joinCode: response.joinCode,
+        }));
       }
 
-      const result = await response.json();
-      console.log('Class created:', result);
-      */
-      
-      // Mock API - simulate delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
       // Hiện modal thành công
       setShowSuccessModal(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating class:', error);
-      alert('Failed to create class. Please try again.');
+      alert(error.message || 'Failed to create class. Please try again.');
     } finally {
       setIsLoading(false);
     }

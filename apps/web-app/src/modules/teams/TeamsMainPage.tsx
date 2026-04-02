@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import SectionTitle from "@/shared/components/ui/SectionTitle";
 import TeamCard from "@/shared/components/ui/TeamCard";
 import SearchInput from "@/shared/components/ui/SearchInput";
-import type { TeamSection } from "@/shared/types/teams";
+import type { TeamSection, TeamItem } from "@/shared/types/teams";
+import { httpService } from "@/services/api/http.service";
 
 export default function TeamsMainPage() {
   const [searchValue, setSearchValue] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   
   // 1. State để quản lý việc đóng/mở các Section
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -31,55 +33,39 @@ export default function TeamsMainPage() {
     setShowTeamDropdown(false);
   };
 
-  const teamSections: TeamSection[] = useMemo(
-    () => [
-      {
-        id: "classes",
-        title: "Classes",
-        items: [
+  const [teamSections, setTeamSections] = useState<TeamSection[]>([]);
+
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        setIsLoading(true);
+        const data = await httpService.get<any[]>('/teams/my');
+        
+        const mappedItems: TeamItem[] = data.map((t: any) => ({
+          id: String(t.id),
+          name: t.name,
+          subtitle: t.description || t.schoolName || 'Lớp học',
+          initials: t.name.substring(0, 2).toUpperCase(),
+          accentColor: '#1868f0', // Có thể random màu nếu muốn
+          meta: `${t.memberCount} members · ${t.isPrivate === false ? 'Public class' : 'Private class'}`,
+        }));
+
+        setTeamSections([
           {
-            id: "web-programming",
-            name: "CNM - Công nghệ Mạng",
-            subtitle: "Học về công nghệ mạng hiện đại",
-            initials: "CNM",
-            accentColor: "#8269db",
-            meta: "28 members · Private class",
-          },
-          {
-            id: "database",
-            name: "CSDL - Cơ sở dữ liệu",
-            subtitle: "Thiết kế và quản trị CSDL",
-            initials: "CSDL",
-            accentColor: "#ff6b6b",
-            meta: "32 members · Private class",
-          },
-        ],
-      },
-      {
-        id: "teams",
-        title: "Personal Teams",
-        items: [
-          {
-            id: "research-team",
-            name: "AI Research Team",
-            subtitle: "Nhóm nghiên cứu trí tuệ nhân tạo",
-            initials: "AI",
-            accentColor: "#2ecc71",
-            meta: "15 members · Public team",
-          },
-          {
-            id: "dev-team",
-            name: "Development Team",
-            subtitle: "Team phát triển sản phẩm",
-            initials: "DEV",
-            accentColor: "#3498db",
-            meta: "8 members · Private team",
-          },
-        ],
-      },
-    ],
-    []
-  );
+            id: "classes",
+            title: "My Classes",
+            items: mappedItems,
+          }
+        ]);
+      } catch (error) {
+        console.error("Failed to fetch teams:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTeams();
+  }, []);
 
   const filteredTeamSections = useMemo(() => {
     if (!searchValue.trim()) {
@@ -177,7 +163,12 @@ export default function TeamsMainPage() {
       </div>
 
       <div className="grid gap-8">
-        {filteredTeamSections.length > 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mb-4"></div>
+            <p className="text-slate-500">Loading your teams...</p>
+          </div>
+        ) : filteredTeamSections.length > 0 ? (
           filteredTeamSections.map((section) => (
             <div key={section.id}>
               <SectionTitle
