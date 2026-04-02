@@ -50,8 +50,8 @@ services:
       SPRING_FLYWAY_ENABLED: "true"
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
       SPRING_FLYWAY_CONNECT_RETRIES: "60"
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     depends_on:
       mysql-db:
         condition: service_healthy
@@ -69,8 +69,8 @@ services:
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
-    ports:
-      - "${CHAT_PORT}:3001"
+    expose:
+      - "3001"
     depends_on:
       - mongo-db
     networks:

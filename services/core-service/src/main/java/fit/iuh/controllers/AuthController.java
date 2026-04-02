@@ -18,7 +18,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import io.jsonwebtoken.JwtException;
 
 @RestController
 @RequestMapping("/auth")
@@ -119,6 +121,31 @@ public class AuthController {
         }
 
         return ResponseEntity.ok(authService.getCurrentUser(authentication.getName()));
+    }
+
+    @GetMapping("/validate")
+    public ResponseEntity<Void> validateAccessToken(
+        @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader
+    ) {
+        if (!StringUtils.hasText(authorizationHeader) || !authorizationHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorizationHeader.substring(7);
+        try {
+            if (!jwtService.isAccessToken(token)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            String subject = jwtService.extractSubject(token);
+            if (!StringUtils.hasText(subject) || !jwtService.isTokenValid(token, subject)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            return ResponseEntity.ok().build();
+        } catch (JwtException | IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 
     private String extractRefreshToken(RefreshTokenRequest request, String refreshTokenCookie) {
