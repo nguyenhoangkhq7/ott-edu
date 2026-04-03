@@ -35,12 +35,19 @@ export type DepartmentOption = {
   schoolId: number;
 };
 
+type ApiSuccessEnvelope<T> = {
+  timestamp: string;
+  status: number;
+  message: string;
+  data: T;
+};
+
 export type RegisterPayload = {
   email: string;
   password: string;
   firstName: string;
   lastName: string;
-  roleName: "ROLE_STUDENT" | "ROLE_INSTRUCTOR";
+  roleName: "ROLE_STUDENT";
   code: string;
   schoolId: number | null;
   departmentId: number | null;
@@ -155,7 +162,8 @@ export async function getCurrentUser(): Promise<AuthUser> {
 
 export async function getSchools(): Promise<SchoolOption[]> {
   try {
-    return await apiClient.get<SchoolOption[]>("/schools");
+    const response = await apiClient.get<ApiSuccessEnvelope<SchoolOption[]>>("/schools");
+    return response.data;
   } catch (error) {
     throw new Error(toErrorMessage(error));
   }
@@ -163,7 +171,8 @@ export async function getSchools(): Promise<SchoolOption[]> {
 
 export async function getDepartmentsBySchoolId(schoolId: number): Promise<DepartmentOption[]> {
   try {
-    return await apiClient.get<DepartmentOption[]>(`/schools/${schoolId}/departments`);
+    const response = await apiClient.get<ApiSuccessEnvelope<DepartmentOption[]>>(`/schools/${schoolId}/departments`);
+    return response.data;
   } catch (error) {
     throw new Error(toErrorMessage(error));
   }
@@ -171,11 +180,8 @@ export async function getDepartmentsBySchoolId(schoolId: number): Promise<Depart
 
 export async function registerAccount(payload: RegisterPayload): Promise<string> {
   try {
-    const response = await apiClient.post<string, RegisterPayload>("/auth/register", payload, {
-      responseType: "text",
-    });
-
-    return response || "Tạo tài khoản thành công!";
+    const response = await apiClient.post<ApiSuccessEnvelope<string>, RegisterPayload>("/auth/register", payload);
+    return response.data || "Tạo tài khoản thành công!";
   } catch (error) {
     throw new Error(toErrorMessage(error));
   }

@@ -86,7 +86,6 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
 export default function RegisterScreen() {
   const router = useRouter();
   const [form, setForm] = useState<RegisterFormState>(INITIAL_FORM);
-  const [role, setRole] = useState<"student" | "teacher">("student");
   const [code, setCode] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -129,7 +128,7 @@ export default function RegisterScreen() {
     const nextErrors: Partial<Record<ExtraFieldKey, string>> = {};
 
     if (!code.trim()) {
-      nextErrors.code = "Vui lòng nhập mã sinh viên/giảng viên.";
+      nextErrors.code = "Vui lòng nhập mã sinh viên.";
     }
 
     if (useCustomSchool) {
@@ -290,7 +289,7 @@ export default function RegisterScreen() {
         password: form.password,
         firstName: normalizedName.firstName,
         lastName: normalizedName.lastName,
-        roleName: role === "student" ? "ROLE_STUDENT" : "ROLE_INSTRUCTOR",
+        roleName: "ROLE_STUDENT",
         code: code.trim(),
         schoolId: useCustomSchool ? null : Number(schoolId),
         departmentId: useCustomDepartment ? null : Number(departmentId),
@@ -335,21 +334,6 @@ export default function RegisterScreen() {
           <Text style={styles.title}>Đăng ký tài khoản</Text>
           <Text style={styles.subtitle}>Tạo tài khoản mới để bắt đầu học tập trên hệ thống.</Text>
 
-          <View style={styles.segmentRow}>
-            <Pressable
-              onPress={() => setRole("student")}
-              style={[styles.segmentButton, role === "student" && styles.segmentButtonActive]}
-            >
-              <Text style={[styles.segmentText, role === "student" && styles.segmentTextActive]}>Sinh viên</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => setRole("teacher")}
-              style={[styles.segmentButton, role === "teacher" && styles.segmentButtonActive]}
-            >
-              <Text style={[styles.segmentText, role === "teacher" && styles.segmentTextActive]}>Giảng viên</Text>
-            </Pressable>
-          </View>
-
           <Field
             label="Họ và tên"
             value={form.fullName}
@@ -370,7 +354,7 @@ export default function RegisterScreen() {
           />
 
           <Field
-            label={role === "student" ? "Mã sinh viên" : "Mã giảng viên"}
+            label="Mã sinh viên"
             value={code}
             onChangeText={(value) => {
               setCode(value);
@@ -670,29 +654,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#475569",
     fontSize: 14,
-  },
-  segmentRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  segmentButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  segmentButtonActive: {
-    borderColor: "#6366f1",
-    backgroundColor: "#eef2ff",
-  },
-  segmentText: {
-    color: "#475569",
-    fontWeight: "600",
-  },
-  segmentTextActive: {
-    color: "#4338ca",
   },
   fieldGroup: {
     gap: 6,

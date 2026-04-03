@@ -29,17 +29,22 @@ export type DepartmentOption = {
   schoolId: number;
 };
 
+type ApiSuccessResponse<T> = {
+  timestamp: string;
+  status: number;
+  message: string;
+  data: T;
+};
+
 export type RegisterPayload = {
   email: string;
   password: string;
   firstName: string;
   lastName: string;
-  roleName: "ROLE_STUDENT" | "ROLE_INSTRUCTOR";
+  roleName: "ROLE_STUDENT";
   code: string;
-  schoolId: number | null;
-  departmentId: number | null;
-  customSchool: string | null;
-  customDepartment: string | null;
+  schoolId: 1;
+  departmentId: number;
 };
 
 type LoginResponse = {
@@ -72,16 +77,16 @@ export async function getCurrentUser(): Promise<AuthUser> {
 }
 
 export async function getSchools(): Promise<SchoolOption[]> {
-  return httpService.get<SchoolOption[]>("/schools");
+  const response = await httpService.get<ApiSuccessResponse<SchoolOption[]>>("/schools");
+  return response.data;
 }
 
 export async function getDepartmentsBySchoolId(schoolId: number): Promise<DepartmentOption[]> {
-  return httpService.get<DepartmentOption[]>(`/schools/${schoolId}/departments`);
+  const response = await httpService.get<ApiSuccessResponse<DepartmentOption[]>>(`/schools/${schoolId}/departments`);
+  return response.data;
 }
 
 export async function registerAccount(payload: RegisterPayload): Promise<string> {
-  const response = await httpService.post<string>("/auth/register", payload, {
-    responseType: "text",
-  });
-  return response || "Tao tai khoan thanh cong!";
+  const response = await httpService.post<ApiSuccessResponse<string>>("/auth/register", payload);
+  return response.data || "Tao tai khoan thanh cong!";
 }
