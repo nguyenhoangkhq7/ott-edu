@@ -17,6 +17,7 @@ public class AuthUserResponse {
     private List<String> roles;
     private String firstName;
     private String lastName;
+    private String avatarUrl;
     private String code;
     private Long schoolId;
     private Long departmentId;

@@ -20,3 +20,7 @@ CREATE TABLE IF NOT EXISTS team_members (
     CONSTRAINT fk_team_members_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     CONSTRAINT uq_team_member UNIQUE (team_id, account_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_teams_department_id ON teams(department_id);
+CREATE INDEX idx_team_members_account_id ON team_members(account_id);
+CREATE INDEX idx_team_members_team_id ON team_members(team_id);

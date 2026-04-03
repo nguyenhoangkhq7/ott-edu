@@ -240,6 +240,7 @@ public class AuthServiceImpl implements AuthService {
                 .roles(List.of(account.getRole().name()))
                 .firstName(profile != null ? profile.getFirstName() : null)
                 .lastName(profile != null ? profile.getLastName() : null)
+            .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
                 .code(profile != null ? profile.getCode() : null)
                 .schoolId(profile != null && profile.getSchool() != null ? profile.getSchool().getId() : null)
                 .departmentId(profile != null && profile.getDepartment() != null ? profile.getDepartment().getId() : null)

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import SearchInput from "@/shared/components/ui/SearchInput";
 import ProfileDropdown from "@/shared/components/common/ProfileDropdown";
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 
 interface HeaderProps {
   searchValue: string;
@@ -11,7 +13,10 @@ interface HeaderProps {
   userName: string;
   userEmail: string;
   userRole: string;
+  userAvatarUrl?: string;
   notifications: number;
+  onLogout?: () => Promise<void>;
+  isLoggingOut?: boolean;
 }
 
 export default function Header({
@@ -20,10 +25,14 @@ export default function Header({
   userName,
   userEmail,
   userRole,
+  userAvatarUrl,
   notifications,
+  onLogout,
+  isLoggingOut = false,
 }: HeaderProps) {
   const router = useRouter();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const initials = getInitialsFromDisplayName(userName);
 
   const handleBack = () => {
     router.back();
@@ -109,14 +118,20 @@ export default function Header({
           <div className="relative">
             <button
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-              className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-[11px] font-bold text-[#4b53bc] hover:opacity-80 transition-opacity"
+              className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-[11px] font-bold text-[#4b53bc] hover:opacity-80 transition-opacity"
+              title={userName}
             >
-              {userName
-                .split(" ")
-                .map((part) => part[0])
-                .join("")
-                .toUpperCase()
-                .slice(0, 2)}
+              {userAvatarUrl ? (
+                <Image
+                  src={userAvatarUrl}
+                  alt={userName}
+                  className="h-8 w-8 rounded-full object-cover"
+                  width={32}
+                  height={32}
+                />
+              ) : (
+                initials
+              )}
               <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-white"></span>
             </button>
 
@@ -126,6 +141,9 @@ export default function Header({
               userName={userName}
               userEmail={userEmail}
               userRole={userRole}
+              userAvatarUrl={userAvatarUrl}
+              onLogout={onLogout}
+              isLoggingOut={isLoggingOut}
             />
           </div>
         </div>

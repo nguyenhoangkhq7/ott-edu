@@ -1,9 +1,16 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
+import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
 
 type RefreshResponse = {
   accessToken: string;
+};
+
+type ApiSuccessEnvelope<T> = {
+  timestamp: string;
+  status: number;
+  message: string;
+  data: T;
 };
 
 declare module "axios" {
@@ -42,6 +49,32 @@ const baseConfig = {
 const apiClient = axios.create(baseConfig);
 const refreshClient = axios.create(baseConfig);
 
+function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<unknown> {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Partial<ApiSuccessEnvelope<unknown>>;
+
+  return (
+    typeof candidate.timestamp === "string" &&
+    typeof candidate.status === "number" &&
+    typeof candidate.message === "string" &&
+    "data" in candidate
+  );
+}
+
+function unwrapApiSuccessEnvelope<T>(response: AxiosResponse<T>): AxiosResponse<T> {
+  if (!isApiSuccessEnvelope(response.data)) {
+    return response;
+  }
+
+  return {
+    ...response,
+    data: response.data.data as T,
+  };
+}
+
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) {
@@ -51,8 +84,10 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+refreshClient.interceptors.response.use((response) => unwrapApiSuccessEnvelope(response));
+
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => unwrapApiSuccessEnvelope(response),
   async (error: AxiosError) => {
     const originalRequest = error.config;
     const statusCode = error.response?.status;

@@ -11,6 +11,7 @@ export type AuthUser = {
   roles: string[];
   firstName: string | null;
   lastName: string | null;
+  avatarUrl: string | null;
   code: string | null;
   schoolId: number | null;
   departmentId: number | null;
@@ -27,13 +28,6 @@ export type DepartmentOption = {
   id: number;
   name: string;
   schoolId: number;
-};
-
-type ApiSuccessResponse<T> = {
-  timestamp: string;
-  status: number;
-  message: string;
-  data: T;
 };
 
 export type RegisterPayload = {
@@ -77,16 +71,14 @@ export async function getCurrentUser(): Promise<AuthUser> {
 }
 
 export async function getSchools(): Promise<SchoolOption[]> {
-  const response = await httpService.get<ApiSuccessResponse<SchoolOption[]>>("/schools");
-  return response.data;
+  return httpService.get<SchoolOption[]>("/schools");
 }
 
 export async function getDepartmentsBySchoolId(schoolId: number): Promise<DepartmentOption[]> {
-  const response = await httpService.get<ApiSuccessResponse<DepartmentOption[]>>(`/schools/${schoolId}/departments`);
-  return response.data;
+  return httpService.get<DepartmentOption[]>(`/schools/${schoolId}/departments`);
 }
 
 export async function registerAccount(payload: RegisterPayload): Promise<string> {
-  const response = await httpService.post<ApiSuccessResponse<string>>("/auth/register", payload);
-  return response.data || "Tao tai khoan thanh cong!";
+  const response = await httpService.post<string>("/auth/register", payload);
+  return response || "Tao tai khoan thanh cong!";
 }
