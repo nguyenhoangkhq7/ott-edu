@@ -11,10 +11,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:8080/",
+          "raw": "{{baseUrl}}/",
           "protocol": "http",
-          "host": ["localhost"],
-          "port": "8080",
+          "host": ["{{baseUrl}}"],
           "path": [""]
         }
       },

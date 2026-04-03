@@ -24,7 +24,7 @@ jobs:
         run: docker compose up -d --build
 
       - name: Wait for services to be ready
-        run: sleep 60
+        run: sleep 120
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
