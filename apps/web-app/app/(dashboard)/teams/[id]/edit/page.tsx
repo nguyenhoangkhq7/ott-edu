@@ -5,10 +5,19 @@ import { useEffect, useState } from 'react';
 import EditClassForm from '@/modules/teams/EditClassForm';
 import { httpService } from '@/services/api/http.service';
 
+interface ClassData {
+  id: number;
+  name: string;
+  description?: string;
+  isActive?: boolean;
+  active?: boolean;
+  createdAt?: string;
+}
+
 export default function EditClassPage() {
   const router = useRouter();
-  const params = useParams();
-  const [classData, setClassData] = useState<any>(null);
+  const params = useParams() as { id: string };
+  const [classData, setClassData] = useState<ClassData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
@@ -22,7 +31,7 @@ export default function EditClassPage() {
     const fetchClass = async () => {
       try {
         // Try to fetch team directly with access check
-        const team = await httpService.get<any>(`/teams/${params.id}`);
+        const team = await httpService.get<ClassData>(`/teams/${params.id}`);
         if (team) {
           setClassData({
             id: String(team.id),
@@ -35,8 +44,8 @@ export default function EditClassPage() {
             createdAt: team.createdAt ? new Date(team.createdAt).toLocaleDateString() : '',
           });
         }
-      } catch (error: any) {
-        const errorMsg = error?.message || 'Failed to fetch class information';
+      } catch (error: unknown) {
+        const errorMsg = (error as Record<string, unknown>)?.message || 'Failed to fetch class information';
         console.error("Failed to fetch class info:", error);
         console.error("Full error details:", JSON.stringify(error, null, 2));
         

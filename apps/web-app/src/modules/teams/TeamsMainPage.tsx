@@ -28,10 +28,7 @@ export default function TeamsMainPage() {
     }));
   };
 
-  const handleCreateTeam = () => {
-    console.log("Create team clicked");
-    setShowTeamDropdown(false);
-  };
+
 
   const [teamSections, setTeamSections] = useState<TeamSection[]>([]);
 
@@ -39,9 +36,9 @@ export default function TeamsMainPage() {
     const fetchTeams = async () => {
       try {
         setIsLoading(true);
-        const data = await httpService.get<any[]>('/teams/my');
+        const data = await httpService.get<Array<{ id: number; name: string; description?: string; schoolName?: string; memberCount?: number; isActive?: boolean; active?: boolean; isPrivate?: boolean }>>('/teams/my');
         
-        const mappedItems: TeamItem[] = data.map((t: any) => ({
+        const mappedItems: TeamItem[] = data.map((t) => ({
           id: String(t.id),
           name: t.name,
           subtitle: t.description || t.schoolName || 'Lớp học',

@@ -5,16 +5,22 @@ import { useRouter } from 'next/navigation';
 import CancelClassForm from '@/modules/teams/CancelClassForm';
 import { httpService } from '@/services/api/http.service';
 
+interface CancelTeamData {
+  id: number;
+  name: string;
+  memberCount?: number;
+}
+
 export default function CancelClassPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = React.use(params);
-  const [teamData, setTeamData] = useState<any>(null);
+  const [teamData, setTeamData] = useState<CancelTeamData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchTeam = async () => {
       try {
-        const data = await httpService.get<any>(`/teams/${id}`);
+        const data = await httpService.get<CancelTeamData>(`/teams/${id}`);
         setTeamData({
           id: String(data.id),
           name: data.name,

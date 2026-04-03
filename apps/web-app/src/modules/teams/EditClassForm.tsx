@@ -75,9 +75,10 @@ export default function EditClassForm({ onBack, classData }: EditClassFormProps)
       });
       setShowSuccessModal(true);
       setHasChanges(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      const detail = error.response?.data?.message || 'Please check your role permissions.';
+      const errorObj = error as Record<string, unknown>;
+      const detail = (errorObj?.response as Record<string, unknown>)?.data?.message || 'Please check your role permissions.';
       alert(`Failed to save class information.\nDetails: ${detail}`);
     } finally {
       setIsLoading(false);
@@ -174,7 +175,7 @@ export default function EditClassForm({ onBack, classData }: EditClassFormProps)
                 <div>
                   <h4 className="text-sm font-bold text-gray-900 mb-1">Cancel this class</h4>
                   <p className="text-xs text-red-700/70 max-w-sm">
-                    Cancelling this class will hide it from students. Teachers will still see it as "Cancelled" in their history. This action requires confirmation.
+                    Cancelling this class will hide it from students. Teachers will still see it as &quot;Cancelled&quot; in their history. This action requires confirmation.
                   </p>
                 </div>
                 <button

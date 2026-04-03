@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+import Image from 'next/image';
+
 // ================= KIỂU DỮ LIỆU =================
 interface Message {
   id: string;
@@ -100,7 +102,7 @@ const MessageItem = ({
   <div className={`group relative flex gap-4 py-3 ${isPost ? 'px-0' : 'px-4 hover:bg-slate-50/50 rounded-lg -mx-4'}`}>
     <div className="flex-shrink-0 pt-1">
       {msg.senderAvatar ? (
-        <img src={msg.senderAvatar} alt={msg.senderName} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+          <Image src={msg.senderAvatar} alt={msg.senderName} width={40} height={40} unoptimized className="w-10 h-10 rounded-full object-cover border border-slate-200" />
       ) : (
         <div className="w-10 h-10 rounded-full bg-[#1868f0] text-white flex items-center justify-center text-sm font-bold shadow-sm">
           {msg.senderInitials}
