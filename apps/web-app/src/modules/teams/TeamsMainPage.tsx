@@ -135,8 +135,9 @@ export default function TeamsMainPage() {
           {showTeamDropdown && (
             <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-md shadow-lg border border-slate-200 z-10">
               <div className="py-1">
-                <button
-                  onClick={handleCreateTeam}
+                <Link
+                  href="/teams/create"
+                  onClick={() => setShowTeamDropdown(false)}
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -146,7 +147,7 @@ export default function TeamsMainPage() {
                     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                   </svg>
                   Create team
-                </button>
+                </Link>
                 <Link
                   href="/teams/join"
                   className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-100 border-t border-slate-100"
@@ -191,7 +192,9 @@ export default function TeamsMainPage() {
                   className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-in fade-in slide-in-from-top-2 duration-200"
                 >
                   {section.items.map((item) => (
-                    <TeamCard key={item.id} item={item} />
+                    <Link href={`/teams/${item.id}`} key={item.id} className="block hover:opacity-95 transition-opacity">
+                      <TeamCard item={item} />
+                    </Link>
                   ))}
                 </div>
               )}

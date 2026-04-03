@@ -20,10 +20,9 @@ export default function JoinTeamPage() {
     }
   };
 
+  // 1. Đã sửa đường dẫn chuyển sang trang tạo nhóm
   const handleCreateNewTeam = () => {
-    console.log("Create new team clicked");
-    // TODO: Implement create new team logic
-    router.push("/teams");
+    router.push("/teams/create");
   };
 
   return (
@@ -43,7 +42,12 @@ export default function JoinTeamPage() {
             </button>
             <h2 className="text-lg font-semibold text-slate-900">Join a team</h2>
           </div>
-          <button className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors">
+          
+          {/* 2. Đã gắn sự kiện onClick vào nút dấu + */}
+          <button 
+            onClick={handleCreateNewTeam}
+            className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors"
+          >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 5v14M5 12h14" />
             </svg>
