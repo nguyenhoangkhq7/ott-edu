@@ -11,9 +11,10 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/",
+          "raw": "http://localhost:8000/",
           "protocol": "http",
-          "host": ["{{baseUrl}}"],
+          "host": ["localhost"],
+          "port": "8000",
           "path": [""]
         }
       },
