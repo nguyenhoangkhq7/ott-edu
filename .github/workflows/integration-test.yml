@@ -38,5 +38,5 @@ jobs:
         run: |
           for file in tests/postman/*.json; do
             echo "Testing $file..."
-            newman run "$file" --env-var baseUrl=http://localhost:8000 || exit 1
+            newman run "$file" || exit 1
           done
