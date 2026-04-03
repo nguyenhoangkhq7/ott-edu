@@ -248,7 +248,6 @@ public class TeamServiceImpl implements TeamService {
      * Hủy lớp học (soft-delete: isActive = false).
      * Chỉ TEACHER của lớp mới được phép. Lớp đã hủy không thể hủy lại.
      */
-    @Override
     @Transactional
     public TeamResponse cancelTeam(Long teamId, String email) {
         // 1. Xác thực tài khoản
