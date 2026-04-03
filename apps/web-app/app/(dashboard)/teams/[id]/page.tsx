@@ -9,6 +9,7 @@ import { httpService } from '@/services/api/http.service';
 import TeamPostsTab from '@/modules/teams/TeamPostsTab';
 import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
+import ActiveAssessmentsList from '@/modules/assessments/components/ActiveAssessmentsList';
 
 export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -203,7 +204,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
           </div>
 
           <div className="flex gap-8 text-sm font-medium text-slate-500">
-            {['Posts', 'Files', 'Members'].map((tab) => (
+            {['Posts', 'Files', 'Members', 'Assessments'].map((tab) => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab.toLowerCase())}
@@ -224,6 +225,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
             {activeTab === 'posts' && <TeamPostsTab />}
             {activeTab === 'files' && <TeamFilesTab />}
             {activeTab === 'members' && <TeamMembersTab />}
+            {activeTab === 'assessments' && <ActiveAssessmentsList teamId={id} />}
           </div>
         </div>
       </div>

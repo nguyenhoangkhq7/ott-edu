@@ -40,7 +40,25 @@ const baseConfig = {
 const apiClient = axios.create(baseConfig);
 const refreshClient = axios.create(baseConfig);
 
+const ASSIGNMENT_API_BASE_URL = "http://localhost:8081";
+
+const assignmentConfig = {
+  ...baseConfig,
+  baseURL: process.env.NEXT_PUBLIC_ASSIGNMENT_API_URL || ASSIGNMENT_API_BASE_URL,
+};
+
+const assignmentClient = axios.create(assignmentConfig);
+
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
+assignmentClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -85,4 +103,5 @@ apiClient.interceptors.response.use(
   }
 );
 
+export { apiClient, assignmentClient };
 export default apiClient;
