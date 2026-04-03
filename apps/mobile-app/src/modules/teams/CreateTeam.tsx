@@ -22,17 +22,11 @@ export default function CreateTeam({ onBack }: CreateTeamProps) {
   const [teamCode, setTeamCode] = useState('');
   const [showForm, setShowForm] = useState(false);
 
-  if (showForm) {
-    return (
-      <CreateClassForm 
-        onBack={() => setShowForm(false)} // Quay lại trang chọn Create/Join
-        onClose={onBack} // Thoát hẳn về danh sách Teams ban đầu
-      />
-    );
-  }
+  // The form is shown as a modal overlay, not replacing this screen
   return (
-    // SafeAreaView giúp đẩy nội dung xuống dưới tai thỏ và thanh pin
-    <SafeAreaView style={styles.safeArea}>
+    <>
+      {/* SafeAreaView giúp đẩy nội dung xuống dưới tai thỏ và thanh pin */}
+      <SafeAreaView style={styles.safeArea}>
       {/* Cấu hình thanh trạng thái (pin, sóng) màu tối cho nền trắng */}
       <StatusBar barStyle="dark-content" />
       
@@ -117,7 +111,18 @@ export default function CreateTeam({ onBack }: CreateTeamProps) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+
+      {/* Create Class Form Modal */}
+      <CreateClassForm 
+        visible={showForm}
+        onClose={() => setShowForm(false)}
+        onCreated={(name) => {
+          console.log('Class created:', name);
+          setShowForm(false);
+        }}
+      />
+    </>
   );
 }
 

@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import SelectModal, { SelectOption } from '../../shared/ui/SelectModal';
-import { teamsService } from './teams.service';
 
 // ─────────────────────────────────────────────
 // Types
