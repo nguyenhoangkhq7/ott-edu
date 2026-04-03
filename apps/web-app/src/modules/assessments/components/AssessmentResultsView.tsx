@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { mockAssessmentResult } from '../mocks/assessmentData';
 
 export default function AssessmentResultsView({ assessmentId }: { assessmentId: string }) {
+  void assessmentId; // Mark as intentionally unused
   const searchParams = useSearchParams();
   const scoreParam = searchParams.get('score');
   
@@ -24,7 +25,7 @@ export default function AssessmentResultsView({ assessmentId }: { assessmentId: 
                <p className="text-xs font-bold tracking-widest text-[#a5b4fc] mb-6 uppercase">Assessment Completed</p>
                <h2 className="text-4xl font-extrabold mb-4 font-serif">Excellent Work, Alex!</h2>
                <p className="text-indigo-100 text-sm leading-relaxed mb-8 text-center sm:text-left">
-                  You've successfully mastered the core concepts of pedagogical frameworks with a Distinction-level score.
+                  You&apos;ve successfully mastered the core concepts of pedagogical frameworks with a Distinction-level score.
                </p>
                
                <div className="flex gap-4">
@@ -167,7 +168,7 @@ export default function AssessmentResultsView({ assessmentId }: { assessmentId: 
                <span className="text-indigo-600">⚡</span> Next Steps
             </h3>
             <p className="text-xs text-slate-500 mb-6 leading-relaxed relative z-10">
-               Personalized recommendations to improve your score in "<span className="text-slate-700 font-semibold">Frameworks</span>":
+               Personalized recommendations to improve your score in &quot;<span className="text-slate-700 font-semibold">Frameworks</span>&quot;:
             </p>
             
             <div className="space-y-4 mb-6 flex-1">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import type { NavItem } from "@/shared/types/navigation";
 
 interface SidebarProps {
@@ -22,9 +23,11 @@ export default function Sidebar({ items, activeId }: SidebarProps) {
     >
       {/* Logo Section */}
       <div className="mb-5 flex h-16 w-16 items-center justify-center transition-transform hover:scale-105">
-        <img
-          src="../assets/logo.png"
+        <Image
+          src="/assets/logo.png"
           alt="Logo"
+          width={56}
+          height={56}
           className="h-14 w-14 object-contain"
         />
       </div>

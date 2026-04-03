@@ -57,9 +57,9 @@ export default function CancelClassForm({ onBack, classData }: CancelClassFormPr
       }
       
       setShowSuccessModal(true);
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      const detail = error.message || 'Please check your role permissions.';
+      const detail = error instanceof Error ? error.message : 'Please check your role permissions.';
       alert(`Failed to cancel class.\nDetails: ${detail}`);
     } finally {
       setIsLoading(false);

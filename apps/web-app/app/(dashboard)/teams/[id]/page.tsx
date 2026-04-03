@@ -11,18 +11,28 @@ import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
 import ActiveAssessmentsList from '@/modules/assessments/components/ActiveAssessmentsList';
 
+interface TeamData {
+  id: number;
+  name: string;
+  description?: string;
+  memberCount?: number;
+  isActive?: boolean;
+  active?: boolean;
+  isPrivate?: boolean;
+}
+
 export default function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = React.use(params);
   const [activeTab, setActiveTab] = useState('posts');
   const [showActionMenu, setShowActionMenu] = useState(false);
-  const [teamData, setTeamData] = useState<any>(null);
+  const [teamData, setTeamData] = useState<TeamData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchTeam = async () => {
       try {
-        const data = await httpService.get<any>(`/teams/${id}`);
+        const data = await httpService.get<TeamData>(`/teams/${id}`);
         setTeamData(data);
       } catch (error) {
         console.error("Failed to fetch team details:", error);
@@ -48,7 +58,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6 text-center">
         <h2 className="text-2xl font-bold text-slate-800 mb-2">Class Not Found</h2>
-        <p className="text-slate-600 mb-6">We couldn't find the class you're looking for or you may not have access.</p>
+        <p className="text-slate-600 mb-6">We couldn&apos;t find the class you&apos;re looking for or you may not have access.</p>
         <button onClick={() => router.push('/teams')} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
           Back to Teams
         </button>

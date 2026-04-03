@@ -86,18 +86,4 @@ public class TeamController {
         java.util.List<fit.iuh.dtos.team.TeamMemberResponse> members = teamService.getTeamMembers(id, email);
         return ResponseEntity.ok(members);
     }
-
-    /**
-     * PATCH /teams/{id}/cancel
-     * Hủy lớp học (soft-delete: isActive = false).
-     * Chỉ TEACHER của lớp mới được phép thực hiện.
-     */
-    @PatchMapping("/{id}/cancel")
-    public ResponseEntity<TeamResponse> cancelTeam(
-            @PathVariable Long id,
-            Authentication authentication) {
-        String email = authentication.getName();
-        TeamResponse response = teamService.cancelTeam(id, email);
-        return ResponseEntity.ok(response);
-    }
 }

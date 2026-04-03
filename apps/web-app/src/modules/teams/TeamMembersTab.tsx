@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Image from 'next/image';
 import { httpService } from '@/services/api/http.service';
 
 interface TeamMember {
@@ -47,7 +48,14 @@ export default function TeamMembersTab() {
     const fetchMembers = async () => {
       try {
         setIsLoading(true);
-        const data = await httpService.get<any[]>(`/teams/${teamId}/members`);
+        const data = await httpService.get<Array<{
+          id: number;
+          fullName: string;
+          email: string;
+          role: 'TEACHER' | 'STUDENT';
+          joinedAt?: string;
+          avatarUrl?: string;
+        }>>(`/teams/${teamId}/members`);
         
         // Map backend response to UI interface
         const mappedMembers: TeamMember[] = data.map(m => ({
@@ -63,9 +71,9 @@ export default function TeamMembersTab() {
 
         setMembers(mappedMembers);
         setError(null);
-      } catch (err: any) {
+      } catch (err) {
         console.error("Failed to fetch members:", err);
-        setError(err.message || "Failed to load class members.");
+        setError(err instanceof Error ? err.message : "Failed to load class members.");
       } finally {
         setIsLoading(false);
       }
@@ -117,24 +125,6 @@ export default function TeamMembersTab() {
     teachers: members.filter(m => m.role === 'Owner').length,
     students: members.filter(m => m.role === 'Member').length,
     pending: members.filter(m => m.status === 'Pending').length,
-  };
-
-  const handleToggleRole = (role: string) => {
-    setFilters(prev => ({
-      ...prev,
-      role: prev.role.includes(role)
-        ? prev.role.filter(r => r !== role)
-        : [...prev.role, role],
-    }));
-  };
-
-  const handleToggleStatus = (status: string) => {
-    setFilters(prev => ({
-      ...prev,
-      status: prev.status.includes(status)
-        ? prev.status.filter(s => s !== status)
-        : [...prev.status, status],
-    }));
   };
 
   const handleReset = () => {
@@ -265,7 +255,7 @@ export default function TeamMembersTab() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
                       {member.avatar ? (
-                          <img src={member.avatar} alt={member.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                          <Image src={member.avatar} alt={member.name} width={40} height={40} unoptimized className="w-10 h-10 rounded-full object-cover shadow-sm" />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
                             {member.initials}
@@ -412,7 +402,7 @@ export default function TeamMembersTab() {
                         type="radio"
                         name="sort"
                         checked={filters.sortBy === option.value}
-                        onChange={() => setFilters(prev => ({ ...prev, sortBy: option.value as any }))}
+                        onChange={() => setFilters(prev => ({ ...prev, sortBy: option.value as 'name' | 'joinDate' | 'activity' }))}
                         className="w-4 h-4 border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                       <span className={`text-sm font-semibold ${filters.sortBy === option.value ? 'text-blue-700' : 'text-slate-700'}`}>{option.label}</span>

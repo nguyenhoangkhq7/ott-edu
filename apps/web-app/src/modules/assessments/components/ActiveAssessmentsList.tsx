@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { assessmentService, AssessmentDTO } from '@/services/api/assessment.service';
+import { assessmentService } from '@/services/api/assessment.service';
 import { Assessment } from '../types/assessment';
 import AssessmentStartModal from './AssessmentStartModal';
 
@@ -164,12 +164,12 @@ export default function ActiveAssessmentsList({ teamId }: Props) {
             
             <div className="bg-white rounded-xl p-4 mb-4 shadow-sm border border-slate-50">
                 <h4 className="text-xs font-bold text-indigo-700 tracking-wider mb-2">TIME MANAGEMENT</h4>
-                <p className="text-sm text-slate-600 leading-relaxed">Calculus exams usually take the full 90 minutes. Don't rush the integration steps.</p>
+                <p className="text-sm text-slate-600 leading-relaxed">Calculus exams usually take the full 90 minutes. Don&apos;t rush the integration steps.</p>
             </div>
             
             <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-50">
                 <h4 className="text-xs font-bold text-amber-700 tracking-wider mb-2">RESOURCE ALERT</h4>
-                <p className="text-sm text-slate-600 leading-relaxed">Check the "Advanced Pedagogy" resource folder for the study guide before starting.</p>
+                <p className="text-sm text-slate-600 leading-relaxed">Check the &quot;Advanced Pedagogy&quot; resource folder for the study guide before starting.</p>
             </div>
          </div>
          

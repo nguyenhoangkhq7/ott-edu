@@ -29,7 +29,6 @@ export interface ClassData {
   currentStudents?: number;
   department?: string;
   school?: string;
-  isActive?: boolean;
   createdAt?: string;
 }
 
@@ -87,8 +86,6 @@ export default function EditClassForm({
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
 
   // ── Handlers ──
   const update = (field: keyof FormData, value: string) => {
@@ -133,26 +130,11 @@ export default function EditClassForm({
     setShowConfirmModal(false);
     setIsLoading(true);
     try {
-      // Mock API call
       await new Promise(resolve => setTimeout(resolve, 1200));
       setShowSuccessModal(true);
       setHasChanges(false);
     } catch (e) {
       console.error('Error saving class:', e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const confirmCancel = async () => {
-    setShowCancelConfirm(false);
-    setIsLoading(true);
-    try {
-      // Mock cancellation delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setShowSuccessModal(true);
-    } catch (e) {
-      console.error('Error cancelling class:', e);
     } finally {
       setIsLoading(false);
     }
@@ -289,28 +271,6 @@ export default function EditClassForm({
                   All changes will be saved. Students will be notified of name/code changes.
                 </Text>
               </View>
-
-              {/* Danger Zone */}
-              <View style={styles.dangerZone}>
-                <View style={styles.dangerHeader}>
-                  <Ionicons name="warning-outline" size={18} color="#ef4444" />
-                  <Text style={styles.dangerTitle}>Danger Zone</Text>
-                </View>
-                <Text style={styles.dangerText}>
-                  Once you cancel a class, it will be marked as inactive. This action cannot be easily undone.
-                </Text>
-                <TouchableOpacity
-                  style={[styles.cancelClassBtn, classData.isActive === false && styles.disabledCancelBtn]}
-                  onPress={() => setShowCancelConfirm(true)}
-                  disabled={classData.isActive === false}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="trash-outline" size={18} color={classData.isActive === false ? "#94a3b8" : "#ef4444"} />
-                  <Text style={[styles.cancelClassBtnText, classData.isActive === false && styles.disabledCancelBtnText]}>
-                    {classData.isActive === false ? 'Class Already Cancelled' : 'Cancel This Class'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -427,9 +387,9 @@ export default function EditClassForm({
                 </View>
               </View>
 
-              <Text style={styles.successTitle}>Done!</Text>
+              <Text style={styles.successTitle}>Changes Saved!</Text>
               <Text style={styles.successSubtitle}>
-                The operation was completed successfully.
+                The class information has been updated successfully.
               </Text>
 
               <TouchableOpacity
@@ -441,57 +401,8 @@ export default function EditClassForm({
                 }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.successPrimaryBtnText}>Back to Dashboard</Text>
+                <Text style={styles.successPrimaryBtnText}>Done</Text>
               </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Cancel Confirmation Modal */}
-        <Modal
-          visible={showCancelConfirm}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowCancelConfirm(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.confirmContainer}>
-              <View style={[styles.successInnerCircle, { backgroundColor: '#ef4444', marginBottom: 20, alignSelf: 'center' }]}>
-                <Ionicons name="alert" size={32} color="white" />
-              </View>
-              <Text style={styles.confirmTitle}>Cancel Class?</Text>
-              <Text style={styles.confirmSubtitle}>
-                This will make the class inactive for all students and teachers. Are you sure?
-              </Text>
-
-              <View style={styles.fieldSection}>
-                <Text style={styles.fieldLabel}>Reason for cancellation (Optional)</Text>
-                <TextInput
-                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-                  placeholder="e.g., Course ended, teacher unavailable..."
-                  placeholderTextColor="#cbd5e1"
-                  value={cancelReason}
-                  onChangeText={setCancelReason}
-                  multiline
-                />
-              </View>
-
-              <View style={[styles.confirmActions, { marginTop: 20 }]}>
-                <TouchableOpacity
-                  style={styles.confirmCancelBtn}
-                  onPress={() => setShowCancelConfirm(false)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.confirmCancelText}>Discard</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.confirmSaveBtn, { backgroundColor: '#ef4444' }]}
-                  onPress={confirmCancel}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.confirmSaveText}>Yes, Cancel Class</Text>
-                </TouchableOpacity>
-              </View>
             </View>
           </View>
         </Modal>
@@ -754,33 +665,4 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   successPrimaryBtnText: { fontSize: 15, fontWeight: '700', color: 'white' },
-
-  // Danger Zone
-  dangerZone: {
-    marginTop: 24,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#fee2e2',
-  },
-  dangerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  dangerTitle: { fontSize: 16, fontWeight: '700', color: '#ef4444' },
-  dangerText: { fontSize: 13, color: '#64748b', lineHeight: 18, marginBottom: 16 },
-  cancelClassBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    backgroundColor: '#fff1f2',
-  },
-  cancelClassBtnText: { fontSize: 14, fontWeight: '600', color: '#ef4444' },
-  disabledCancelBtn: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
-  disabledCancelBtnText: { color: '#94a3b8' },
-
-  // Confirmation modal fields
-  fieldSection: { marginTop: 16 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 8 },
 });

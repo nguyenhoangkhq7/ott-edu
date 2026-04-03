@@ -45,14 +45,4 @@ public interface TeamService {
      * @return danh sách thông tin thành viên
      */
     java.util.List<fit.iuh.dtos.team.TeamMemberResponse> getTeamMembers(Long teamId, String email);
-
-    /**
-     * Hủy lớp học (soft-delete: isActive = false).
-     * Chỉ TEACHER của lớp mới được thực hiện.
-     *
-     * @param teamId Id của lớp học cần hủy
-     * @param email  email của người thực hiện
-     * @return thông tin lớp học sau khi hủy
-     */
-    TeamResponse cancelTeam(Long teamId, String email);
 }
