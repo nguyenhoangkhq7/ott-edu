@@ -1,0 +1,59 @@
+{
+  "info": {
+    "_postman_id": "login-example-test-id",
+    "name": "Example Login",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Login",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.environment.set('loginEmail', pm.environment.get('loginEmail') || 'student@example.com');",
+              "pm.environment.set('loginPassword', pm.environment.get('loginPassword') || 'Password@123');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200 or 401 for example flow', function () {",
+              "    pm.expect([200, 401]).to.include(pm.response.code);",
+              "});",
+              "",
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    var token = jsonData && jsonData.data ? jsonData.data.accessToken : null;",
+              "    pm.test('Access token exists on successful login', function () {",
+              "        pm.expect(token).to.be.a('string').and.not.empty;",
+              "    });",
+              "    pm.environment.set('accessToken', token);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{loginEmail}}\",\n  \"password\": \"{{loginPassword}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/login"
+      },
+      "response": []
+    }
+  ]
+}
