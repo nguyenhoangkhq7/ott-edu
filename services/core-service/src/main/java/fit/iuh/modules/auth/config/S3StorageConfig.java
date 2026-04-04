@@ -16,16 +16,17 @@ public class S3StorageConfig {
 
     @Bean
     public S3Client s3Client(S3StorageProperties properties) {
-        S3Client.Builder builder = S3Client.builder()
-                .region(Region.of(properties.region()));
-
         if (StringUtils.hasText(properties.accessKey()) && StringUtils.hasText(properties.secretKey())) {
             AwsBasicCredentials credentials = AwsBasicCredentials.create(properties.accessKey(), properties.secretKey());
-            builder.credentialsProvider(StaticCredentialsProvider.create(credentials));
-        } else {
-            builder.credentialsProvider(DefaultCredentialsProvider.create());
+            return S3Client.builder()
+                    .region(Region.of(properties.region()))
+                    .credentialsProvider(StaticCredentialsProvider.create(credentials))
+                    .build();
         }
 
-        return builder.build();
+        return S3Client.builder()
+                .region(Region.of(properties.region()))
+                .credentialsProvider(DefaultCredentialsProvider.create())
+                .build();
     }
 }
