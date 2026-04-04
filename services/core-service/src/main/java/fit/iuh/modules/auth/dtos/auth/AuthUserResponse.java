@@ -21,6 +21,4 @@ public class AuthUserResponse {
     private String code;
     private Long schoolId;
     private Long departmentId;
-    private String customSchool;
-    private String customDepartment;
 }

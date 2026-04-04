@@ -5,6 +5,8 @@ export type LoginPayload = {
   password: string;
 };
 
+export type OtpPurpose = "FORGOT_PASSWORD" | "CHANGE_PASSWORD";
+
 export type AuthUser = {
   accountId: number;
   email: string;
@@ -15,8 +17,6 @@ export type AuthUser = {
   code: string | null;
   schoolId: number | null;
   departmentId: number | null;
-  customSchool: string | null;
-  customDepartment: string | null;
 };
 
 export type SchoolOption = {
@@ -39,6 +39,40 @@ export type RegisterPayload = {
   code: string;
   schoolId: 1;
   departmentId: number;
+};
+
+export type ForgotPasswordPayload = {
+  email: string;
+};
+
+export type OtpChallenge = {
+  challengeId: string;
+  maskedEmail: string;
+  expiresIn: number;
+};
+
+export type VerifyOtpPayload = {
+  challengeId: string;
+  otpCode: string;
+  purpose: OtpPurpose;
+};
+
+export type VerifyOtpResult = {
+  verifiedToken: string;
+  expiresIn: number;
+};
+
+export type ResetPasswordPayload = {
+  verifiedToken: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
+export type ChangePasswordPayload = {
+  verifiedToken: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 };
 
 type LoginResponse = {
@@ -81,4 +115,24 @@ export async function getDepartmentsBySchoolId(schoolId: number): Promise<Depart
 export async function registerAccount(payload: RegisterPayload): Promise<string> {
   const response = await httpService.post<string>("/auth/register", payload);
   return response || "Tao tai khoan thanh cong!";
+}
+
+export async function forgotPassword(payload: ForgotPasswordPayload): Promise<OtpChallenge> {
+  return httpService.post<OtpChallenge>("/auth/forgot-password", payload);
+}
+
+export async function sendChangePasswordOtp(): Promise<OtpChallenge> {
+  return httpService.post<OtpChallenge>("/auth/send-change-password-otp", {});
+}
+
+export async function verifyOtp(payload: VerifyOtpPayload): Promise<VerifyOtpResult> {
+  return httpService.post<VerifyOtpResult>("/auth/verify-otp", payload);
+}
+
+export async function resetPassword(payload: ResetPasswordPayload): Promise<string> {
+  return httpService.post<string>("/auth/reset-password", payload);
+}
+
+export async function changePassword(payload: ChangePasswordPayload): Promise<string> {
+  return httpService.post<string>("/auth/change-password", payload);
 }

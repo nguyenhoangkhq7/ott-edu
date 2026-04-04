@@ -43,7 +43,7 @@ public class Team {
 
     @Builder.Default
     @Column(name = "is_active", nullable = false)
-    private boolean active = true;
+    private boolean isActive = true;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -140,12 +140,12 @@ export default function LoginPage() {
                   </label>
                 </div>
 
-                <button
-                  type="button"
+                <Link
+                  href="/forgot-password"
                   className="text-sm font-medium text-indigo-600 transition hover:text-indigo-700 hover:underline"
                 >
                   Quên mật khẩu?
-                </button>
+                </Link>
               </div>
 
               <AuthFieldError message={touched.password ? errors.password : undefined} />

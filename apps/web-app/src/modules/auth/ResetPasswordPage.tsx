@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { resetPassword } from "@/services/auth/auth.service";
+import { clearForgotOtpState, getForgotVerifiedToken } from "@/services/auth/otp-flow-store";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -9,6 +11,8 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const getPasswordStrength = (password: string) => {
     if (password.length === 0) return { strength: 0, label: "", color: "" };
@@ -29,10 +33,35 @@ export default function ResetPasswordPage() {
   const passwordStrength = getPasswordStrength(newPassword);
   const isValid = newPassword.length >= 8 && /[0-9]/.test(newPassword) && /[^a-zA-Z0-9]/.test(newPassword);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword === confirmPassword && isValid) {
+    if (newPassword !== confirmPassword || !isValid) {
+      return;
+    }
+
+    const verifiedToken = getForgotVerifiedToken();
+    if (!verifiedToken) {
+      router.replace("/forgot-password");
+      return;
+    }
+
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await resetPassword({
+        verifiedToken,
+        newPassword,
+        confirmPassword,
+      });
+
+      clearForgotOtpState();
       router.push("/forgot-password/success");
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Khong the dat lai mat khau.";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -62,6 +91,12 @@ export default function ResetPasswordPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {error}
+              </p>
+            )}
+
             <div>
               <label htmlFor="newPassword" className="mb-2 block text-sm font-medium text-slate-700">
                 New Password
@@ -168,10 +203,10 @@ export default function ResetPasswordPage() {
 
             <button
               type="submit"
-              disabled={!isValid || newPassword !== confirmPassword}
+              disabled={!isValid || newPassword !== confirmPassword || isSubmitting}
               className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
-              Reset Password
+              {isSubmitting ? "Resetting..." : "Reset Password"}
             </button>
           </form>
 

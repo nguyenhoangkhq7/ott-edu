@@ -9,19 +9,30 @@ import fit.iuh.models.School;
 import fit.iuh.modules.auth.config.JwtService;
 import fit.iuh.modules.auth.dtos.auth.AuthUserResponse;
 import fit.iuh.modules.auth.dtos.auth.ChangePasswordRequest;
+import fit.iuh.modules.auth.dtos.auth.ForgotPasswordRequest;
 import fit.iuh.modules.auth.dtos.auth.LoginRequest;
 import fit.iuh.modules.auth.dtos.auth.LoginResponse;
 import fit.iuh.modules.auth.dtos.auth.LogoutRequest;
+import fit.iuh.modules.auth.dtos.auth.OtpChallengeResponse;
+import fit.iuh.modules.auth.dtos.auth.OtpPurpose;
 import fit.iuh.modules.auth.dtos.auth.RefreshTokenRequest;
 import fit.iuh.modules.auth.dtos.auth.RefreshTokenResponse;
+import fit.iuh.modules.auth.dtos.auth.ResetPasswordRequest;
+import fit.iuh.modules.auth.dtos.auth.VerifyOtpRequest;
+import fit.iuh.modules.auth.dtos.auth.VerifyOtpResponse;
 import fit.iuh.modules.auth.dtos.register.RegisterRequest;
+import fit.iuh.modules.auth.mappers.AuthMapper;
 import fit.iuh.modules.auth.repositories.AccountRepository;
 import fit.iuh.modules.auth.repositories.ProfileRepository;
 import fit.iuh.modules.auth.repositories.RefreshTokenRepository;
 import fit.iuh.modules.auth.services.AuthService;
+import fit.iuh.modules.auth.services.support.OtpChallenge;
+import fit.iuh.modules.auth.services.support.OtpChallengeManager;
+import fit.iuh.modules.auth.services.support.OtpEmailService;
 import fit.iuh.modules.department.repositories.DepartmentRepository;
 import fit.iuh.modules.school.repositories.SchoolRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -29,12 +40,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
+    private static final SecureRandom OTP_RANDOM = new SecureRandom();
 
     private final AccountRepository accountRepository;
     private final ProfileRepository profileRepository;
@@ -44,6 +58,15 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final AuthenticationManager authenticationManager;
     private final DepartmentRepository departmentRepository;
+    private final AuthMapper authMapper;
+    private final OtpChallengeManager otpChallengeManager;
+    private final OtpEmailService otpEmailService;
+
+    @Value("${app.otp.ttl-seconds:300}")
+    private long otpTtlSeconds;
+
+    @Value("${app.otp.max-attempts:5}")
+    private int otpMaxAttempts;
 
     @Override
     @Transactional
@@ -67,33 +90,22 @@ public class AuthServiceImpl implements AuthService {
 
         newAccount = accountRepository.save(newAccount);
 
-        School selectedSchool = null;
-        Department selectedDepartment = null;
-        String finalCustomSchool = null;
-        String finalCustomDept = null;
-
-        if (request.getSchoolId() != null) {
-            selectedSchool = schoolRepository.findById(request.getSchoolId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy Trường trong hệ thống!"));
-        } else {
-            if (request.getCustomSchool() == null || request.getCustomSchool().trim().isEmpty()) {
-                throw new RuntimeException("Vui lòng chọn Trường hoặc nhập tên Trường của bạn!");
-            }
-            finalCustomSchool = request.getCustomSchool().trim();
+        if (request.getSchoolId() == null) {
+            throw new RuntimeException("Vui lòng chọn Trường!");
         }
 
-        if (request.getDepartmentId() != null) {
-            selectedDepartment = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy Khoa trong hệ thống!"));
+        if (request.getDepartmentId() == null) {
+            throw new RuntimeException("Vui lòng chọn Khoa!");
+        }
 
-            if (selectedSchool != null && !selectedDepartment.getSchool().getId().equals(selectedSchool.getId())) {
-                throw new RuntimeException("Khoa được chọn không thuộc về Trường này!");
-            }
-        } else {
-            if (request.getCustomDepartment() == null || request.getCustomDepartment().trim().isEmpty()) {
-                throw new RuntimeException("Vui lòng chọn Khoa hoặc nhập tên Khoa của bạn!");
-            }
-            finalCustomDept = request.getCustomDepartment().trim();
+        School selectedSchool = schoolRepository.findById(request.getSchoolId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy Trường trong hệ thống!"));
+
+        Department selectedDepartment = departmentRepository.findById(request.getDepartmentId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy Khoa trong hệ thống!"));
+
+        if (!selectedDepartment.getSchool().getId().equals(selectedSchool.getId())) {
+            throw new RuntimeException("Khoa được chọn không thuộc về Trường này!");
         }
 
         Profile newProfile = Profile.builder()
@@ -103,8 +115,6 @@ public class AuthServiceImpl implements AuthService {
                 .code(request.getCode())
                 .school(selectedSchool)
                 .department(selectedDepartment)
-                .customSchool(finalCustomSchool)
-                .customDepartment(finalCustomDept)
                 .build();
 
         profileRepository.save(newProfile);
@@ -164,6 +174,7 @@ public class AuthServiceImpl implements AuthService {
         Account account = tokenEntity.getAccount();
 
         tokenEntity.setRevoked(true);
+        tokenEntity.setReplacedAt(LocalDateTime.now());
         refreshTokenRepository.save(tokenEntity);
 
         String newAccessToken = jwtService.generateAccessToken(account);
@@ -208,10 +219,75 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public OtpChallengeResponse forgotPassword(ForgotPasswordRequest request) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        Account account = accountRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new RuntimeException("Email không tồn tại trong hệ thống."));
+
+        return sendOtpChallenge(account.getEmail(), OtpPurpose.FORGOT_PASSWORD, "khoi phuc mat khau");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OtpChallengeResponse sendChangePasswordOtp(String email) {
+        Account account = accountRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new BadCredentialsException("Không tìm thấy người dùng đang đăng nhập."));
+
+        return sendOtpChallenge(account.getEmail(), OtpPurpose.CHANGE_PASSWORD, "doi mat khau");
+    }
+
+    @Override
+    public VerifyOtpResponse verifyOtp(VerifyOtpRequest request) {
+        String email = otpChallengeManager.verifyAndConsume(
+                request.getChallengeId(),
+                request.getPurpose(),
+                request.getOtpCode(),
+                passwordEncoder
+        );
+
+        String verifiedToken = jwtService.generateOtpVerifiedToken(email, request.getPurpose());
+        return VerifyOtpResponse.builder()
+                .verifiedToken(verifiedToken)
+                .expiresIn(jwtService.getOtpVerifiedTokenExpirationMs() / 1000)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new RuntimeException("Mật khẩu xác nhận không khớp.");
+        }
+
+        if (!jwtService.isOtpVerifiedTokenForPurpose(request.getVerifiedToken(), OtpPurpose.FORGOT_PASSWORD)) {
+            throw new BadCredentialsException("Phiên xác thực OTP không hợp lệ hoặc đã hết hạn.");
+        }
+
+        String email = jwtService.extractSubject(request.getVerifiedToken());
+        Account account = accountRepository.findByEmail(email)
+                .orElseThrow(() -> new BadCredentialsException("Tài khoản không tồn tại."));
+
+        account.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        accountRepository.save(account);
+
+        revokeActiveRefreshTokens(account.getId());
+    }
+
+    @Override
     @Transactional
     public void changePassword(String email, ChangePasswordRequest request) {
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             throw new RuntimeException("Mật khẩu xác nhận không khớp.");
+        }
+
+        if (!jwtService.isOtpVerifiedTokenForPurpose(request.getVerifiedToken(), OtpPurpose.CHANGE_PASSWORD)) {
+            throw new BadCredentialsException("Phiên xác thực OTP không hợp lệ hoặc đã hết hạn.");
+        }
+
+        String verifiedEmail = jwtService.extractSubject(request.getVerifiedToken());
+        if (!normalizeEmail(email).equals(normalizeEmail(verifiedEmail))) {
+            throw new BadCredentialsException("Phiên xác thực OTP không thuộc về tài khoản hiện tại.");
         }
 
         Account account = accountRepository.findByEmail(email)
@@ -224,29 +300,13 @@ public class AuthServiceImpl implements AuthService {
         account.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         accountRepository.save(account);
 
-        List<RefreshToken> activeTokens = refreshTokenRepository.findAllByAccountIdAndRevokedFalse(account.getId());
-        for (RefreshToken token : activeTokens) {
-            token.setRevoked(true);
-        }
-        refreshTokenRepository.saveAll(activeTokens);
+        revokeActiveRefreshTokens(account.getId());
     }
 
     private AuthUserResponse buildUserResponse(Account account) {
         Profile profile = profileRepository.findById(account.getId()).orElse(null);
 
-        return AuthUserResponse.builder()
-                .accountId(account.getId())
-                .email(account.getEmail())
-                .roles(List.of(account.getRole().name()))
-                .firstName(profile != null ? profile.getFirstName() : null)
-                .lastName(profile != null ? profile.getLastName() : null)
-            .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
-                .code(profile != null ? profile.getCode() : null)
-                .schoolId(profile != null && profile.getSchool() != null ? profile.getSchool().getId() : null)
-                .departmentId(profile != null && profile.getDepartment() != null ? profile.getDepartment().getId() : null)
-                .customSchool(profile != null ? profile.getCustomSchool() : null)
-                .customDepartment(profile != null ? profile.getCustomDepartment() : null)
-                .build();
+        return authMapper.toAuthUserResponse(account, profile);
     }
 
     private Role parseRole(String roleName) {
@@ -260,5 +320,58 @@ public class AuthServiceImpl implements AuthService {
         }
 
         return Role.valueOf(normalized);
+    }
+
+    private OtpChallengeResponse sendOtpChallenge(String email, OtpPurpose purpose, String purposeLabel) {
+        String otpCode = generateOtpCode();
+        OtpChallenge challenge = otpChallengeManager.createChallenge(
+                email,
+                purpose,
+                passwordEncoder.encode(otpCode),
+                otpTtlSeconds,
+                otpMaxAttempts
+        );
+
+        try {
+            otpEmailService.sendOtp(email, otpCode, purposeLabel, otpTtlSeconds);
+        } catch (Exception ex) {
+            throw new RuntimeException("Không thể gửi mã OTP. Vui lòng thử lại sau.");
+        }
+
+        return OtpChallengeResponse.builder()
+                .challengeId(challenge.getId())
+                .maskedEmail(maskEmail(email))
+                .expiresIn(otpTtlSeconds)
+                .build();
+    }
+
+    private String generateOtpCode() {
+        return String.format("%06d", OTP_RANDOM.nextInt(1_000_000));
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+
+        return email.trim().toLowerCase();
+    }
+
+    private String maskEmail(String email) {
+        String normalized = normalizeEmail(email);
+        int atIndex = normalized.indexOf('@');
+        if (atIndex <= 1) {
+            return normalized;
+        }
+
+        return normalized.charAt(0) + "***" + normalized.substring(atIndex - 1);
+    }
+
+    private void revokeActiveRefreshTokens(Long accountId) {
+        List<RefreshToken> activeTokens = refreshTokenRepository.findAllByAccountIdAndRevokedFalse(accountId);
+        for (RefreshToken token : activeTokens) {
+            token.setRevoked(true);
+        }
+        refreshTokenRepository.saveAll(activeTokens);
     }
 }

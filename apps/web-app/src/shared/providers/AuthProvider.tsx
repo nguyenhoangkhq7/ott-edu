@@ -10,7 +10,7 @@ import {
   type AuthUser,
   type LoginPayload,
 } from "@/services/auth/auth.service";
-import { clearAccessToken, setAccessToken } from "@/services/api/token-store";
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -56,9 +56,13 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
           setUser(currentUser);
         }
       } catch {
-        clearAccessToken();
-        if (isMounted) {
-          setUser(null);
+        // Avoid clobbering a successful manual login that may complete
+        // while the initial bootstrap refresh request is still in flight.
+        if (!getAccessToken()) {
+          clearAccessToken();
+          if (isMounted) {
+            setUser(null);
+          }
         }
       } finally {
         if (isMounted) {

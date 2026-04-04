@@ -34,13 +34,7 @@ public class Profile {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;
-    
+
     private String bio;
     private String phone;
-
-    @Column(name = "custom_school")
-    private String customSchool;
-
-    @Column(name = "custom_department")
-    private String customDepartment;
 }

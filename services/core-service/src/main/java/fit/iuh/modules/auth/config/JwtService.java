@@ -1,6 +1,7 @@
 package fit.iuh.modules.auth.config;
 
 import fit.iuh.models.Account;
+import fit.iuh.modules.auth.dtos.auth.OtpPurpose;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -54,6 +55,20 @@ public class JwtService {
                 .compact();
     }
 
+    public String generateOtpVerifiedToken(String email, OtpPurpose purpose) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + jwtProperties.getOtpVerifiedTokenExpirationMs());
+
+        return Jwts.builder()
+                .subject(email)
+                .claim(CLAIM_TYPE, "otp_verified")
+                .claim("otpPurpose", purpose.name())
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(getSigningKey())
+                .compact();
+    }
+
     public boolean isTokenValid(String token, String expectedEmail) {
         String email = extractSubject(token);
         return expectedEmail.equals(email) && !isTokenExpired(token);
@@ -71,6 +86,24 @@ public class JwtService {
     public boolean isRefreshToken(String token) {
         String type = extractAllClaims(token).get(CLAIM_TYPE, String.class);
         return "refresh".equals(type);
+    }
+
+    public boolean isOtpVerifiedToken(String token) {
+        String type = extractAllClaims(token).get(CLAIM_TYPE, String.class);
+        return "otp_verified".equals(type) && !isTokenExpired(token);
+    }
+
+    public boolean isOtpVerifiedTokenForPurpose(String token, OtpPurpose purpose) {
+        if (!isOtpVerifiedToken(token)) {
+            return false;
+        }
+
+        String tokenPurpose = extractAllClaims(token).get("otpPurpose", String.class);
+        return purpose.name().equals(tokenPurpose);
+    }
+
+    public long getOtpVerifiedTokenExpirationMs() {
+        return jwtProperties.getOtpVerifiedTokenExpirationMs();
     }
 
     public long getAccessTokenExpirationMs() {

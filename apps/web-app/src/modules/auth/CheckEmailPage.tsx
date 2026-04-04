@@ -1,16 +1,53 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { forgotPassword } from "@/services/auth/auth.service";
+import { getForgotOtpState, setForgotOtpState } from "@/services/auth/otp-flow-store";
 
 export default function CheckEmailPage() {
   const router = useRouter();
+  const [maskedEmail, setMaskedEmail] = useState("m***@example.com");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const state = getForgotOtpState();
+    if (!state) {
+      router.replace("/forgot-password");
+      return;
+    }
+
+    setMaskedEmail(state.maskedEmail);
+  }, [router]);
 
   const handleOpenEmail = () => {
     window.open("mailto:", "_blank");
   };
 
-  const handleResendLink = () => {
-    console.log("Resend link");
+  const handleResendLink = async () => {
+    const state = getForgotOtpState();
+    if (!state) {
+      router.replace("/forgot-password");
+      return;
+    }
+
+    setError(null);
+    try {
+      if (!state.email) {
+        throw new Error("Khong tim thay email de gui lai OTP.");
+      }
+
+      const response = await forgotPassword({ email: state.email });
+      setForgotOtpState(response.challengeId, response.maskedEmail, state.email);
+      setMaskedEmail(response.maskedEmail);
+    } catch (resendError) {
+      const message = resendError instanceof Error ? resendError.message : "Khong the gui lai ma OTP.";
+      setError(message);
+    }
+  };
+
+  const handleGoToVerify = () => {
+    router.push("/forgot-password/verify");
   };
 
   const handleBackToLogin = () => {
@@ -43,7 +80,7 @@ export default function CheckEmailPage() {
           </h2>
           
           <p className="mb-6 text-center text-sm text-slate-600">
-            We&apos;ve sent a password reset link to your email address. Please check your inbox and follow the instructions to secure your account.
+            We&apos;ve sent a 6-digit OTP code to <span className="font-medium text-slate-900">{maskedEmail}</span>. Please check your inbox to continue.
           </p>
 
           <button
@@ -52,6 +89,19 @@ export default function CheckEmailPage() {
           >
             Open Email App
           </button>
+
+          <button
+            onClick={handleGoToVerify}
+            className="mb-4 w-full rounded-lg border border-blue-600 px-4 py-2.5 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50"
+          >
+            I already have the code
+          </button>
+
+          {error && (
+            <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           <div className="text-center">
             <p className="text-sm text-slate-600">

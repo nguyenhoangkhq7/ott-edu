@@ -5,11 +5,16 @@ import fit.iuh.modules.platform.api.ApiSuccessResponse;
 import fit.iuh.modules.auth.config.JwtService;
 import fit.iuh.modules.auth.dtos.auth.AuthUserResponse;
 import fit.iuh.modules.auth.dtos.auth.ChangePasswordRequest;
+import fit.iuh.modules.auth.dtos.auth.ForgotPasswordRequest;
 import fit.iuh.modules.auth.dtos.auth.LoginRequest;
 import fit.iuh.modules.auth.dtos.auth.LoginResponse;
 import fit.iuh.modules.auth.dtos.auth.LogoutRequest;
+import fit.iuh.modules.auth.dtos.auth.OtpChallengeResponse;
 import fit.iuh.modules.auth.dtos.auth.RefreshTokenRequest;
 import fit.iuh.modules.auth.dtos.auth.RefreshTokenResponse;
+import fit.iuh.modules.auth.dtos.auth.ResetPasswordRequest;
+import fit.iuh.modules.auth.dtos.auth.VerifyOtpRequest;
+import fit.iuh.modules.auth.dtos.auth.VerifyOtpResponse;
 import fit.iuh.modules.auth.dtos.register.RegisterRequest;
 import fit.iuh.modules.auth.services.AuthService;
 import io.jsonwebtoken.JwtException;
@@ -122,6 +127,40 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, clearRefreshCookie.toString())
             .body(ApiResponseFactory.success(HttpStatus.OK, "Đăng xuất thành công.", null));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiSuccessResponse<OtpChallengeResponse>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request
+    ) {
+        OtpChallengeResponse response = authService.forgotPassword(request);
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Đã gửi mã OTP qua email.", response));
+    }
+
+    @PostMapping("/send-change-password-otp")
+    public ResponseEntity<ApiSuccessResponse<OtpChallengeResponse>> sendChangePasswordOtp(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy phiên đăng nhập hợp lệ.");
+        }
+
+        OtpChallengeResponse response = authService.sendChangePasswordOtp(authentication.getName());
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Đã gửi mã OTP qua email.", response));
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<ApiSuccessResponse<VerifyOtpResponse>> verifyOtp(
+            @Valid @RequestBody VerifyOtpRequest request
+    ) {
+        VerifyOtpResponse response = authService.verifyOtp(request);
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Xác thực OTP thành công.", response));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiSuccessResponse<String>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request
+    ) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Đặt lại mật khẩu thành công.", "Đặt lại mật khẩu thành công."));
     }
 
     @PostMapping("/change-password")
