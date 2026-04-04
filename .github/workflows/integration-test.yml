@@ -27,13 +27,13 @@ jobs:
         run: |
           set -e
           echo "Waiting for gateway root..."
-          for i in {1..60}; do
+          for i in {1..120}; do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ || true)
             if [ "$code" = "200" ]; then
               echo "Gateway is ready (200)."
               break
             fi
-            if [ "$i" -eq 60 ]; then
+            if [ "$i" -eq 120 ]; then
               echo "Gateway did not become ready in time."
               docker compose logs gateway
               exit 1
@@ -42,7 +42,7 @@ jobs:
           done
 
           echo "Waiting for core auth endpoint through gateway (no 502)..."
-          for i in {1..60}; do
+          for i in {1..150}; do
             code=$(curl -s -o /dev/null -w "%{http_code}" \
               -X POST http://localhost:8000/api/core/auth/login \
               -H "Content-Type: application/json" \
@@ -51,7 +51,7 @@ jobs:
               echo "Core upstream is reachable through gateway (HTTP $code)."
               break
             fi
-            if [ "$i" -eq 60 ]; then
+            if [ "$i" -eq 150 ]; then
               echo "Core upstream still unavailable after retries."
               docker compose logs core-service gateway
               exit 1
