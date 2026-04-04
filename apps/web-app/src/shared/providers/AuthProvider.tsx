@@ -56,7 +56,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
           setUser(currentUser);
         }
       } catch {
-        clearAccessToken();
+        // clearAccessToken();
         if (isMounted) {
           setUser(null);
         }

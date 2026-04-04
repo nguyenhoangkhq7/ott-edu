@@ -12,7 +12,7 @@ declare module "axios" {
   }
 }
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const DEFAULT_API_BASE_URL = "http://localhost:8080";
 const DEFAULT_TIMEOUT_MS = 30000;
 
 function getApiBaseUrl(): string {
@@ -81,7 +81,7 @@ apiClient.interceptors.response.use(
 
       return apiClient(originalRequest);
     } catch (refreshError) {
-      clearAccessToken();
+      // clearAccessToken();
       return Promise.reject(refreshError);
     }
   }
