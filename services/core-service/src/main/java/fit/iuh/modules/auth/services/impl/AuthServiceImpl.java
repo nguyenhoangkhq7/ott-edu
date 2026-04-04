@@ -18,6 +18,7 @@ import fit.iuh.modules.auth.dtos.auth.OtpPurpose;
 import fit.iuh.modules.auth.dtos.auth.RefreshTokenRequest;
 import fit.iuh.modules.auth.dtos.auth.RefreshTokenResponse;
 import fit.iuh.modules.auth.dtos.auth.ResetPasswordRequest;
+import fit.iuh.modules.auth.dtos.auth.UpdateProfileRequest;
 import fit.iuh.modules.auth.dtos.auth.VerifyOtpRequest;
 import fit.iuh.modules.auth.dtos.auth.VerifyOtpResponse;
 import fit.iuh.modules.auth.dtos.register.RegisterRequest;
@@ -29,6 +30,7 @@ import fit.iuh.modules.auth.services.AuthService;
 import fit.iuh.modules.auth.services.support.OtpChallenge;
 import fit.iuh.modules.auth.services.support.OtpChallengeManager;
 import fit.iuh.modules.auth.services.support.OtpEmailService;
+import fit.iuh.modules.auth.services.support.storage.AvatarStorageService;
 import fit.iuh.modules.department.repositories.DepartmentRepository;
 import fit.iuh.modules.school.repositories.SchoolRepository;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
@@ -61,6 +65,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthMapper authMapper;
     private final OtpChallengeManager otpChallengeManager;
     private final OtpEmailService otpEmailService;
+    private final AvatarStorageService avatarStorageService;
 
     @Value("${app.otp.ttl-seconds:300}")
     private long otpTtlSeconds;
@@ -303,6 +308,66 @@ public class AuthServiceImpl implements AuthService {
         revokeActiveRefreshTokens(account.getId());
     }
 
+    @Override
+    @Transactional
+    public AuthUserResponse updateCurrentUser(String email, UpdateProfileRequest request) {
+        Account account = accountRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new BadCredentialsException("Không tìm thấy người dùng đang đăng nhập."));
+
+        Profile profile = profileRepository.findById(account.getId())
+                .orElseGet(() -> Profile.builder().account(account).build());
+
+        if (request.getFullName() != null) {
+            String[] nameParts = splitFullName(request.getFullName());
+            profile.setFirstName(nameParts[0]);
+            profile.setLastName(nameParts[1]);
+        }
+
+        if (request.getAbout() != null) {
+            profile.setBio(normalizeOptionalText(request.getAbout()));
+        }
+
+        if (request.getPhone() != null) {
+            profile.setPhone(normalizeOptionalText(request.getPhone()));
+        }
+
+        if (request.getAvatarUrl() != null) {
+            String newAvatarUrl = normalizeOptionalText(request.getAvatarUrl());
+            String currentAvatarUrl = profile.getAvatarUrl();
+
+            if (!StringUtils.hasText(newAvatarUrl) && StringUtils.hasText(currentAvatarUrl)) {
+                avatarStorageService.deleteAvatarByUrl(currentAvatarUrl);
+            }
+
+            profile.setAvatarUrl(newAvatarUrl);
+        }
+
+        if (request.getDepartmentId() != null) {
+            Department department = departmentRepository.findById(request.getDepartmentId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khoa được chọn."));
+            profile.setDepartment(department);
+            profile.setSchool(department.getSchool());
+        }
+
+        Profile savedProfile = profileRepository.save(profile);
+        return authMapper.toAuthUserResponse(account, savedProfile);
+    }
+
+    @Override
+    @Transactional
+    public String uploadAvatar(String email, MultipartFile file) {
+        Account account = accountRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new BadCredentialsException("Không tìm thấy người dùng đang đăng nhập."));
+        Profile profile = profileRepository.findById(account.getId())
+                .orElseGet(() -> Profile.builder().account(account).build());
+
+        String avatarUrl = avatarStorageService.uploadAvatar(account.getId(), file, profile.getAvatarUrl());
+        profile.setAvatarUrl(avatarUrl);
+        profileRepository.save(profile);
+
+        return avatarUrl;
+    }
+
     private AuthUserResponse buildUserResponse(Account account) {
         Profile profile = profileRepository.findById(account.getId()).orElse(null);
 
@@ -365,6 +430,31 @@ public class AuthServiceImpl implements AuthService {
         }
 
         return normalized.charAt(0) + "***" + normalized.substring(atIndex - 1);
+    }
+
+    private String[] splitFullName(String fullName) {
+        String normalized = normalizeOptionalText(fullName);
+        if (!StringUtils.hasText(normalized)) {
+            return new String[]{null, null};
+        }
+
+        String[] parts = normalized.split("\\s+");
+        if (parts.length == 1) {
+            return new String[]{parts[0], null};
+        }
+
+        String firstName = parts[parts.length - 1];
+        String lastName = String.join(" ", java.util.Arrays.copyOf(parts, parts.length - 1));
+        return new String[]{firstName, lastName};
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private void revokeActiveRefreshTokens(Long accountId) {

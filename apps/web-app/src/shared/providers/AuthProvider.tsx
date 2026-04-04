@@ -11,6 +11,7 @@ import {
   type LoginPayload,
 } from "@/services/auth/auth.service";
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
+import { subscribeSessionExpired } from "@/services/auth/session-events";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -18,6 +19,7 @@ type AuthContextValue = {
   isInitializing: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
+  setUser: (user: AuthUser | null) => void;
 };
 
 const fallbackAuthContext: AuthContextValue = {
@@ -35,6 +37,9 @@ const fallbackAuthContext: AuthContextValue = {
       clearAccessToken();
     }
   },
+  setUser: () => {
+    // no-op in fallback mode
+  },
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -42,6 +47,15 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = subscribeSessionExpired(() => {
+      clearAccessToken();
+      setUser(null);
+    });
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -96,6 +110,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
           setUser(null);
         }
       },
+      setUser,
     }),
     [isInitializing, user]
   );

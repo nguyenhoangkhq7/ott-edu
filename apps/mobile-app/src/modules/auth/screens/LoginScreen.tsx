@@ -67,7 +67,7 @@ export default function LoginScreen() {
       setIsSubmitting(true);
       await login({ email: form.email.trim(), password: form.password });
       setSubmitSuccess("Đăng nhập thành công, đang chuyển hướng...");
-      // router.replace("/(dashboard)");
+      router.replace("/(dashboard)/teams");
     } catch (error) {
       if (error instanceof Error) {
         setSubmitError(error.message);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AppLayout from "@/shared/components/common/AppLayout";
 import type { NavItem } from "@/shared/types/navigation";
@@ -13,10 +13,16 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isInitializing } = useAuth();
   const [searchValue, setSearchValue] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!isInitializing && !user) {
+      router.replace("/login");
+    }
+  }, [isInitializing, user, router]);
 
   const formatRole = (role?: string) => {
     if (!role) {

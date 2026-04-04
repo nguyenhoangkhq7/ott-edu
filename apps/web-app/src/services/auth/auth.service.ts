@@ -14,9 +14,12 @@ export type AuthUser = {
   firstName: string | null;
   lastName: string | null;
   avatarUrl: string | null;
+  bio: string | null;
+  phone: string | null;
   code: string | null;
   schoolId: number | null;
   departmentId: number | null;
+  departmentName: string | null;
 };
 
 export type SchoolOption = {
@@ -73,6 +76,18 @@ export type ChangePasswordPayload = {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
+};
+
+export type UpdateProfilePayload = {
+  fullName?: string;
+  about?: string;
+  phone?: string;
+  avatarUrl?: string;
+  departmentId?: number;
+};
+
+export type UploadAvatarResult = {
+  avatarUrl: string;
 };
 
 type LoginResponse = {
@@ -135,4 +150,19 @@ export async function resetPassword(payload: ResetPasswordPayload): Promise<stri
 
 export async function changePassword(payload: ChangePasswordPayload): Promise<string> {
   return httpService.post<string>("/auth/change-password", payload);
+}
+
+export async function updateCurrentUser(payload: UpdateProfilePayload): Promise<AuthUser> {
+  return httpService.patch<AuthUser>("/auth/me", payload);
+}
+
+export async function uploadAvatar(file: File): Promise<UploadAvatarResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return httpService.post<UploadAvatarResult>("/auth/me/avatar", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
 }

@@ -13,6 +13,8 @@ import fit.iuh.modules.auth.dtos.auth.OtpChallengeResponse;
 import fit.iuh.modules.auth.dtos.auth.RefreshTokenRequest;
 import fit.iuh.modules.auth.dtos.auth.RefreshTokenResponse;
 import fit.iuh.modules.auth.dtos.auth.ResetPasswordRequest;
+import fit.iuh.modules.auth.dtos.auth.UpdateProfileRequest;
+import fit.iuh.modules.auth.dtos.auth.UploadAvatarResponse;
 import fit.iuh.modules.auth.dtos.auth.VerifyOtpRequest;
 import fit.iuh.modules.auth.dtos.auth.VerifyOtpResponse;
 import fit.iuh.modules.auth.dtos.register.RegisterRequest;
@@ -30,11 +32,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/auth")
@@ -185,6 +190,33 @@ public class AuthController {
         return ResponseEntity.ok(
                 ApiResponseFactory.success(HttpStatus.OK, "Lấy thông tin người dùng thành công.", authService.getCurrentUser(authentication.getName()))
         );
+    }
+
+    @PatchMapping("/me")
+    public ResponseEntity<ApiSuccessResponse<AuthUserResponse>> updateCurrentUser(
+            Authentication authentication,
+            @Valid @RequestBody UpdateProfileRequest request
+    ) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy phiên đăng nhập hợp lệ.");
+        }
+
+        AuthUserResponse response = authService.updateCurrentUser(authentication.getName(), request);
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Cập nhật hồ sơ thành công.", response));
+    }
+
+    @PostMapping(value = "/me/avatar", consumes = "multipart/form-data")
+    public ResponseEntity<ApiSuccessResponse<UploadAvatarResponse>> uploadAvatar(
+            Authentication authentication,
+            @RequestParam("file") MultipartFile file
+    ) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy phiên đăng nhập hợp lệ.");
+        }
+
+        String avatarUrl = authService.uploadAvatar(authentication.getName(), file);
+        UploadAvatarResponse response = UploadAvatarResponse.builder().avatarUrl(avatarUrl).build();
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Tải ảnh đại diện thành công.", response));
     }
 
     @GetMapping("/validate")

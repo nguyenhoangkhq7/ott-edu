@@ -14,11 +14,15 @@ import java.util.List;
 public class AuthUserResponse {
     private Long accountId;
     private String email;
+    private String status;
     private List<String> roles;
     private String firstName;
     private String lastName;
     private String avatarUrl;
+    private String bio;
+    private String phone;
     private String code;
     private Long schoolId;
     private Long departmentId;
+    private String departmentName;
 }

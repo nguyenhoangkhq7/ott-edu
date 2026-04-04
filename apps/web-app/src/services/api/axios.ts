@@ -1,6 +1,7 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
+import { emitSessionExpired } from "@/services/auth/session-events";
 
 type RefreshResponse = {
   accessToken: string;
@@ -117,6 +118,7 @@ apiClient.interceptors.response.use(
       return apiClient(originalRequest);
     } catch (refreshError) {
       clearAccessToken();
+      emitSessionExpired();
       return Promise.reject(refreshError);
     }
   }

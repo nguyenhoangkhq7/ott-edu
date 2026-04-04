@@ -14,13 +14,17 @@ import java.util.List;
 public interface AuthMapper {
     @Mapping(target = "accountId", source = "account.id")
     @Mapping(target = "email", source = "account.email")
+    @Mapping(target = "status", source = "account.status")
     @Mapping(target = "roles", source = "account.role", qualifiedByName = "mapRoleToList")
     @Mapping(target = "firstName", source = "profile.firstName")
     @Mapping(target = "lastName", source = "profile.lastName")
     @Mapping(target = "avatarUrl", source = "profile.avatarUrl")
+    @Mapping(target = "bio", source = "profile.bio")
+    @Mapping(target = "phone", source = "profile.phone")
     @Mapping(target = "code", source = "profile.code")
     @Mapping(target = "schoolId", source = "profile.school.id")
     @Mapping(target = "departmentId", source = "profile.department.id")
+    @Mapping(target = "departmentName", source = "profile.department.departmentName")
     AuthUserResponse toAuthUserResponse(Account account, Profile profile);
 
     @Named("mapRoleToList")

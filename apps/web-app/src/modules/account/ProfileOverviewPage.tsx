@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { getCurrentUser, type AuthUser } from "@/services/auth/auth.service";
 
 type TabId = "overview" | "activity" | "organization" | "files";
 
@@ -18,10 +20,37 @@ const tabs: Tab[] = [
 ];
 
 export default function ProfileOverviewPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadCurrentUser = async () => {
+      const result = await getCurrentUser();
+      if (mounted) {
+        setUser(result);
+      }
+    };
+
+    void loadCurrentUser();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const fullName = useMemo(() => {
+    if (!user) {
+      return "Unknown User";
+    }
+
+    return [user.lastName, user.firstName].filter(Boolean).join(" ") || user.email;
+  }, [user]);
 
   const handleEditProfile = () => {
-    console.log("Edit profile");
+    router.push("/account/edit");
   };
 
   const handleJoinCall = () => {
@@ -31,10 +60,10 @@ export default function ProfileOverviewPage() {
   return (
     <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex items-start gap-6">
-        <div className="relative h-40 w-40 flex-shrink-0 overflow-hidden rounded-lg">
+        <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-lg">
           <Image
-            src="/assets/avatar-placeholder.png"
-            alt="Thành Tô"
+            src={user?.avatarUrl || "/assets/avatar-placeholder.png"}
+            alt={fullName}
             fill
             className="object-cover"
           />
@@ -44,14 +73,14 @@ export default function ProfileOverviewPage() {
         <div className="flex-1">
           <div className="mb-2 flex items-start justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Thành Tô</h1>
+              <h1 className="text-3xl font-bold text-slate-900">{fullName}</h1>
               <div className="mt-1 flex items-center gap-2">
                 <span className="flex items-center gap-1.5 text-sm text-green-600">
                   <span className="h-2 w-2 rounded-full bg-green-600" />
                   Available
                 </span>
                 <span className="text-slate-300">•</span>
-                <span className="text-sm text-slate-600">Product Designer</span>
+                <span className="text-sm text-slate-600">{user?.departmentName || "No department"}</span>
               </div>
             </div>
             <button
@@ -66,7 +95,7 @@ export default function ProfileOverviewPage() {
             </button>
           </div>
 
-          <p className="mb-4 text-sm text-slate-600">thanh.to@organization.com</p>
+          <p className="mb-4 text-sm text-slate-600">{user?.email || "-"}</p>
 
           <div className="mb-6 border-b border-slate-200">
             <nav className="flex gap-6">
@@ -105,39 +134,37 @@ export default function ProfileOverviewPage() {
 
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect width="20" height="16" x="2" y="4" rx="2" />
                     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                   </svg>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-slate-500">EMAIL</p>
-                    <a href="mailto:thanh.to@example.com" className="text-sm text-blue-600 hover:underline">
-                      thanh.to@example.com
+                    <a href={`mailto:${user?.email || ""}`} className="text-sm text-blue-600 hover:underline">
+                      {user?.email || "-"}
                     </a>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M16 2H8L2 8v8l6 6h8l6-6V8l-6-6z" />
                     <path d="M8 2v6H2m14-6v6h6M8 22v-6H2m14 6v-6h6" />
                   </svg>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500">LINKEDIN</p>
-                    <a href="https://linkedin.com/in/thanhto" className="text-sm text-blue-600 hover:underline">
-                      linkedin.com/in/thanhto
-                    </a>
+                    <p className="text-xs font-medium text-slate-500">PHONE</p>
+                    <p className="text-sm text-slate-700">{user?.phone || "Chua cap nhat"}</p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
                     <circle cx="12" cy="10" r="3" />
                   </svg>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500">LOCATION</p>
-                    <p className="text-sm text-slate-700">Ho Chi Minh City, Vietnam</p>
+                    <p className="text-xs font-medium text-slate-500">ABOUT</p>
+                    <p className="text-sm text-slate-700">{user?.bio || "Chua co mo ta"}</p>
                   </div>
                 </div>
               </div>
@@ -154,7 +181,7 @@ export default function ProfileOverviewPage() {
 
               <div className="space-y-4">
                 <div className="flex gap-3">
-                  <div className="flex h-2 w-2 flex-shrink-0 items-center justify-center">
+                  <div className="flex h-2 w-2 shrink-0 items-center justify-center">
                     <span className="h-2 w-2 rounded-full bg-blue-600" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -166,7 +193,7 @@ export default function ProfileOverviewPage() {
                 </div>
 
                 <div className="flex gap-3">
-                  <div className="flex h-2 w-2 flex-shrink-0 items-center justify-center">
+                  <div className="flex h-2 w-2 shrink-0 items-center justify-center">
                     <span className="h-2 w-2 rounded-full bg-slate-300" />
                   </div>
                   <div className="min-w-0 flex-1">

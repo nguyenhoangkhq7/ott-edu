@@ -77,7 +77,7 @@ export default function LoginPage() {
       setSubmitSuccess("Dang nhap thanh cong, dang chuyen huong...");
       setForm(INITIAL_FORM);
       setTouched({ email: false, password: false });
-      router.replace("/dashboard");
+      router.replace("/teams");
     } catch (error) {
       if (error instanceof Error) {
         setSubmitError(error.message);
