@@ -77,7 +77,7 @@ export default function LoginPage() {
       setSubmitSuccess("Dang nhap thanh cong, dang chuyen huong...");
       setForm(INITIAL_FORM);
       setTouched({ email: false, password: false });
-      router.replace("/dashboard");
+      router.replace("/teams");
     } catch (error) {
       if (error instanceof Error) {
         setSubmitError(error.message);
@@ -140,12 +140,12 @@ export default function LoginPage() {
                   </label>
                 </div>
 
-                <button
-                  type="button"
+                <Link
+                  href="/forgot-password"
                   className="text-sm font-medium text-indigo-600 transition hover:text-indigo-700 hover:underline"
                 >
                   Quên mật khẩu?
-                </button>
+                </Link>
               </div>
 
               <AuthFieldError message={touched.password ? errors.password : undefined} />

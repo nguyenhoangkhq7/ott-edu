@@ -22,6 +22,12 @@ export default function DashboardLayout() {
       <Tabs.Screen name="chat/index" options={{ title: 'Chat' }} />
       <Tabs.Screen name="calendar/index" options={{ title: 'Calendar' }} />
       <Tabs.Screen name="more/index" options={{ title: 'More' }} />
+      <Tabs.Screen name="account/index" options={{ href: null }} />
+      <Tabs.Screen name="account/profile" options={{ href: null }} />
+      <Tabs.Screen name="account/edit" options={{ href: null }} />
+      <Tabs.Screen name="account/change-password/index" options={{ href: null }} />
+      <Tabs.Screen name="account/change-password/verify" options={{ href: null }} />
+      <Tabs.Screen name="account/change-password/form" options={{ href: null }} />
     </Tabs>
   );
 }

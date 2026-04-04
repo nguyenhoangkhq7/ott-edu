@@ -2,12 +2,27 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { forgotPassword, verifyOtp } from "@/services/auth/auth.service";
+import { getForgotOtpState, setForgotOtpState, setForgotVerifiedToken } from "@/services/auth/otp-flow-store";
 
 export default function VerifyIdentityPage() {
   const router = useRouter();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(48); // 48 seconds
+  const [maskedEmail, setMaskedEmail] = useState("m***@example.com");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => {
+    const state = getForgotOtpState();
+    if (!state) {
+      router.replace("/forgot-password");
+      return;
+    }
+
+    setMaskedEmail(state.maskedEmail);
+  }, [router]);
 
   useEffect(() => {
     if (timeLeft > 0) {
@@ -50,17 +65,57 @@ export default function VerifyIdentityPage() {
     inputRefs.current[lastIndex]?.focus();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.every(digit => digit !== "")) {
+    if (!otp.every(digit => digit !== "")) {
+      return;
+    }
+
+    const state = getForgotOtpState();
+    if (!state) {
+      router.replace("/forgot-password");
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const response = await verifyOtp({
+        challengeId: state.challengeId,
+        otpCode: otp.join(""),
+        purpose: "FORGOT_PASSWORD",
+      });
+
+      setForgotVerifiedToken(response.verifiedToken);
       router.push("/forgot-password/reset");
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Khong the xac thuc OTP.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleResendCode = () => {
-    setTimeLeft(48);
-    setOtp(["", "", "", "", "", ""]);
-    inputRefs.current[0]?.focus();
+  const handleResendCode = async () => {
+    const state = getForgotOtpState();
+    if (!state || !state.email) {
+      router.replace("/forgot-password");
+      return;
+    }
+
+    setError(null);
+    try {
+      const response = await forgotPassword({ email: state.email });
+      setForgotOtpState(response.challengeId, response.maskedEmail, state.email);
+      setMaskedEmail(response.maskedEmail);
+      setTimeLeft(48);
+      setOtp(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    } catch (resendError) {
+      const message = resendError instanceof Error ? resendError.message : "Khong the gui lai OTP.";
+      setError(message);
+    }
   };
 
   return (
@@ -90,8 +145,14 @@ export default function VerifyIdentityPage() {
           
           <p className="mb-6 text-sm text-slate-600">
             For your security, we&apos;ve sent a 6-digit code to{" "}
-            <span className="font-medium text-slate-900">m***@example.com</span>. Please enter it below to continue.
+            <span className="font-medium text-slate-900">{maskedEmail}</span>. Please enter it below to continue.
           </p>
+
+          {error && (
+            <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="mb-6 flex justify-between gap-2">
@@ -113,10 +174,10 @@ export default function VerifyIdentityPage() {
 
             <button
               type="submit"
-              disabled={!otp.every(digit => digit !== "")}
+              disabled={!otp.every(digit => digit !== "") || isLoading}
               className="mb-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
             >
-              Verify and Sign in
+              {isLoading ? "Verifying..." : "Verify and continue"}
             </button>
           </form>
 

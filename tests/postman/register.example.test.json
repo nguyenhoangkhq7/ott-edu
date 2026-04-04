@@ -1,0 +1,57 @@
+{
+  "info": {
+    "_postman_id": "register-example-test-id",
+    "name": "Example Register",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "var suffix = Date.now();",
+              "pm.environment.set('registerEmail', 'student+' + suffix + '@example.com');",
+              "pm.environment.set('registerPassword', pm.environment.get('registerPassword') || 'Password@123');",
+              "pm.environment.set('registerFirstName', pm.environment.get('registerFirstName') || 'Test');",
+              "pm.environment.set('registerLastName', pm.environment.get('registerLastName') || 'User');",
+              "pm.environment.set('registerRoleName', pm.environment.get('registerRoleName') || 'ROLE_STUDENT');",
+              "pm.environment.set('registerCode', 'STU' + suffix);",
+              "pm.environment.set('registerSchoolId', pm.environment.get('registerSchoolId') || '1');",
+              "pm.environment.set('registerDepartmentId', pm.environment.get('registerDepartmentId') || '1');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200, 201, or 409 for example flow', function () {",
+              "    pm.expect([200, 201, 409]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"{{registerPassword}}\",\n  \"firstName\": \"{{registerFirstName}}\",\n  \"lastName\": \"{{registerLastName}}\",\n  \"roleName\": \"{{registerRoleName}}\",\n  \"code\": \"{{registerCode}}\",\n  \"departmentId\": {{registerDepartmentId}},\n  \"schoolId\": {{registerSchoolId}}\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/register"
+      },
+      "response": []
+    }
+  ]
+}

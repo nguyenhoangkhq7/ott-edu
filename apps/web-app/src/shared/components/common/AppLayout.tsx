@@ -12,7 +12,10 @@ interface AppLayoutProps {
     userName: string;
     userEmail: string;
     userRole: string;
+    userAvatarUrl?: string;
     notifications: number;
+    onLogout?: () => Promise<void>;
+    isLoggingOut?: boolean;
     onNavigateBack?: () => void;
     onNavigateForward?: () => void;
     canGoBack?: boolean;

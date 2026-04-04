@@ -2,17 +2,37 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { sendChangePasswordOtp } from "@/services/auth/auth.service";
+import { clearChangeOtpState, setChangeOtpState } from "@/services/auth/otp-flow-store";
 
 type VerificationMethod = "email" | "sms";
 
 export default function ChangePasswordMethodPage() {
   const router = useRouter();
   const [selectedMethod, setSelectedMethod] = useState<VerificationMethod>("email");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleNext = () => {
-    // Store selected method in sessionStorage or pass via URL
-    sessionStorage.setItem("verificationMethod", selectedMethod);
-    router.push("/account/change-password/verify");
+  const handleNext = async () => {
+    if (selectedMethod !== "email") {
+      setError("Hien tai chi ho tro gui OTP qua email.");
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      clearChangeOtpState();
+      const response = await sendChangePasswordOtp();
+      setChangeOtpState(response.challengeId, response.maskedEmail);
+      router.push("/account/change-password/verify");
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Khong the gui OTP luc nay.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -133,11 +153,18 @@ export default function ChangePasswordMethodPage() {
             </label>
           </div>
 
+          {error && (
+            <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {error}
+            </p>
+          )}
+
           <button
             onClick={handleNext}
+            disabled={isLoading}
             className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
           >
-            Next
+            {isLoading ? "Sending..." : "Next"}
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="5" y1="12" x2="19" y2="12" />
               <polyline points="12 5 19 12 12 19" />

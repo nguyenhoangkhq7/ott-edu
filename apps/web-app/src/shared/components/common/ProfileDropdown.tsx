@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -9,6 +11,9 @@ interface ProfileDropdownProps {
   userName: string;
   userEmail: string;
   userRole: string;
+  userAvatarUrl?: string;
+  onLogout?: () => Promise<void>;
+  isLoggingOut?: boolean;
 }
 
 export default function ProfileDropdown({
@@ -17,9 +22,13 @@ export default function ProfileDropdown({
   userName,
   userEmail,
   userRole,
+  userAvatarUrl,
+  onLogout,
+  isLoggingOut = false,
 }: ProfileDropdownProps) {
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const initials = getInitialsFromDisplayName(userName);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -50,6 +59,15 @@ export default function ProfileDropdown({
     onClose();
   };
 
+  const handleLogout = async () => {
+    if (!onLogout || isLoggingOut) {
+      return;
+    }
+
+    await onLogout();
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -59,13 +77,18 @@ export default function ProfileDropdown({
     >
       <div className="border-b border-slate-200 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-base font-bold text-[#4b53bc]">
-            {userName
-              .split(" ")
-              .map((part) => part[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2)}
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-base font-bold text-[#4b53bc]">
+            {userAvatarUrl ? (
+              <Image
+                src={userAvatarUrl}
+                alt={userName}
+                className="h-12 w-12 rounded-full object-cover"
+                width={48}
+                height={48}
+              />
+            ) : (
+              initials
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-900">{userName}</p>
@@ -112,10 +135,8 @@ export default function ProfileDropdown({
 
       <div className="border-t border-slate-200 py-2">
         <button
-          onClick={() => {
-            console.log("Logout");
-            onClose();
-          }}
+          onClick={handleLogout}
+          disabled={isLoggingOut}
           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -123,7 +144,7 @@ export default function ProfileDropdown({
             <polyline points="16 17 21 12 16 7" />
             <line x1="21" x2="9" y1="12" y2="12" />
           </svg>
-          <span>Sign out</span>
+          <span>{isLoggingOut ? "Signing out..." : "Sign out"}</span>
         </button>
       </div>
     </div>

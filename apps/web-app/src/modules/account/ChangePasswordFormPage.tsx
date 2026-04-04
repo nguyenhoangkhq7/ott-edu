@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { changePassword } from "@/services/auth/auth.service";
+import { clearChangeOtpState, getChangeVerifiedToken } from "@/services/auth/otp-flow-store";
 
 export default function ChangePasswordFormPage() {
   const router = useRouter();
@@ -11,6 +13,8 @@ export default function ChangePasswordFormPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const getPasswordStrength = (password: string) => {
     if (password.length === 0) return { strength: 0, label: "", color: "" };
@@ -39,11 +43,36 @@ export default function ChangePasswordFormPage() {
     /[\d!@#$%^&*(),.?":{}|<>]/.test(newPassword) &&
     newPassword === confirmPassword;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isValid) {
-      // TODO: Call API to change password
+    if (!isValid) {
+      return;
+    }
+
+    const verifiedToken = getChangeVerifiedToken();
+    if (!verifiedToken) {
+      router.replace("/account/change-password");
+      return;
+    }
+
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await changePassword({
+        verifiedToken,
+        currentPassword,
+        newPassword,
+        confirmPassword,
+      });
+
+      clearChangeOtpState();
       router.push("/account");
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Khong the doi mat khau luc nay.";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -93,6 +122,12 @@ export default function ChangePasswordFormPage() {
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {error}
+              </p>
+            )}
+
             {/* Current Password */}
             <div>
               <label htmlFor="currentPassword" className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -193,7 +228,7 @@ export default function ChangePasswordFormPage() {
 
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <div className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                       passwordStrength.checks?.hasMinLength ? "bg-green-500" : "bg-slate-300"
                     }`}>
                       {passwordStrength.checks?.hasMinLength ? (
@@ -210,7 +245,7 @@ export default function ChangePasswordFormPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                       passwordStrength.checks?.hasSymbolOrNumber ? "bg-green-500" : "bg-slate-300"
                     }`}>
                       {passwordStrength.checks?.hasSymbolOrNumber ? (
@@ -227,7 +262,7 @@ export default function ChangePasswordFormPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <div className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                    <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                       passwordStrength.checks?.hasMixedCase ? "bg-green-500" : "bg-slate-300"
                     }`}>
                       {passwordStrength.checks?.hasMixedCase ? (
@@ -248,10 +283,10 @@ export default function ChangePasswordFormPage() {
 
             <button
               type="submit"
-              disabled={!isValid}
+              disabled={!isValid || isSubmitting}
               className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Change Password
+              {isSubmitting ? "Saving..." : "Change Password"}
             </button>
           </form>
 

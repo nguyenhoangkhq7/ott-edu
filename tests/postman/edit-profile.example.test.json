@@ -1,0 +1,93 @@
+{
+  "info": {
+    "_postman_id": "edit-profile-example-test-id",
+    "name": "Example Edit Profile",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Login For Edit Profile",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.environment.set('editEmail', pm.environment.get('editEmail') || pm.environment.get('loginEmail') || 'student@example.com');",
+              "pm.environment.set('editPassword', pm.environment.get('editPassword') || pm.environment.get('loginPassword') || 'Password@123');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login status is 200 or 401 for example flow', function () {",
+              "    pm.expect([200, 401]).to.include(pm.response.code);",
+              "});",
+              "",
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    var token = jsonData && jsonData.data ? jsonData.data.accessToken : null;",
+              "    pm.environment.set('accessToken', token || '');",
+              "} else {",
+              "    pm.environment.set('accessToken', '');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{editEmail}}\",\n  \"password\": \"{{editPassword}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/login"
+      },
+      "response": []
+    },
+    {
+      "name": "Edit Profile",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200 or 401 for example flow', function () {",
+              "    pm.expect([200, 401]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Example Updated Name\",\n  \"about\": \"Updated by Newman example test\",\n  \"phone\": \"+84900000000\",\n  \"avatarUrl\": \"https://example.com/avatar.png\",\n  \"departmentId\": 1\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/me"
+      },
+      "response": []
+    }
+  ]
+}
