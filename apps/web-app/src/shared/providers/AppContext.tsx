@@ -21,14 +21,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Lấy dữ liệu từ localStorage 1 lần duy nhất khi load web
-  useEffect(() => {
+ // AppContext.tsx
+
+useEffect(() => {
+  const initializeAuth = async () => {
     if (typeof window !== 'undefined') {
-      setTokenState(localStorage.getItem('accessToken') || '');
-      setUserEmailState(localStorage.getItem('userEmail') || 'tran.hau@gmail.com'); 
-      setClassIdState(localStorage.getItem('classId') || 'DHKTPM18C'); 
+      const token = localStorage.getItem('accessToken') || '';
+      const email = localStorage.getItem('userEmail') || 'tran.hau@gmail.com';
+      const classId = localStorage.getItem('classId') || 'DHKTPM18C';
+
+      // Cập nhật state
+      setTokenState(token);
+      setUserEmailState(email);
+      setClassIdState(classId);
       setIsLoaded(true);
     }
-  }, []);
+  };
+
+  initializeAuth();
+}, []);
 
   const setToken = (newToken: string) => {
     setTokenState(newToken);

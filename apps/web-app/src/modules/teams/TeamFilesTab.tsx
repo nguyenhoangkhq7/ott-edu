@@ -3,6 +3,36 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import apiClient from '@/services/api/axios';
 import { useAppContext } from '@/shared/providers/AppContext';
 
+// --- TYPES FOR LINT FIX ---
+interface BackendAttachment {
+  id: string;
+  fileName?: string;
+  name?: string;
+  fileType?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  authorName?: string;
+  userId?: string;
+  authorId?: string;
+  fileUrl?: string;
+  url?: string;
+  size?: number;
+}
+
+interface MappedFile {
+  id: string;
+  name: string;
+  type: string;
+  rawDate: number;
+  modified: string;
+  author: string;
+  initials: string;
+  url: string;
+  rawSize: number;
+  size: string;
+  isMe: boolean;
+}
+
 // ================= HELPER FUNCTIONS =================
 const formatTime = (dateString: string | number) => {
   if (!dateString) return '';
@@ -20,6 +50,7 @@ const formatRelativeTime = (timestamp: number) => {
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
+
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes} mins ago`;
   if (hours < 24) return `${hours} hours ago`;
@@ -49,7 +80,7 @@ const downloadFile = async (url: string, fileName: string) => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
-  } catch (error) {
+  } catch (_err) {
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName || 'download';
@@ -76,9 +107,11 @@ export default function TeamFilesTab() {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [files, setFiles] = useState<any[]>([]);
+  
+  const [files, setFiles] = useState<MappedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL'); 
 
@@ -98,37 +131,40 @@ export default function TeamFilesTab() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 1. API: FETCH LIVE DATA (SỬA Ở ĐÂY ĐỂ LẤY AUTHOR NAME)
+  // 1. API: FETCH LIVE DATA (Fix 'any' and 'cascading')
   const fetchFiles = useCallback(async () => {
     if (!isLoaded || !classId) return;
     try {
-      const response = await apiClient.get(`/attachments/class/${classId}`);
-      const mappedFiles = response.data.map((f: any) => {
-        // Ưu tiên authorName từ Backend gửi về, nếu không có thì lấy phần trước @ của email
-        const displayName = f.authorName || (f.userId || 'User').split('@')[0];
-        
+      const response = await apiClient.get<BackendAttachment[]>(`/attachments/class/${classId}`);
+      const mappedFiles: MappedFile[] = response.data.map((f) => {
+        const displayName = f.authorName || (f.userId || f.authorId || 'User').split('@')[0];
         return {
           id: f.id,
-          name: f.fileName || f.name,
+          name: f.fileName || f.name || 'Unnamed file',
           type: (f.fileType || f.fileName || '').toLowerCase(),
           rawDate: new Date(f.createdAt || f.updatedAt || Date.now()).getTime(),
-          modified: formatTime(f.createdAt || f.updatedAt),
+          modified: formatTime(f.createdAt || f.updatedAt || ''),
           author: displayName,
           initials: displayName.substring(0, 2).toUpperCase(),
-          url: f.fileUrl || f.url,
+          url: f.fileUrl || f.url || '',
           rawSize: f.size || 0,
           size: formatBytes(f.size || 0),
           isMe: (f.userId || f.authorId) === userEmail
         };
       });
       setFiles(mappedFiles);
-    } catch (error) {
-      console.error("Error loading file list:", error);
+    } catch (_err) {
+      console.error("Error loading files");
     }
   }, [classId, userEmail, isLoaded]);
 
-  useEffect(() => { fetchFiles(); }, [fetchFiles]);
+  useEffect(() => { 
+    if (isLoaded) {
+        fetchFiles(); 
+    }
+  }, [fetchFiles, isLoaded]);
 
+  // 2. SEARCH & FILTER LOGIC
   const filteredFiles = useMemo(() => {
     return files.filter((file) => {
       const matchesSearch = file.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -145,6 +181,7 @@ export default function TeamFilesTab() {
     });
   }, [files, searchQuery, filterType]);
 
+  // 3. API: UPLOAD FILE
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile || !classId) return;
@@ -158,8 +195,7 @@ export default function TeamFilesTab() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       await fetchFiles();
-    } catch (error) {
-      console.error("Upload error:", error);
+    } catch (_err) {
       alert("Failed to upload file.");
     } finally {
       setIsUploading(false);
@@ -167,6 +203,7 @@ export default function TeamFilesTab() {
     }
   };
 
+  // 4. API: UPLOAD FOLDER (Fix @ts-ignore)
   const handleFolderUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = event.target.files;
     if (!selectedFiles || selectedFiles.length === 0 || !classId) return;
@@ -182,21 +219,22 @@ export default function TeamFilesTab() {
       }
       alert(`Uploaded ${selectedFiles.length} files successfully!`);
       await fetchFiles();
-    } catch (error) {
-      console.error("Folder upload error:", error);
+    } catch (_err) {
+      console.error("Folder upload error");
     } finally {
       setIsUploading(false);
       if (hiddenFolderInputRef.current) hiddenFolderInputRef.current.value = '';
     }
   };
 
+  // 5. API: DELETE
   const handleDeleteFile = async (fileId: string) => {
     if (!confirm("Delete this file permanently?")) return;
     try {
       await apiClient.delete(`/attachments/${fileId}`);
       setFiles(prev => prev.filter(f => f.id !== fileId));
-    } catch (error) {
-      alert("Delete failed. You might not have permission.");
+    } catch (_err) {
+      alert("Delete failed.");
     } finally {
       setActiveMenuId(null);
     }
@@ -215,6 +253,7 @@ export default function TeamFilesTab() {
     }
   };
 
+  // ================= SIDEBAR CALCULATIONS =================
   const storageStats = useMemo(() => {
     let docs = 0, media = 0, others = 0;
     files.forEach(f => {
@@ -241,9 +280,16 @@ export default function TeamFilesTab() {
     <>
       <div className="flex-1 min-w-0 animate-in fade-in duration-300">
         <input type="file" ref={hiddenFileInputRef} className="hidden" onChange={handleFileUpload} />
-        <input type="file" ref={hiddenFolderInputRef} className="hidden" onChange={handleFolderUpload} 
-          //@ts-ignore 
-          webkitdirectory="true" directory="true" multiple />
+        <input 
+            type="file" 
+            ref={hiddenFolderInputRef} 
+            className="hidden" 
+            onChange={handleFolderUpload} 
+            // @ts-expect-error - webkitdirectory is not standard but works in most modern browsers
+            webkitdirectory="true" 
+            directory="true" 
+            multiple 
+        />
 
         {/* TOOLBAR */}
         <div className="flex flex-col md:flex-row items-center justify-between mb-6 border-b border-slate-200 pb-4 gap-4">
@@ -291,7 +337,7 @@ export default function TeamFilesTab() {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50/80 border-b border-slate-200 text-xs uppercase font-bold text-slate-500">
               <tr>
-                <th className="px-6 py-4 w-6/12">File Name</th>
+                <th className="px-6 py-4 w-6/12">Name</th>
                 <th className="px-6 py-4 w-2/12">Size</th>
                 <th className="px-6 py-4 w-2/12">Modified</th>
                 <th className="px-6 py-4 w-2/12">Author</th>
@@ -306,7 +352,7 @@ export default function TeamFilesTab() {
                   <tr key={file.id} className="hover:bg-slate-50/80 transition-colors group">
                     <td className="px-6 py-4 flex items-center gap-3 cursor-pointer" onClick={() => downloadFile(file.url, file.name)}>
                       <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-[9px] ${bg} ${text}`}>{icon}</div>
-                      <span className="font-medium text-slate-800 truncate max-w-[200px]">{file.name}</span>
+                      <span className="font-medium text-slate-800 truncate max-w-[250px]">{file.name}</span>
                     </td>
                     <td className="px-6 py-4 text-slate-500">{file.size}</td>
                     <td className="px-6 py-4 text-slate-500">{file.modified}</td>

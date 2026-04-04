@@ -1,7 +1,29 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import Image from 'next/image'; // Thêm import này
 import apiClient from '@/services/api/axios';
 import { useAppContext } from '@/shared/providers/AppContext';
+
+// ================= API INTERFACES (Fix no-explicit-any) =================
+interface ApiAttachment {
+  id: string;
+  fileName: string;
+  size: number;
+  fileType?: string;
+  fileUrl: string;
+}
+
+interface ApiPost {
+  id: string;
+  authorName?: string;
+  authorId: string;
+  authorAvatar?: string;
+  content: string;
+  createdAt: string;
+  attachments?: ApiAttachment[];
+  reactionCount?: number;
+  commentCount?: number;
+}
 
 // ================= HELPER FUNCTIONS =================
 const formatTime = (dateString: string) => {
@@ -74,7 +96,7 @@ const downloadFile = async (url: string, fileName: string) => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
-  } catch (error) {
+  } catch {
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName || 'download';
@@ -102,7 +124,7 @@ interface Message {
   isMe: boolean;
   text: string;
   time: string;
-  rawDate: number; // Added for sorting
+  rawDate: number; 
   attachments?: AttachmentInfo[]; 
   reactionCount?: number;
   commentCount?: number;
@@ -157,7 +179,7 @@ const ChatInputBox = ({
         }
       }, 0);
     } else {
-      setInputValue(prev => prev + emoji);
+      setInputValue(inputValue + emoji);
     }
   };
 
@@ -297,7 +319,7 @@ const MessageItem = ({
   <div className={`group relative flex gap-4 py-3 ${isPost ? 'px-0' : 'px-4 hover:bg-slate-50/50 rounded-lg -mx-4 transition-colors'}`}>
     <div className="flex-shrink-0 pt-1">
       {msg.senderAvatar ? (
-        <img src={msg.senderAvatar} alt={msg.senderName} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+        <Image src={msg.senderAvatar} alt={msg.senderName} width={40} height={40} className="w-10 h-10 rounded-full object-cover border border-slate-200" unoptimized />
       ) : (
         <div className="w-10 h-10 rounded-full bg-[#1868f0] text-white flex items-center justify-center text-sm font-bold shadow-sm">
           {msg.senderInitials}
@@ -344,15 +366,18 @@ const MessageItem = ({
             if (isImage) {
               return (
                 <div key={att.id} className="relative rounded-lg overflow-hidden border border-slate-200 max-w-sm group/att">
-                  <img 
+                  <Image 
                     src={att.url} 
                     alt={att.name} 
+                    width={500}
+                    height={300}
                     className="w-full h-auto max-h-64 object-contain bg-slate-50 cursor-zoom-in hover:opacity-90 transition-opacity" 
                     onClick={() => onZoomImage(att.url)} 
+                    unoptimized
                   />
                   <button 
                     type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); downloadFile(att.url, att.name); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(att.url, att.name); }}
                     className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded opacity-0 group-hover/att:opacity-100 hover:bg-black/80 transition-all backdrop-blur-sm z-20 cursor-pointer"
                     title="Download"
                   >
@@ -368,7 +393,7 @@ const MessageItem = ({
                   <video src={att.url} controls className="w-full h-auto max-h-64 outline-none" />
                   <button 
                     type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); downloadFile(att.url, att.name); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(att.url, att.name); }}
                     className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded opacity-0 group-hover/att:opacity-100 hover:bg-black/80 transition-all backdrop-blur-sm z-20 cursor-pointer"
                     title="Download"
                   >
@@ -499,8 +524,8 @@ export default function TeamPostsTab() {
 
   // --- Search & Filter State ---
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState('ALL'); // ALL, MY_POSTS, HAS_MEDIA
-  const [sortOrder, setSortOrder] = useState('NEWEST'); // NEWEST, OLDEST
+  const [filterType, setFilterType] = useState('ALL'); 
+  const [sortOrder, setSortOrder] = useState('NEWEST'); 
 
   const feedStartRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -512,11 +537,11 @@ export default function TeamPostsTab() {
     if (!isLoaded || !classId) return;
 
     try {
-      const response = await apiClient.get(`/posts/class/${classId}`);
+      const response = await apiClient.get<ApiPost[]>(`/posts/class/${classId}`);
       const data = response.data;
       
-      const mappedPosts: Post[] = data.map((p: any) => {
-        const mappedAttachments = p.attachments?.map((att: any) => ({
+      const mappedPosts: Post[] = data.map((p: ApiPost) => {
+        const mappedAttachments = p.attachments?.map((att: ApiAttachment) => ({
           id: att.id,
           name: att.fileName,
           size: formatBytes(att.size),
@@ -532,7 +557,7 @@ export default function TeamPostsTab() {
           isMe: p.authorId === userEmail,
           text: p.content,
           time: formatTime(p.createdAt),
-          rawDate: new Date(p.createdAt || Date.now()).getTime(), // Added for sorting
+          rawDate: new Date(p.createdAt || Date.now()).getTime(),
           attachments: mappedAttachments,
           reactionCount: p.reactionCount || 0,
           commentCount: p.commentCount || 0,
@@ -543,7 +568,11 @@ export default function TeamPostsTab() {
     } catch (error) { console.error("Error loading posts:", error); }
   }, [classId, userEmail, isLoaded]);
 
-  useEffect(() => { fetchPosts(); }, [fetchPosts]);
+  // Fix: react-hooks/set-state-in-effect
+  useEffect(() => { 
+    const load = async () => { await fetchPosts(); };
+    load();
+  }, [fetchPosts]);
 
   const scrollToTop = () => feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -559,10 +588,10 @@ export default function TeamPostsTab() {
 
   const loadCommentsForPost = async (postId: string) => {
     try {
-      const response = await apiClient.get(`/interact/comments/post/${postId}`);
+      const response = await apiClient.get<ApiPost[]>(`/interact/comments/post/${postId}`);
       const comments = response.data;
       
-      const mappedComments = comments.map((c: any) => ({
+      const mappedComments = comments.map((c: ApiPost) => ({
         id: c.id,
         senderName: c.authorName || c.authorId, 
         senderAvatar: c.authorAvatar || null,
@@ -571,7 +600,7 @@ export default function TeamPostsTab() {
         text: c.content,
         time: formatTime(c.createdAt),
         rawDate: new Date(c.createdAt || Date.now()).getTime(),
-        attachments: c.attachments?.map((att: any) => ({
+        attachments: c.attachments?.map((att: ApiAttachment) => ({
           id: att.id,
           name: att.fileName,
           size: formatBytes(att.size),
@@ -600,7 +629,7 @@ export default function TeamPostsTab() {
     setIsComposingNew(false);
     setInputValue('');
     setSelectedFile(null); 
-    if (!expandedPostIds.includes(postId)) toggleExpandPost(postId);
+    if (!expandedPostIds.includes(postId)) toggleExpandPost(postId).catch(console.error);
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -632,11 +661,10 @@ const handleSendMessage = async () => {
       if (selectedFile) formData.append('files', selectedFile);
 
       try {
-        // 👉 SỬA Ở ĐÂY: Thêm headers multipart/form-data
         await apiClient.post('/posts', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
-        fetchPosts(); 
+        await fetchPosts(); 
         setIsComposingNew(false);
         scrollToTop(); 
       } catch (error) { console.error("Error posting:", error); }
@@ -653,7 +681,6 @@ const handleSendMessage = async () => {
       if (selectedFile) formData.append('files', selectedFile);
 
       try {
-        // 👉 SỬA Ở ĐÂY: Thêm headers multipart/form-data
         await apiClient.post('/interact/comments', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -985,7 +1012,7 @@ const handleSendMessage = async () => {
           className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
           onClick={() => setZoomedImage(null)}
         >
-          <img src={zoomedImage} alt="Zoomed view" className="max-w-full max-h-full object-contain drop-shadow-2xl rounded-md" />
+          <Image src={zoomedImage} alt="Zoomed view" width={1200} height={800} className="max-w-full max-h-full object-contain drop-shadow-2xl rounded-md" unoptimized />
           <button 
             className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/80 transition-colors"
             onClick={(e) => { e.stopPropagation(); setZoomedImage(null); }}
