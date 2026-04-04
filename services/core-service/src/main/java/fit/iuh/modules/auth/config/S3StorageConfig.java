@@ -4,9 +4,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
+import org.springframework.util.StringUtils;
 
 @Configuration
 @EnableConfigurationProperties(S3StorageProperties.class)
@@ -14,11 +16,16 @@ public class S3StorageConfig {
 
     @Bean
     public S3Client s3Client(S3StorageProperties properties) {
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(properties.accessKey(), properties.secretKey());
+        S3Client.Builder builder = S3Client.builder()
+                .region(Region.of(properties.region()));
 
-        return S3Client.builder()
-                .region(Region.of(properties.region()))
-                .credentialsProvider(StaticCredentialsProvider.create(credentials))
-                .build();
+        if (StringUtils.hasText(properties.accessKey()) && StringUtils.hasText(properties.secretKey())) {
+            AwsBasicCredentials credentials = AwsBasicCredentials.create(properties.accessKey(), properties.secretKey());
+            builder.credentialsProvider(StaticCredentialsProvider.create(credentials));
+        } else {
+            builder.credentialsProvider(DefaultCredentialsProvider.create());
+        }
+
+        return builder.build();
     }
 }
