@@ -2,16 +2,27 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { sendChangePasswordOtp, verifyOtp } from "@/services/auth/auth.service";
+import { getChangeOtpState, setChangeOtpState, setChangeVerifiedToken } from "@/services/auth/otp-flow-store";
 
 export default function ChangePasswordVerifyPage() {
   const router = useRouter();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [maskedEmail, setMaskedEmail] = useState("j***@example.com");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
-    // Auto-focus first input on mount
+    const state = getChangeOtpState();
+    if (!state) {
+      router.replace("/account/change-password");
+      return;
+    }
+
+    setMaskedEmail(state.maskedEmail);
     inputRefs.current[0]?.focus();
-  }, []);
+  }, [router]);
 
   const handleChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
@@ -48,17 +59,50 @@ export default function ChangePasswordVerifyPage() {
     inputRefs.current[lastIndex]?.focus();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.every(digit => digit !== "")) {
+    if (!otp.every(digit => digit !== "")) {
+      return;
+    }
+
+    const state = getChangeOtpState();
+    if (!state) {
+      router.replace("/account/change-password");
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const response = await verifyOtp({
+        challengeId: state.challengeId,
+        otpCode: otp.join(""),
+        purpose: "CHANGE_PASSWORD",
+      });
+
+      setChangeVerifiedToken(response.verifiedToken);
       router.push("/account/change-password/form");
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Khong the xac thuc OTP.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleResendCode = () => {
-    setOtp(["", "", "", "", "", ""]);
-    inputRefs.current[0]?.focus();
-    // TODO: Call API to resend code
+  const handleResendCode = async () => {
+    setError(null);
+    try {
+      const response = await sendChangePasswordOtp();
+      setChangeOtpState(response.challengeId, response.maskedEmail);
+      setMaskedEmail(response.maskedEmail);
+      setOtp(["", "", "", "", "", ""]);
+      inputRefs.current[0]?.focus();
+    } catch (resendError) {
+      const message = resendError instanceof Error ? resendError.message : "Khong the gui lai OTP.";
+      setError(message);
+    }
   };
 
   return (
@@ -95,8 +139,14 @@ export default function ChangePasswordVerifyPage() {
           </h2>
           
           <p className="mb-8 text-center text-sm text-slate-600">
-            Enter the 6-digit code sent to <span className="font-medium text-slate-900">j***@example.com</span>
+            Enter the 6-digit code sent to <span className="font-medium text-slate-900">{maskedEmail}</span>
           </p>
+
+          {error && (
+            <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {error}
+            </p>
+          )}
 
           <form onSubmit={handleSubmit}>
             <div className="mb-8 flex justify-center gap-3">
@@ -119,10 +169,10 @@ export default function ChangePasswordVerifyPage() {
 
             <button
               type="submit"
-              disabled={!otp.every(digit => digit !== "")}
+              disabled={!otp.every(digit => digit !== "") || isLoading}
               className="mb-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Verify and Change
+              {isLoading ? "Verifying..." : "Verify and Change"}
             </button>
           </form>
 

@@ -7,6 +7,7 @@ import {
   setAccessToken,
   setRefreshToken,
 } from "./token-store";
+import { emitSessionExpired } from "../auth/session-events";
 
 declare module "axios" {
   interface InternalAxiosRequestConfig {
@@ -17,6 +18,13 @@ declare module "axios" {
 type RefreshResponse = {
   accessToken: string;
   refreshToken: string;
+};
+
+type ApiSuccessEnvelope<T> = {
+  timestamp: string;
+  status: number;
+  message: string;
+  data: T;
 };
 
 function getBaseUrl(): string {
@@ -37,6 +45,28 @@ const refreshClient = axios.create({
   },
 });
 
+function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<unknown> {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Partial<ApiSuccessEnvelope<unknown>>;
+  return (
+    typeof candidate.timestamp === "string" &&
+    typeof candidate.status === "number" &&
+    typeof candidate.message === "string" &&
+    "data" in candidate
+  );
+}
+
+function unwrapEnvelope<T>(payload: T | ApiSuccessEnvelope<T>): T {
+  if (isApiSuccessEnvelope(payload)) {
+    return payload.data as T;
+  }
+
+  return payload as T;
+}
+
 axiosClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   const token = await getAccessToken();
   if (token) {
@@ -47,7 +77,10 @@ axiosClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) 
 });
 
 axiosClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    response.data = unwrapEnvelope(response.data);
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config;
     const statusCode = error.response?.status;
@@ -73,13 +106,16 @@ axiosClient.interceptors.response.use(
         refreshToken,
       });
 
-      await setAccessToken(refreshResponse.data.accessToken);
-      await setRefreshToken(refreshResponse.data.refreshToken);
+      const refreshData = unwrapEnvelope(refreshResponse.data);
 
-      originalRequest.headers.Authorization = `Bearer ${refreshResponse.data.accessToken}`;
+      await setAccessToken(refreshData.accessToken);
+      await setRefreshToken(refreshData.refreshToken);
+
+      originalRequest.headers.Authorization = `Bearer ${refreshData.accessToken}`;
       return axiosClient(originalRequest);
     } catch (refreshError) {
       await clearAllTokens();
+      emitSessionExpired();
       return Promise.reject(refreshError);
     }
   }

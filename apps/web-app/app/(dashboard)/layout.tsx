@@ -1,17 +1,54 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import AppLayout from "@/shared/components/common/AppLayout";
 import type { NavItem } from "@/shared/types/navigation";
+import { useAuth } from "@/shared/providers/AuthProvider";
+import { getDisplayName } from "@/shared/utils/user-display";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const { user, logout, isInitializing } = useAuth();
   const [searchValue, setSearchValue] = useState("");
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!isInitializing && !user) {
+      router.replace("/login");
+    }
+  }, [isInitializing, user, router]);
+
+  const formatRole = (role?: string) => {
+    if (!role) {
+      return "User";
+    }
+
+    const cleanedRole = role.replace(/^ROLE_/, "").replace(/_/g, " ").toLowerCase();
+    return cleanedRole.charAt(0).toUpperCase() + cleanedRole.slice(1);
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.replace("/login");
+      setIsLoggingOut(false);
+    }
+  };
+
+  const displayName = getDisplayName(user?.firstName, user?.lastName, user?.email);
+  const userRole = formatRole(user?.roles?.[0]);
 
   // Get active page from pathname
   const getActivePageId = () => {
@@ -85,10 +122,13 @@ export default function DashboardLayout({
   const headerConfig = {
     searchValue,
     onSearchChange: setSearchValue,
-    userName: "David Nguyen",
-    userEmail: "david.nguyen@iuh.edu.vn",
-    userRole: "Faculty",
+    userName: displayName,
+    userEmail: user?.email ?? "",
+    userRole,
+    userAvatarUrl: user?.avatarUrl ?? undefined,
     notifications: 3,
+    onLogout: handleLogout,
+    isLoggingOut,
   };
 
   return (

@@ -4,8 +4,6 @@ package fit.iuh.models;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Set;
 
 @Entity
 @Table(name = "accounts")
@@ -22,23 +20,22 @@ public class Account {
     private String passwordHash;
 
     @Builder.Default
-    @Column(name = "is_active")
-    private boolean isActive = true;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private AccountStatus status = AccountStatus.AVAILABLE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false)
+    private Role role;
 
     @Column(name = "is_email_verified")
     private boolean isEmailVerified;
 
     @Builder.Default
+    @Column(name = "is_online", nullable = false)
+    private boolean isOnline = false;
+
+    @Builder.Default
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
-
-    // Quan hệ Many-To-Many với bảng Role
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "account_roles",
-            joinColumns = @JoinColumn(name = "account_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
-    @Builder.Default
-    private Set<Role> roles = new HashSet<>();
 }

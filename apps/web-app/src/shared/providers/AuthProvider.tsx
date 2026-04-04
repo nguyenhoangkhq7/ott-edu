@@ -10,7 +10,8 @@ import {
   type AuthUser,
   type LoginPayload,
 } from "@/services/auth/auth.service";
-import { clearAccessToken, setAccessToken } from "@/services/api/token-store";
+import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
+import { subscribeSessionExpired } from "@/services/auth/session-events";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -18,6 +19,7 @@ type AuthContextValue = {
   isInitializing: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
+  setUser: (user: AuthUser | null) => void;
 };
 
 const fallbackAuthContext: AuthContextValue = {
@@ -35,6 +37,9 @@ const fallbackAuthContext: AuthContextValue = {
       clearAccessToken();
     }
   },
+  setUser: () => {
+    // no-op in fallback mode
+  },
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -42,6 +47,15 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = subscribeSessionExpired(() => {
+      clearAccessToken();
+      setUser(null);
+    });
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -56,9 +70,13 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
           setUser(currentUser);
         }
       } catch {
-        clearAccessToken();
-        if (isMounted) {
-          setUser(null);
+        // Avoid clobbering a successful manual login that may complete
+        // while the initial bootstrap refresh request is still in flight.
+        if (!getAccessToken()) {
+          clearAccessToken();
+          if (isMounted) {
+            setUser(null);
+          }
         }
       } finally {
         if (isMounted) {
@@ -92,6 +110,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
           setUser(null);
         }
       },
+      setUser,
     }),
     [isInitializing, user]
   );

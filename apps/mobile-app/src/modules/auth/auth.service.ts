@@ -14,15 +14,20 @@ export type LoginPayload = {
 export type AuthUser = {
   accountId: number;
   email: string;
+  status: string | null;
   roles: string[];
   firstName: string | null;
   lastName: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+  phone: string | null;
   code: string | null;
   schoolId: number | null;
   departmentId: number | null;
-  customSchool: string | null;
-  customDepartment: string | null;
+  departmentName: string | null;
 };
+
+export type OtpPurpose = "FORGOT_PASSWORD" | "CHANGE_PASSWORD";
 
 export type SchoolOption = {
   id: number;
@@ -40,12 +45,48 @@ export type RegisterPayload = {
   password: string;
   firstName: string;
   lastName: string;
-  roleName: "ROLE_STUDENT" | "ROLE_INSTRUCTOR";
+  roleName: "ROLE_STUDENT";
   code: string;
   schoolId: number | null;
   departmentId: number | null;
-  customSchool: string | null;
-  customDepartment: string | null;
+  customSchool?: string | null;
+  customDepartment?: string | null;
+};
+
+export type OtpChallenge = {
+  challengeId: string;
+  maskedEmail: string;
+  expiresIn: number;
+};
+
+export type VerifyOtpPayload = {
+  challengeId: string;
+  otpCode: string;
+  purpose: OtpPurpose;
+};
+
+export type VerifyOtpResult = {
+  verifiedToken: string;
+  expiresIn: number;
+};
+
+export type ChangePasswordPayload = {
+  verifiedToken: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
+export type UpdateProfilePayload = {
+  fullName?: string;
+  about?: string;
+  phone?: string;
+  avatarUrl?: string;
+  departmentId?: number;
+};
+
+export type UploadAvatarResult = {
+  avatarUrl: string;
 };
 
 type LoginResponse = {
@@ -171,11 +212,55 @@ export async function getDepartmentsBySchoolId(schoolId: number): Promise<Depart
 
 export async function registerAccount(payload: RegisterPayload): Promise<string> {
   try {
-    const response = await apiClient.post<string, RegisterPayload>("/auth/register", payload, {
-      responseType: "text",
-    });
-
+    const response = await apiClient.post<string, RegisterPayload>("/auth/register", payload);
     return response || "Tạo tài khoản thành công!";
+  } catch (error) {
+    throw new Error(toErrorMessage(error));
+  }
+}
+
+export async function sendChangePasswordOtp(): Promise<OtpChallenge> {
+  try {
+    return await apiClient.post<OtpChallenge>("/auth/send-change-password-otp", {});
+  } catch (error) {
+    throw new Error(toErrorMessage(error));
+  }
+}
+
+export async function verifyOtp(payload: VerifyOtpPayload): Promise<VerifyOtpResult> {
+  try {
+    return await apiClient.post<VerifyOtpResult, VerifyOtpPayload>("/auth/verify-otp", payload);
+  } catch (error) {
+    throw new Error(toErrorMessage(error));
+  }
+}
+
+export async function changePassword(payload: ChangePasswordPayload): Promise<string> {
+  try {
+    return await apiClient.post<string, ChangePasswordPayload>("/auth/change-password", payload);
+  } catch (error) {
+    throw new Error(toErrorMessage(error));
+  }
+}
+
+export async function updateCurrentUser(payload: UpdateProfilePayload): Promise<AuthUser> {
+  try {
+    return await apiClient.patch<AuthUser, UpdateProfilePayload>("/auth/me", payload);
+  } catch (error) {
+    throw new Error(toErrorMessage(error));
+  }
+}
+
+export async function uploadAvatar(file: { uri: string; name: string; type: string }): Promise<UploadAvatarResult> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file as unknown as Blob);
+
+    return await apiClient.post<UploadAvatarResult, FormData>("/auth/me/avatar", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
   } catch (error) {
     throw new Error(toErrorMessage(error));
   }

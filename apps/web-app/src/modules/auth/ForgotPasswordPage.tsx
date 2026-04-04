@@ -2,21 +2,32 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { forgotPassword } from "@/services/auth/auth.service";
+import { clearForgotOtpState, setForgotOtpState } from "@/services/auth/otp-flow-store";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Navigate to check email page
-    router.push("/forgot-password/check-email");
+
+    try {
+      const normalizedEmail = email.trim();
+      clearForgotOtpState();
+      const response = await forgotPassword({ email: normalizedEmail });
+      setForgotOtpState(response.challengeId, response.maskedEmail, normalizedEmail);
+      router.push("/forgot-password/check-email");
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Khong the gui ma OTP luc nay.";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleBackToSignIn = () => {
@@ -80,6 +91,12 @@ export default function ForgotPasswordPage() {
                 />
               </div>
             </div>
+
+            {error && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {error}
+              </p>
+            )}
 
             <button
               type="submit"

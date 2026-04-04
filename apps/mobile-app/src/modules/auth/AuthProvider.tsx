@@ -8,6 +8,7 @@ import {
   logout as logoutApi,
   restoreSession,
 } from "./auth.service";
+import { subscribeSessionExpired } from "./session-events";
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -23,6 +24,15 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = subscribeSessionExpired(() => {
+      setUser(null);
+      setIsInitializing(false);
+    });
+
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let mounted = true;
