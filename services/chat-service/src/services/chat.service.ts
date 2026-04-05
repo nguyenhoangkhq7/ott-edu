@@ -3,12 +3,14 @@ import Message from "../model/Message.ts";
 import User from "../model/User.ts";
 
 export class ChatService {
-  // Lấy danh sách hộp thoại của user hiện tại
-  static async getConversations(userId: string) {
-    // Tìm các Conversation có chứa userId trong mảng participants
-    const conversations = await Conversation.find({
-      participants: { $in: [userId] },
-    })
+  // Lấy danh sách hộp thoại của user hiện tại, có thể lọc theo type
+  static async getConversations(userId: string, type?: string) {
+    const query: any = { participants: { $in: [userId] } };
+    if (type) {
+      query.type = type;
+    }
+
+    const conversations = await Conversation.find(query)
       .sort({ updatedAt: -1 }) // Sắp xếp theo thời gian hoạt động mới nhất
       .populate({
         path: "participants",
@@ -20,17 +22,18 @@ export class ChatService {
       })
       .lean(); // lean() giúp trả về JS Object thường để thao tác dễ hơn
 
-    // Formatting: Trích xuất trực tiếp thông tin "người đang nói chuyện cùng"
-    // ra một object dễ lấy trên frontend
+    // Formatting: với chat private, trích xuất "người đang nói chuyện cùng" để frontend dễ dùng
     return conversations.map((conv: any) => {
-      // Tìm participant KHÔNG phải tài khoản đang gọi API
-      const otherParticipant = conv.participants.find(
-        (p: any) => p._id.toString() !== userId.toString(),
-      );
+      let otherParticipant = null;
+      if (conv.type === "private") {
+        otherParticipant = conv.participants.find(
+          (p: any) => p._id.toString() !== userId.toString(),
+        );
+      }
 
       return {
         ...conv,
-        otherParticipant, // Gắn vào root thuận tiện hơn thay vì duyệt mảng trên UI
+        otherParticipant,
       };
     });
   }
@@ -42,21 +45,22 @@ export class ChatService {
       .lean();
   }
 
-  // Gửi tin nhắn mới 1-1
-  static async sendMessage(
+  // Gửi tin nhắn mới 1-1 (Private)
+  static async sendPrivateMessage(
     senderId: string,
     receiverId: string,
     content: string,
   ) {
-    // 1. Tìm xem giữa req.user._id (senderId) và receiverId đã có phòng chat DB chưa
-    // Sử dụng toán tử $all để check mảng participants chứa đồng thời cả 2 người
+    // 1. Tìm xem giữa 2 người dã có phòng chat private chưa
     let conversation = await Conversation.findOne({
+      type: "private",
       participants: { $all: [senderId, receiverId] },
     });
 
-    // Nếu chưa có (người dùng nhắn tin với nhau lần đầu) thì tạo mới Conversation
+    // Nếu chưa có thì tạo mới
     if (!conversation) {
       conversation = await Conversation.create({
+        type: "private",
         participants: [senderId, receiverId],
       });
     }
@@ -68,13 +72,57 @@ export class ChatService {
       content,
     });
 
-    // 3. Cập nhật lastMessage cho parent là conversation để UI hòm thư tự lấy msg mới
+    // 3. Cập nhật lastMessage cho parent là conversation
     conversation.lastMessage = message._id as any;
-
-    // Mongoose sẽ tự update field `updatedAt` nhờ vào timestamps: true
-    // Đẩy conversation đó lên top của danh sách nhắn tin
     await conversation.save();
 
     return { message, conversation };
+  }
+
+  // Gửi tin nhắn vào một nhóm có sẵn (Class)
+  static async sendGroupMessage(
+    senderId: string,
+    conversationId: string,
+    content: string,
+  ) {
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
+    const message = await Message.create({
+      conversationId: conversation._id,
+      senderId,
+      content,
+    });
+
+    conversation.lastMessage = message._id as any;
+    await conversation.save();
+
+    return { message, conversation };
+  }
+
+  // Tạo mới một nhóm lớp (Group Chat)
+  static async createGroupConversation(
+    creatorId: string,
+    name: string,
+    participants: string[],
+    avatarUrl?: string,
+    metadata?: any
+  ) {
+    const allParticipants = [...new Set([creatorId, ...participants])];
+
+    const payload: any = {
+      type: "class",
+      name,
+      participants: allParticipants,
+    };
+
+    if (avatarUrl) payload.avatarUrl = avatarUrl;
+    if (metadata) payload.metadata = metadata;
+
+    const conversation = await Conversation.create(payload);
+
+    return conversation;
   }
 }

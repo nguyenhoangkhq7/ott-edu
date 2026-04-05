@@ -6,16 +6,14 @@ export class ChatController {
   // API: GET /api/conversations
   static async getMyConversations(req: Request, res: Response) {
     try {
-      console.log(req.headers);
-      // Lấy id từ middleware xác thực (Giả định req.user được gán bởi middleware token)
       const userId = (req as any).user?._id;
+      const type = req.query.type as string; // Lọc theo type nếu có truyền lên từ frontend
 
       if (!userId) {
         return res.status(401).json({ error: "Unauthorized access" });
       }
 
-      // lấy tất cả conver của user
-      const conversations = await ChatService.getConversations(userId);
+      const conversations = await ChatService.getConversations(userId, type);
       return res.status(200).json({ data: conversations });
     } catch (error: any) {
       console.error("[ChatController] getMyConversations error:", error);
@@ -34,7 +32,6 @@ export class ChatController {
         return res.status(400).json({ error: "Missing conversationId param" });
       }
 
-      // Lấy tất cả tin nhắn trong conversation
       const messages = await ChatService.getMessages(conversationId);
       return res.status(200).json({ data: messages });
     } catch (error: any) {
@@ -49,33 +46,78 @@ export class ChatController {
   static async sendMessage(req: Request, res: Response) {
     try {
       const senderId = (req as any).user?._id;
-      const { receiverId, content } = req.body;
+      // Dựa vào việc body gửi lên receiverId (private) hay conversationId (group)
+      const { receiverId, conversationId, content } = req.body;
 
-      // Validate dữ liệu yêu cầu
       if (!senderId) {
         return res.status(401).json({ error: "Unauthorized access" });
       }
 
-      if (!receiverId || !content) {
-        return res
-          .status(400)
-          .json({ error: "Receiver ID and content are required" });
+      if (!content) {
+        return res.status(400).json({ error: "Content is required" });
       }
 
-      // Lưu tin nhắn vào DataBase
-      const { message } = await ChatService.sendMessage(
-        senderId,
-        receiverId,
-        content,
-      );
+      let result;
+      // Nếu gửi theo conversationId -> Gửi vào nhóm (Chat Group)
+      if (conversationId) {
+        result = await ChatService.sendGroupMessage(
+          senderId,
+          conversationId,
+          content
+        );
+      } 
+      // Nếu gửi theo receiverId -> Gửi 1-1 (Private Chat)
+      else if (receiverId) {
+        result = await ChatService.sendPrivateMessage(
+          senderId,
+          receiverId,
+          content
+        );
+      } else {
+        return res
+          .status(400)
+          .json({ error: "Either receiverId or conversationId is required" });
+      }
 
-      // BẮT BUỘC: Real-time update - Nếu lưu DB thành công lập tức bắn sự kiện qua socket.io
-      // cho người nhận dựa trên receiverId
-      socketManager.emitNewMessage(receiverId, message);
+      const { message, conversation } = result;
+
+      // Phát sự kiện bằng Socket.io vào ĐÚNG room (room ID chính là conversation ID)
+      socketManager.emitMessageToRoom(conversation._id.toString(), message);
 
       return res.status(201).json({ data: message });
     } catch (error: any) {
       console.error("[ChatController] sendMessage error:", error);
+      return res
+        .status(500)
+        .json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
+  // API: POST /api/conversations/group
+  static async createGroup(req: Request, res: Response) {
+    try {
+      const creatorId = (req as any).user?._id;
+      const { name, participants, avatarUrl, metadata } = req.body;
+
+      if (!creatorId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!name || !participants || !Array.isArray(participants)) {
+        return res.status(400).json({ error: "Name and participants array are required" });
+      }
+
+      const conversation = await ChatService.createGroupConversation(
+        creatorId,
+        name,
+        participants,
+        avatarUrl,
+        metadata
+      );
+
+      return res.status(201).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] createGroup error:", error);
       return res
         .status(500)
         .json({ error: "Internal server error", detail: error.message });

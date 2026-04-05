@@ -1,51 +1,62 @@
 import { Server, Socket } from 'socket.io';
+import Conversation from './model/Conversation.ts';
 
 class SocketManager {
   private io: Server | null = null;
-  // Lưu trữ map userId -> socketId (chỉ lưu memory, nếu app restart sẽ bị mất nhưng client tự reconnect sẽ tạo lại)
   private onlineUsers = new Map<string, string>();
 
-  // Khởi tạo và lắng nghe các sự kiện socket (được gọi từ server.ts)
   public init(io: Server) {
     this.io = io;
 
-    this.io.on('connection', (socket: Socket) => {
-      // Giả định client gửi userId lên qua auth token hoặc query string khi socket connect
+    this.io.on('connection', async (socket: Socket) => {
       const userId = socket.handshake.auth?.userId || socket.handshake.query?.userId;
 
       if (userId) {
-        // Cập nhật map khi user kết nối
         this.onlineUsers.set(userId as string, socket.id);
         console.log(`User ${userId} joined with socket ${socket.id}`);
+
+        // Tự động Join user vào tất cả các phòng (conversation) mà họ tham gia
+        try {
+          // Lấy trực tiếp từ Model Mongoose để tránh Circular Dependency với ChatService
+          const conversations = await Conversation.find(
+            { participants: userId },
+            { _id: 1 }
+          ).lean();
+          
+          conversations.forEach((conv) => {
+            socket.join(conv._id.toString());
+          });
+          console.log(`User ${userId} joined ${conversations.length} conversation rooms.`);
+        } catch (error) {
+          console.error("Error joining rooms on connect:", error);
+        }
+
       } else {
         console.warn(`Socket connected without userId: ${socket.id}`);
       }
 
-      // Lắng nghe sự kiện ngắt kết nối
       socket.on('disconnect', () => {
         if (userId) {
-          // Xóa khỏi Map khi ngắt kết nối tránh tràn bộ nhớ và gửi nhầm
           this.onlineUsers.delete(userId as string);
           console.log(`User ${userId} disconnected`);
         }
       });
+      
+      // Cho phép client explicitly xin vào room mới khi được thêm vào nhóm (hoặc tạo hội thoại mới)
+      socket.on('joinRoom', (conversationId: string) => {
+        socket.join(conversationId);
+        console.log(`Socket ${socket.id} joined room ${conversationId}`);
+      });
     });
   }
 
-  // Hàm cung cấp cho Controller/Service emit tin nhắn tới 1 user cụ thể
-  public emitNewMessage(receiverId: string, message: any) {
-    // Lấy đúng socketId đang online thuộc về receiverId
-    const receiverSocketId = this.onlineUsers.get(receiverId);
-
-    if (receiverSocketId && this.io) {
-      // Đẩy (emit) thông tin qua sự kiện 'newMessage'
-      this.io.to(receiverSocketId).emit('newMessage', message);
-    } else {
-      // Người dùng không online, có thể xử lý push notification Firebase v.v.. ở đây
-      console.log(`User ${receiverId} is offline. Message saved to DB only.`);
+  // Cập nhật hàm emit: giờ ta emit vào Room thay vì trỏ từng người
+  // Bằng cách này gửi tin nhắn dù private (2 ng) hay group (100 ng) đều cực kỳ nhanh và chỉ 1 lệnh
+  public emitMessageToRoom(conversationId: string, message: any) {
+    if (this.io) {
+      this.io.to(conversationId).emit('newMessage', message);
     }
   }
 }
 
-// Trả về dạng Singleton để các nơi khác require/import dùng chung state `onlineUsers`
 export default new SocketManager();

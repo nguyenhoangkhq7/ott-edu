@@ -20,7 +20,7 @@ interface ChatLayoutProps {
 }
 
 export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
-  const [currentMode, setCurrentMode] = useState<ChatMode>("direct");
+  const [currentMode, setCurrentMode] = useState<ChatMode>("private");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
@@ -169,12 +169,26 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setIsSending(true);
     try {
       // Gọi API thực POST /api/messages
-      const savedMessage = await sendMessage(receiver.id, text);
+      let savedMessage: Message;
+      if (activeConversation.type === "class") {
+        savedMessage = await sendMessage(text, undefined, activeConversation.id);
+      } else {
+        savedMessage = await sendMessage(text, receiver.id, undefined);
+      }
 
       // Thay optimistic message bằng message thực từ DB
-      setMessages((prev) =>
-        prev.map((m) => (m.id === optimisticMessage.id ? savedMessage : m)),
-      );
+      setMessages((prev) => {
+        // Kiểm tra xem socket đã chạy vào và nhét tin nhắn thực này vào mảng chưa
+        const alreadyHasSocketMess = prev.some((m) => m.id === savedMessage.id);
+        
+        if (alreadyHasSocketMess) {
+          // Xoá cái optimistic giả đi vì tin nhắn thực đã có
+          return prev.filter((m) => m.id !== optimisticMessage.id);
+        } else {
+          // Socket chưa tới (hoặc ta là người gửi), nên lấy `savedMessage` thay thế cho optimistic giả
+          return prev.map((m) => (m.id === optimisticMessage.id ? savedMessage : m));
+        }
+      });
 
       // Cập nhật lastMessage của conversation trong danh sách
       setConversations((prev) =>

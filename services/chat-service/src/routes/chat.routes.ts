@@ -16,7 +16,11 @@ router.get(
   ChatController.getMessagesInConversation,
 );
 
-// Gửi tin nhắn mới tới người dùng khác
+// Gửi tin nhắn mới (hỗ trợ cả 1-1 và group)
 router.post("/messages", ChatController.sendMessage);
+
+// Tạo nhóm (Group Chat) mới
+router.post("/conversations/group", ChatController.createGroup);
+
 
 export default router;

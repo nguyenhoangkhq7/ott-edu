@@ -36,23 +36,13 @@ export function mapApiConversationToConversation(
   currentUserId: string
 ): Conversation {
   const participants = apiConv.participants.map(mapApiUserToUser);
-  const participantCount = participants.length;
+  const type = apiConv.type;
 
-  // Suy ra loại chat từ số lượng người tham gia (chưa có trường `type` trong Mongoose schema)
-  const type = participantCount <= 2 ? "direct" : "group";
-
-  // Tên nhóm: với direct dùng tên người kia; với group dùng danh sách tên
-  let name: string | null = null;
-  if (type === "direct") {
+  let name: string | null = apiConv.name || null;
+  
+  if (type === "private") {
     const other = participants.find((p) => p.id !== currentUserId);
     name = other?.name || null;
-  } else {
-    // Tạo tên nhóm từ tên các thành viên
-    const names = participants
-      .filter((p) => p.id !== currentUserId)
-      .map((p) => p.name.split(" ").pop()) // Chỉ lấy tên (cuối cùng)
-      .join(", ");
-    name = `Nhóm: ${names}`;
   }
 
   const lastMsg = apiConv.lastMessage
@@ -65,9 +55,8 @@ export function mapApiConversationToConversation(
     type,
     participants,
     lastMessage: lastMsg,
-    unreadCount: 0, // Backend chưa có field này; placeholder
-    avatarUrl:
-      type === "group" ? `https://i.pravatar.cc/150?img=30` : null,
+    unreadCount: 0,
+    avatarUrl: apiConv.avatarUrl || (type === "class" ? `https://i.pravatar.cc/150?img=30` : null),
   };
 }
 
@@ -102,16 +91,18 @@ export async function fetchMessages(conversationId: string): Promise<Message[]> 
 
 /**
  * POST /api/messages
- * Gửi tin nhắn mới tới người nhận.
- * Backend sẽ tự tạo Conversation nếu chưa có.
+ * Gửi tin nhắn mới tới người nhận HOẶC nhóm.
  */
 export async function sendMessage(
-  receiverId: string,
-  content: string
+  content: string,
+  receiverId?: string,
+  conversationId?: string
 ): Promise<Message> {
   const response = await chatApiClient.post<{ data: ApiMessage }>("/messages", {
     receiverId,
+    conversationId,
     content,
   });
   return mapApiMessageToMessage(response.data.data);
 }
+

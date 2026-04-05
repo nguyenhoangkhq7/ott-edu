@@ -56,11 +56,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   let displayName = conversation.name;
   let displayAvatar = conversation.avatarUrl;
   let subStatus =
-    conversation.type === "group"
+    conversation.type === "class"
       ? `${conversation.participants.length} thành viên`
       : "Đang hoạt động";
 
-  if (conversation.type === "direct" && currentUser) {
+  if (conversation.type === "private" && currentUser) {
     const otherParticipant = conversation.participants.find(
       (p) => p.id !== currentUser.id
     );
