@@ -10,6 +10,7 @@ export default function ChatPage() {
 
   // Khôi phục userId từ localStorage khi load trang
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const saved = localStorage.getItem("dev_user_id");
     if (saved) {

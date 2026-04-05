@@ -26,11 +26,6 @@ export default function TeamsMainPage() {
     }));
   };
 
-  const handleCreateTeam = () => {
-    console.log("Create team clicked");
-    setShowTeamDropdown(false);
-  };
-
   const teamSections: TeamSection[] = useMemo(
     () => [
       {

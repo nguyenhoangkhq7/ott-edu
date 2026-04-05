@@ -19,14 +19,7 @@ import {
   AuthSubmitButton,
 } from "./components";
 
-// Thêm mảng teams vào Interface để lấy đúng ID của Lớp
-interface LoginResult {
-  user: {
-    code: string | null;
-    email: string;
-    teams?: Array<{ id: number | string; name?: string; joinCode?: string }>;
-  };
-}
+
 
 type LoginFormState = {
   email: string;

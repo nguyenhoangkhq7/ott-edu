@@ -22,6 +22,7 @@ export default function Sidebar({ items, activeId }: SidebarProps) {
     >
       {/* Logo Section */}
       <div className="mb-5 flex h-16 w-16 items-center justify-center transition-transform hover:scale-105">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="../assets/logo.png"
           alt="Logo"
