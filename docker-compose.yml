@@ -5,11 +5,21 @@ services:
     image: mysql:8.0
     container_name: mysql-db
     restart: always
-    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
     ports:
-      - "${MYSQL_PORT}:3306"
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "$${MYSQL_USER}", "-p$${MYSQL_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
     networks:
       - app-network
 
@@ -32,10 +42,32 @@ services:
     container_name: core-service
     restart: on-failure
     env_file: .env
-    ports:
-      - "${CORE_PORT}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/${MYSQL_DATABASE}
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: "none"
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_CONNECT_RETRIES: "60"
+    expose:
+      - "8080"
     depends_on:
-      - mysql-db
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  assignment-service:
+    build: ./services/assignment-service
+    container_name: assignment-service
+    restart: on-failure
+    env_file: .env
+    ports:
+      - "${ASSIGNMENT_PORT}:8080"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -50,8 +82,8 @@ services:
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
-    ports:
-      - "${CHAT_PORT}:3001"
+    expose:
+      - "3001"
     depends_on:
       - mongo-db
     networks:

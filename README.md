@@ -165,6 +165,33 @@ The mobile app is **not** in Docker to allow for easier device testing/emulation
 
 ---
 
+## 🔐 Gateway JWT Authentication
+
+Gateway now enforces JWT access-token validation for backend APIs using Nginx `auth_request`.
+
+- **Protected routes**:
+    - `/api/core/**`
+    - `/api/chat/**`
+- **Public routes (no JWT required)**:
+    - `/api/core/auth/**`
+    - `/api/core/schools/**`
+    - `/api/core/api/schools/**`
+
+Validation flow:
+
+1. Client sends `Authorization: Bearer <access_token>`.
+2. Gateway calls internal auth subrequest to Core Service endpoint `GET /auth/validate`.
+3. If token is valid, request is proxied to target service.
+4. If token is missing/invalid/expired, gateway returns `401`.
+
+Notes:
+
+- Access token source is **Authorization Bearer header only**.
+- In Docker Compose, `core-service` and `chat-service` are no longer published to host ports to reduce gateway bypass risk.
+- `/socket.io/` is unchanged in this phase and should be secured separately at handshake level if required.
+
+---
+
 ## 🗄️ Database Credentials
 
 Default credentials for local development (defined in `.env`):

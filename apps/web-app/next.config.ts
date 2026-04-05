@@ -7,11 +7,11 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "i.pravatar.cc",
+        hostname: "**",
       },
       {
-        protocol: "https",
-        hostname: "via.placeholder.com",
+        protocol: "http",
+        hostname: "**",
       },
     ],
   },

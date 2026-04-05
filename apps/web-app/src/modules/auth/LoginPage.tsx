@@ -1,0 +1,211 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+
+import { validateLoginForm } from "@/modules/auth/validators";
+import Input from "@/shared/components/ui/Input";
+import { useAuth } from "@/shared/providers/AuthProvider";
+import Cookies from "js-cookie";
+import { getCurrentUser } from "@/services/auth/auth.service";
+
+import {
+  AuthCard,
+  AuthFieldError,
+  AuthHeader,
+  AuthPageContainer,
+  AuthStatusAlert,
+  AuthSubmitButton,
+} from "./components";
+
+// Thêm mảng teams vào Interface để lấy đúng ID của Lớp
+interface LoginResult {
+  user: {
+    code: string | null;
+    email: string;
+    teams?: Array<{ id: number | string; name?: string; joinCode?: string }>;
+  };
+}
+
+type LoginFormState = {
+  email: string;
+  password: string;
+};
+
+const INITIAL_FORM: LoginFormState = {
+  email: "",
+  password: "",
+};
+
+export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useAuth();
+  const [form, setForm] = useState<LoginFormState>(INITIAL_FORM);
+  const [showPassword, setShowPassword] = useState(false);
+  const [touched, setTouched] = useState<Record<keyof LoginFormState, boolean>>({
+    email: false,
+    password: false,
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  const errors = useMemo(() => validateLoginForm(form), [form]);
+  const isFormValid = Object.values(errors).every((value) => !value);
+
+  const handleChange =
+    (field: keyof LoginFormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
+      setForm((current) => ({
+        ...current,
+        [field]: event.target.value,
+      }));
+      setSubmitError(null);
+      setSubmitSuccess(null);
+    };
+
+  const handleBlur = (field: keyof LoginFormState) => () => {
+    setTouched((current) => ({
+      ...current,
+      [field]: true,
+    }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    setTouched({ email: true, password: true });
+    setSubmitError(null);
+    setSubmitSuccess(null);
+
+    if (!isFormValid) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      
+      // 1. Chỉ gọi login để nó xử lý Token, không cần hứng kết quả (result) nữa
+      await login({ 
+        email: form.email.trim(), 
+        password: form.password 
+      });
+
+      // 2. Chắc cú 100%: Tự gọi API lấy thông tin user mới nhất
+      const latestUser = await getCurrentUser();
+      const typedUser = latestUser as unknown as { 
+          email?: string; 
+          teams?: Array<{ id: string | number }> 
+      };
+      // 3. Lấy danh sách Lớp từ latestUser
+      const userTeams = typedUser?.teams || [];
+      const userClassId = userTeams.length > 0 ? userTeams[0].id.toString() : "no-class"; 
+      const userEmail = typedUser?.email || form.email.trim();
+
+      // 4. CỰC KỲ QUAN TRỌNG: Xóa sạch cookie cũ đang bị kẹt chữ 'no-class'
+      Cookies.remove("classId");
+
+      // 5. Lưu classId (Team ID) thật vào Cookie
+      Cookies.set("classId", userClassId, { expires: 7 });
+      Cookies.set("userEmail", userEmail, { expires: 7 });
+
+      setSubmitSuccess("Đăng nhập thành công, đang chuyển hướng...");
+      setForm(INITIAL_FORM);
+      setTouched({ email: false, password: false });
+
+      // 6. Chuyển hướng
+      router.replace(`/teams/${userClassId}`);
+      
+    } catch (error) {
+      if (error instanceof Error) {
+        setSubmitError(error.message);
+      } else {
+        setSubmitError("Không thể đăng nhập lúc này, vui lòng thử lại.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <AuthPageContainer>
+      <AuthCard>
+        <AuthHeader title="Đăng nhập" description="Sử dụng tài khoản trường để truy cập hệ thống." />
+
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Input
+                label="Email"
+                type="email"
+                name="email"
+                autoComplete="email"
+                placeholder="student@iuh.edu.vn"
+                value={form.email}
+                onChange={handleChange("email")}
+                onBlur={handleBlur("email")}
+              />
+              <AuthFieldError message={touched.email ? errors.email : undefined} />
+            </div>
+
+            <div className="space-y-1">
+              <Input
+                label="Mật khẩu"
+                type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="current-password"
+                placeholder="Nhập mật khẩu"
+                value={form.password}
+                onChange={handleChange("password")}
+                onBlur={handleBlur("password")}
+              />
+
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="showPassword"
+                    checked={showPassword}
+                    onChange={(e) => setShowPassword(e.target.checked)}
+                    disabled={isSubmitting}
+                    className="h-4 w-4 cursor-pointer rounded border-slate-300 text-indigo-600 transition focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                  />
+                  <label
+                    htmlFor="showPassword"
+                    className="select-none cursor-pointer text-sm font-medium text-slate-600 transition hover:text-indigo-600"
+                  >
+                    Hiện mật khẩu
+                  </label>
+                </div>
+
+                <Link
+                  href="/forgot-password"
+                  className="text-sm font-medium text-indigo-600 transition hover:text-indigo-700 hover:underline"
+                >
+                  Quên mật khẩu?
+                </Link>
+              </div>
+
+              <AuthFieldError message={touched.password ? errors.password : undefined} />
+            </div>
+          </div>
+
+          <AuthStatusAlert type="error" message={submitError} />
+          <AuthStatusAlert type="success" message={submitSuccess} />
+
+          <AuthSubmitButton isSubmitting={isSubmitting} disabled={!isFormValid} submitLabel="Đăng nhập" />
+        </form>
+
+        <div className="mt-8 text-center text-sm text-slate-500">
+          Chưa có tài khoản?{" "}
+          <Link
+            href="/register"
+            className="font-semibold text-indigo-600 transition hover:text-indigo-700 hover:underline"
+          >
+            Tạo tài khoản mới
+          </Link>
+        </div>
+      </AuthCard>
+    </AuthPageContainer>
+  );
+}
