@@ -1,23 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { assessmentService, SubmissionResultResponse } from '@/services/api/assessment.service';
 
-export default function AssessmentResultsView({ assessmentId }: { assessmentId: string }) {
+export default function AssessmentResultsView({ _assessmentId }: { _assessmentId: string }) {
   const searchParams = useSearchParams();
-  const submissionId = searchParams.get('submissionId');
-  const [result, setResult] = useState<SubmissionResultResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
-
-  useEffect(() => {
-    // Currently, our API returns the result on submission. 
-    // This view could also fetch by submissionId if we add that endpoint.
-    // For now, let's mock it or assume it's passed via state/params if needed.
-    // Or just show a success message if the result is not found.
-    setLoading(false);
-  }, [submissionId]);
 
   const score = parseFloat(searchParams.get('score') || '0');
   const maxScore = 10; // Default or fetch from assignment

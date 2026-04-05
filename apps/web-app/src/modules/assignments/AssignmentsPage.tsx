@@ -6,7 +6,7 @@ import { assessmentService, AssessmentDTO } from '@/services/api/assessment.serv
 import { useAuth } from '@/shared/providers/AuthProvider';
 
 export default function AssignmentsPage() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [assessments, setAssessments] = useState<AssessmentDTO[]>([]);
   const [loading, setLoading] = useState(true);
 

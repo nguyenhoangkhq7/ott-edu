@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { assessmentService, AssessmentDTO, QuestionDTO } from '@/services/api/assessment.service';
+import { assessmentService, AssessmentDTO } from '@/services/api/assessment.service';
 import { useAuth } from '@/shared/providers/AuthProvider';
 import AssessmentSubmitModal from './AssessmentSubmitModal';
 

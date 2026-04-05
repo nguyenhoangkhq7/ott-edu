@@ -26,7 +26,7 @@ export default function TeamsMainPage() {
     }));
   };
 
-  const handleCreateTeam = () => {
+  const _handleCreateTeam = (team: any) => {
     console.log("Create team clicked");
     setShowTeamDropdown(false);
   };
