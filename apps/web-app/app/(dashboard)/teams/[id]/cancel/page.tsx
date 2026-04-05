@@ -9,6 +9,8 @@ interface CancelTeamData {
   id: number;
   name: string;
   memberCount?: number;
+  initials?: string;
+  accentColor?: string;
 }
 
 export default function CancelClassPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,7 +24,7 @@ export default function CancelClassPage({ params }: { params: Promise<{ id: stri
       try {
         const data = await httpService.get<CancelTeamData>(`/teams/${id}`);
         setTeamData({
-          id: String(data.id),
+          id: data.id,
           name: data.name,
           initials: data.name.substring(0, 2).toUpperCase(),
           accentColor: '#1868f0', // Standard color for now
@@ -51,9 +53,9 @@ export default function CancelClassPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-screen bg-slate-50/30">
-      <CancelClassForm 
-        onBack={() => router.back()} 
-        classData={teamData} 
+      <CancelClassForm
+        onBack={() => router.back()}
+        classData={teamData}
       />
     </div>
   );
