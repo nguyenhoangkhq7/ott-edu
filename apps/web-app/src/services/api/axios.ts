@@ -28,6 +28,7 @@ function getApiBaseUrl(): string {
   const value = raw && raw.length > 0 ? raw : DEFAULT_API_BASE_URL;
   const normalized = value.replace(/\/$/, "");
 
+  // Gateway logic: core is at /api/core
   return normalized.endsWith("/api/core") ? normalized : `${normalized}/api/core`;
 }
 
@@ -49,6 +50,23 @@ const baseConfig = {
 
 const apiClient = axios.create(baseConfig);
 const refreshClient = axios.create(baseConfig);
+
+function getAssignmentApiBaseUrl(): string {
+  const coreUrl = getApiBaseUrl(); // e.g., http://localhost:8080/api/core
+  // If core is on 8080, assignment is likely on 8081 (local dev)
+  if (coreUrl.includes("localhost:8080")) {
+    return "http://localhost:8081/api/v1";
+  }
+  // Otherwise, use the gateway path (Docker/Production)
+  return coreUrl.replace("/api/core", "/api/assignment/api/v1");
+}
+
+const assignmentConfig = {
+  ...baseConfig,
+  baseURL: getAssignmentApiBaseUrl(),
+};
+
+const assignmentClient = axios.create(assignmentConfig);
 
 function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<unknown> {
   if (!payload || typeof payload !== "object") {
@@ -76,19 +94,24 @@ function unwrapApiSuccessEnvelope<T>(response: AxiosResponse<T>): AxiosResponse<
   };
 }
 
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+// Interceptors for Auth
+const attachToken = (config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
   return config;
-});
+};
+
+apiClient.interceptors.request.use(attachToken);
+assignmentClient.interceptors.request.use(attachToken);
 
 refreshClient.interceptors.response.use((response) => unwrapApiSuccessEnvelope(response));
+apiClient.interceptors.response.use((response) => unwrapApiSuccessEnvelope(response));
+assignmentClient.interceptors.response.use((response) => unwrapApiSuccessEnvelope(response));
 
 apiClient.interceptors.response.use(
-  (response) => unwrapApiSuccessEnvelope(response),
+  (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config;
     const statusCode = error.response?.status;
@@ -124,4 +147,5 @@ apiClient.interceptors.response.use(
   }
 );
 
+export { apiClient, assignmentClient };
 export default apiClient;
