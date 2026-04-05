@@ -3,7 +3,7 @@
 import React from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function AssessmentResultsView({ _assessmentId }: { _assessmentId: string }) {
+export default function AssessmentResultsView({ assessmentId: _assessmentId }: { assessmentId: string }) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
