@@ -1,7 +1,5 @@
 server:
   port: ${CORE_PORT:8080}
-  servlet:
-    context-path: /api/core
 
 spring:
   application:
