@@ -1,23 +1,42 @@
-import express, { type Request, type Response } from "express";
+import express, {
+  type Application,
+  type Request,
+  type Response,
+} from "express";
 import cors from "cors";
+import connectDB from "./config/db.ts";
+import chatRoutes from "./routes/chat.routes.ts";
 
-const app = express();
+const app: Application = express();
 
-// 1. Middleware
-app.use(cors()); // Cho phép Frontend gọi API
-app.use(express.json()); // Để đọc được JSON từ body request
+connectDB();
 
-// 2. Test Route (Để kiểm tra server sống hay chết)
-app.get("/", (req: Request, res: Response) => {
-  res.status(200).json({
-    message: "Hello! Chat Service is running 🚀",
-    timestamp: new Date(),
-  });
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    process.env.WEB_APP_URL || "http://localhost:3000",
+  ],
+  credentials: true,
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// LƯU Ý: Giả lập middleware Auth (Tạm thời) để có req.user._id test trong Postman
+// Trong thực tế, bạn sẽ dùng authMiddleware (ví dụ xác thực JWT jwt.verify()) thay thế đoạn này.
+app.use((req: any, res: any, next: any) => {
+  // Postman có thể truyền header 'x-user-id' để giả lập đang đăng nhập bằng user đó
+  const testUserId = req.headers["x-user-id"];
+  if (testUserId) {
+    req.user = { _id: testUserId };
+  }
+  next();
 });
 
-// 3. Health Check (Để kiểm tra kết nối DB sau này)
-app.get("/health", (req: Request, res: Response) => {
-  res.status(200).send("OK");
+// Đăng ký chat routes vào path /api
+app.use("/api", chatRoutes);
+
+app.get("/", (req: Request, res: Response) => {
+  res.send("API is running...");
 });
 
 export default app;

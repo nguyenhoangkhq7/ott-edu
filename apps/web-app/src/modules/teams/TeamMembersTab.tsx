@@ -166,38 +166,38 @@ export default function TeamMembersTab() {
     );
   }
 
-  return (
-    <div className="flex gap-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
-      {/* ========== LEFT: MAIN CONTENT ========== */}
-      <div className="flex-1 min-w-0">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Manage Members</h1>
-          
-          {/* Tabs & Actions */}
-          <div className="flex items-center justify-between mb-6 gap-4">
-            <div className="flex gap-2 border-b border-gray-200">
-              <button
-                onClick={() => setCurrentTab('Students')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-                  currentTab === 'Students'
-                    ? 'text-blue-600 border-blue-600'
-                    : 'text-gray-600 border-transparent hover:text-gray-900'
-                }`}
-              >
-                Students ({stats.students})
-              </button>
-              <button
-                onClick={() => setCurrentTab('Teachers')}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${
-                  currentTab === 'Teachers'
-                    ? 'text-blue-600 border-blue-600'
-                    : 'text-gray-600 border-transparent hover:text-gray-900'
-                }`}
-              >
-                Teachers ({stats.teachers})
-              </button>
-            </div>
+            {isOwnersOpen && (
+              <div className="border-t border-slate-100 divide-y divide-slate-50">
+                {/* Owner Item */}
+                <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group rounded-b-xl">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="https://i.pravatar.cc/150?img=11" alt="Dr. Aris Thorne" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm hover:underline cursor-pointer">Dr. Aris Thorne</h4>
+                      <p className="text-xs text-slate-500">Instructor</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <span className="text-sm text-slate-500 font-medium hidden sm:block">Owner</span>
+                    
+                    {/* Nút 3 chấm của Owner */}
+                    <div className="relative">
+                      <button 
+                        onClick={() => {
+                          setActiveOptionsMenuId(activeOptionsMenuId === 'owner-1' ? null : 'owner-1');
+                          setActiveRoleMenuId(null);
+                        }}
+                        className={`p-1.5 rounded-md transition-colors
+                          ${activeOptionsMenuId === 'owner-1' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 opacity-0 group-hover:opacity-100'}
+                        `}
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                      </button>
 
             <div className="flex items-center gap-2">
               <button className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
@@ -238,27 +238,85 @@ export default function TeamMembersTab() {
           </div>
         </div>
 
-        {/* Members Table */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-          <table className="w-full">
-            <thead className="bg-gray-50/50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Member</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined Date</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Manage</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredMembers.length > 0 ? filteredMembers.map((member) => (
-                <tr key={member.id} className="hover:bg-blue-50/30 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-3">
-                      {member.avatar ? (
-                          <Image src={member.avatar} alt={member.name} width={40} height={40} unoptimized className="w-10 h-10 rounded-full object-cover shadow-sm" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-                            {member.initials}
+            {isMembersOpen && (
+              <div className="border-t border-slate-100 divide-y divide-slate-50 pb-2">
+                
+                {/* Member Item 1 */}
+                <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="https://i.pravatar.cc/150?img=32" alt="Elena Rodriguez" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm hover:underline cursor-pointer">Elena Rodriguez</h4>
+                      <p className="text-xs text-slate-500">Student • Mathematics Major</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    {/* Nút đổi Role (Vai trò) */}
+                    <div className="relative">
+                      <button 
+                        onClick={() => {
+                          setActiveRoleMenuId(activeRoleMenuId === 'member-1' ? null : 'member-1');
+                          setActiveOptionsMenuId(null);
+                        }}
+                        className={`flex items-center gap-1 text-sm font-medium transition-colors px-2 py-1 rounded
+                          ${activeRoleMenuId === 'member-1' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}
+                        `}
+                      >
+                        Member <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </button>
+                      
+                      {/* Dropdown đổi Role */}
+                      {activeRoleMenuId === 'member-1' && (
+                        <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 animate-in zoom-in-95 duration-100">
+                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Owner</button>
+                          <button className="w-full text-left px-4 py-2 text-sm text-blue-600 font-medium bg-blue-50/50 flex justify-between items-center">
+                            Member
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          </button>
+                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Guest</button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Nút 3 chấm của Member */}
+                    <div className="relative">
+                      <button 
+                        onClick={() => {
+                          setActiveOptionsMenuId(activeOptionsMenuId === 'member-1' ? null : 'member-1');
+                          setActiveRoleMenuId(null);
+                        }}
+                        className={`p-1.5 rounded-md transition-colors
+                          ${activeOptionsMenuId === 'member-1' ? 'bg-slate-200 text-slate-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 opacity-0 group-hover:opacity-100'}
+                        `}
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                      </button>
+
+                      {/* Menu tùy chọn của Member */}
+                      {activeOptionsMenuId === 'member-1' && (
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 animate-in zoom-in-95 duration-100">
+                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            View profile
+                          </button>
+                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                            Message
+                          </button>
+                          <div className="h-px bg-slate-100 my-1"></div>
+                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                            Mute student
+                          </button>
+                          <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 group/delete">
+                            <svg className="w-4 h-4 text-red-400 group-hover/delete:text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" /></svg>
+                            Remove from class
+                          </button>
                         </div>
                       )}
                       <div>
@@ -266,35 +324,45 @@ export default function TeamMembersTab() {
                         <p className="text-xs text-gray-500">{member.email}</p>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                      member.role === 'Owner'
-                        ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                        : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                    }`}>
-                      {member.role === 'Owner' ? 'Instructor' : 'Student'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-xs text-gray-600 font-medium">{member.joinDate}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <button className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-lg hover:bg-red-50">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              )) : (
-                <tr>
-                    <td colSpan={4} className="px-6 py-20 text-center">
-                        <div className="flex flex-col items-center">
-                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-dashed border-gray-200">
-                                <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.856-1.487M15 20H9m8-4h.01M15 16h.01M9 20H4v-2a6 6 0 0112 0v2zm6-12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                            </div>
-                            <p className="text-gray-400 text-sm font-medium">No results found for this selection.</p>
+                  </div>
+                </div>
+
+                {/* Member Item 2 */}
+                <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="https://i.pravatar.cc/150?img=12" alt="Marcus Chen" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-slate-400 border-2 border-white rounded-full"></div>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm hover:underline cursor-pointer">Marcus Chen</h4>
+                      <p className="text-xs text-slate-500">Student • Physics Major</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <div className="relative">
+                      <button 
+                        onClick={() => {
+                          setActiveRoleMenuId(activeRoleMenuId === 'member-2' ? null : 'member-2');
+                          setActiveOptionsMenuId(null);
+                        }}
+                        className={`flex items-center gap-1 text-sm font-medium transition-colors px-2 py-1 rounded
+                          ${activeRoleMenuId === 'member-2' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}
+                        `}
+                      >
+                        Member <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                      </button>
+                      
+                      {activeRoleMenuId === 'member-2' && (
+                        <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 animate-in zoom-in-95 duration-100">
+                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Owner</button>
+                          <button className="w-full text-left px-4 py-2 text-sm text-blue-600 font-medium bg-blue-50/50 flex justify-between items-center">
+                            Member
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          </button>
+                          <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Guest</button>
                         </div>
                     </td>
                 </tr>

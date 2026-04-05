@@ -9,11 +9,13 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "axios": "^1.13.6",
+    "axios": "^1.14.0",
+    "lucide-react": "^1.7.0",
     "js-cookie": "^3.0.5",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
