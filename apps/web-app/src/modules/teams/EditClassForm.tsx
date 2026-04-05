@@ -75,10 +75,9 @@ export default function EditClassForm({ onBack, classData }: EditClassFormProps)
       });
       setShowSuccessModal(true);
       setHasChanges(false);
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error(error);
-      const errorObj = error as Record<string, unknown>;
-      const detail = (errorObj?.response as Record<string, unknown>)?.data?.message || 'Please check your role permissions.';
+      const detail = error?.response?.data?.message || error?.message || 'Please check your role permissions.';
       alert(`Failed to save class information.\nDetails: ${detail}`);
     } finally {
       setIsLoading(false);

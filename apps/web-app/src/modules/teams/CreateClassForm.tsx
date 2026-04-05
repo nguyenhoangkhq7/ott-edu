@@ -65,7 +65,7 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
     setIsLoading(true);
     try {
       // Call real backend API
-      const response = await httpService.post<{ joinCode: string }>('/teams', {
+      const response = await httpService.post<{ id: number; joinCode: string }>('/teams', {
         name: formData.name,
         description: formData.description,
       });
@@ -80,10 +80,9 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
 
       // Hiện modal thành công
       setShowSuccessModal(true);
-    } catch (error: unknown) {
+    } catch (error) {
       console.error('Error creating class:', error);
-      const errorMsg = (error as Record<string, unknown>)?.message || 'Failed to create class. Please try again.';
-      alert(errorMsg);
+      alert(error instanceof Error ? error.message : 'Failed to create class. Please try again.');
     } finally {
       setIsLoading(false);
     }

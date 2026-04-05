@@ -6,9 +6,11 @@ import EditClassForm from '@/modules/teams/EditClassForm';
 import { httpService } from '@/services/api/http.service';
 
 interface ClassData {
-  id: number;
+  id: string;
   name: string;
-  description?: string;
+  description: string;
+  initials: string;
+  accentColor: string;
   isActive?: boolean;
   active?: boolean;
   createdAt?: string;
@@ -44,12 +46,10 @@ export default function EditClassPage() {
             createdAt: team.createdAt ? new Date(team.createdAt).toLocaleDateString() : '',
           });
         }
-      } catch (error: unknown) {
-        const errorMsg = (error as Record<string, unknown>)?.message || 'Failed to fetch class information';
+      } catch (error: any) {
+        const errorMsg = String(error?.message || 'Failed to fetch class information');
         console.error("Failed to fetch class info:", error);
-        console.error("Full error details:", JSON.stringify(error, null, 2));
         
-        // More specific error message based on error type
         if (errorMsg.includes('not found') || errorMsg.includes('not a member')) {
           setErrorMessage('Class not found or you don\'t have access.');
         } else if (errorMsg.includes('Token') || errorMsg.includes('invalid')) {

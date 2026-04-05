@@ -5,15 +5,6 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { httpService } from '@/services/api/http.service';
 
-interface TeamMemberResponse {
-  id: number;
-  fullName: string;
-  email: string;
-  role: string;
-  joinedAt?: string;
-  avatarUrl?: string;
-}
-
 interface TeamMember {
   id: string;
   name: string;
@@ -57,7 +48,14 @@ export default function TeamMembersTab() {
     const fetchMembers = async () => {
       try {
         setIsLoading(true);
-        const data = await httpService.get<TeamMemberResponse[]>(`/teams/${teamId}/members`);
+        const data = await httpService.get<Array<{
+          id: number;
+          fullName: string;
+          email: string;
+          role: 'TEACHER' | 'STUDENT';
+          joinedAt?: string;
+          avatarUrl?: string;
+        }>>(`/teams/${teamId}/members`);
         
         // Map backend response to UI interface
         const mappedMembers: TeamMember[] = data.map(m => ({
@@ -73,10 +71,9 @@ export default function TeamMembersTab() {
 
         setMembers(mappedMembers);
         setError(null);
-      } catch (err: unknown) {
-        const errorMsg = (err as Record<string, unknown>)?.message || 'Failed to load class members.';
+      } catch (err) {
         console.error("Failed to fetch members:", err);
-        setError(typeof errorMsg === 'string' ? errorMsg : "Failed to load class members.");
+        setError(err instanceof Error ? err.message : "Failed to load class members.");
       } finally {
         setIsLoading(false);
       }
@@ -258,7 +255,7 @@ export default function TeamMembersTab() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
                       {member.avatar ? (
-                          <Image src={member.avatar} alt={member.name} width={40} height={40} className="w-10 h-10 rounded-full object-cover shadow-sm" />
+                          <Image src={member.avatar} alt={member.name} width={40} height={40} unoptimized className="w-10 h-10 rounded-full object-cover shadow-sm" />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
                             {member.initials}

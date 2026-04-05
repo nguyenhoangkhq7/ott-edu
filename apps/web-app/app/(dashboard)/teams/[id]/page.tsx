@@ -9,6 +9,8 @@ import { httpService } from '@/services/api/http.service';
 import TeamPostsTab from '@/modules/teams/TeamPostsTab';
 import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
+// Temporarily using AssignmentsPage as a fallback while the assessments component is being developed
+import AssignmentsPage from '@/modules/assignments/AssignmentsPage';
 
 interface TeamData {
   id: number;
@@ -213,7 +215,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
           </div>
 
           <div className="flex gap-8 text-sm font-medium text-slate-500">
-            {['Posts', 'Files', 'Members'].map((tab) => (
+            {['Posts', 'Files', 'Members', 'Assessments'].map((tab) => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab.toLowerCase())}
@@ -234,6 +236,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
             {activeTab === 'posts' && <TeamPostsTab />}
             {activeTab === 'files' && <TeamFilesTab />}
             {activeTab === 'members' && <TeamMembersTab />}
+            {activeTab === 'assessments' && <AssignmentsPage />}
           </div>
         </div>
       </div>

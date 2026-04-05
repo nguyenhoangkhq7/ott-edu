@@ -6,11 +6,11 @@ import CancelClassForm from '@/modules/teams/CancelClassForm';
 import { httpService } from '@/services/api/http.service';
 
 interface CancelTeamData {
-  id: number;
+  id: string;
   name: string;
   memberCount?: number;
-  initials?: string;
-  accentColor?: string;
+  initials: string;
+  accentColor: string;
 }
 
 export default function CancelClassPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,9 +22,9 @@ export default function CancelClassPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     const fetchTeam = async () => {
       try {
-        const data = await httpService.get<CancelTeamData>(`/teams/${id}`);
+        const data = await httpService.get<{ id: number; name: string; memberCount?: number }>(`/teams/${id}`);
         setTeamData({
-          id: data.id,
+          id: String(data.id),
           name: data.name,
           initials: data.name.substring(0, 2).toUpperCase(),
           accentColor: '#1868f0', // Standard color for now
@@ -55,7 +55,7 @@ export default function CancelClassPage({ params }: { params: Promise<{ id: stri
     <div className="min-h-screen bg-slate-50/30">
       <CancelClassForm
         onBack={() => router.back()}
-        classData={teamData}
+        classData={teamData || undefined}
       />
     </div>
   );
