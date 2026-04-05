@@ -1,4 +1,4 @@
-package fit.iuh.services.impl;
+package fit.iuh.modules.auth.services.impl;
 
 import fit.iuh.dtos.team.CreateTeamRequest;
 import fit.iuh.dtos.team.UpdateTeamRequest;
@@ -79,11 +79,11 @@ public class TeamServiceImpl implements TeamService {
                 .build();
         team = teamRepository.save(team);
 
-        // 7. Thêm người tạo vào lớp với vai trò TEACHER
+        // 7. Thêm người tạo vào lớp với vai trò LEADER (Giáo viên là Leader của lớp)
         TeamMember creator = TeamMember.builder()
                 .team(team)
                 .account(account)
-                .memberRole("TEACHER")
+                .role(TeamMemberRole.LEADER)
                 .build();
         teamMemberRepository.save(creator);
 
@@ -108,7 +108,7 @@ public class TeamServiceImpl implements TeamService {
                     // Tìm vai trò của người yêu cầu trong team này
                     return team.getMembers().stream()
                             .anyMatch(m -> m.getAccount().getId().equals(account.getId()) 
-                                        && "TEACHER".equals(m.getMemberRole()));
+                                        && TeamMemberRole.LEADER.equals(m.getRole()));
                 })
                 .map(team -> toResponse(team, team.getMembers().size()))
                 .collect(Collectors.toList());
@@ -126,8 +126,8 @@ public class TeamServiceImpl implements TeamService {
         TeamMember teamMember = teamMemberRepository.findByTeamIdAndAccountId(teamId, account.getId())
                 .orElseThrow(() -> new RuntimeException("Bạn không phải là thành viên của lớp học này."));
 
-        if (!"TEACHER".equals(teamMember.getMemberRole())) {
-            throw new RuntimeException("Chỉ giáo viên (TEACHER) mới có quyền chỉnh sửa lớp học.");
+        if (!TeamMemberRole.LEADER.equals(teamMember.getRole())) {
+            throw new RuntimeException("Chỉ giáo viên (Leader) mới có quyền chỉnh sửa lớp học.");
         }
 
         if (request.getName() != null && !request.getName().isBlank()) {
@@ -193,7 +193,7 @@ public class TeamServiceImpl implements TeamService {
                     .accountId(userAcc.getId())
                     .fullName(fullName.isEmpty() ? userAcc.getEmail() : fullName)
                     .email(userAcc.getEmail())
-                    .role(m.getMemberRole())
+                    .role(m.getRole().name())
                     .avatarUrl(avatarUrl)
                     .joinedAt(m.getJoinedAt())
                     .build();
@@ -268,8 +268,8 @@ public class TeamServiceImpl implements TeamService {
         TeamMember teamMember = teamMemberRepository.findByTeamIdAndAccountId(teamId, account.getId())
                 .orElseThrow(() -> new RuntimeException("Bạn không phải là thành viên của lớp học này."));
 
-        if (!"TEACHER".equals(teamMember.getMemberRole())) {
-            throw new SecurityException("Chỉ giáo viên (TEACHER) mới có quyền hủy lớp học.");
+        if (!TeamMemberRole.LEADER.equals(teamMember.getRole())) {
+            throw new SecurityException("Chỉ giáo viên (Leader) mới có quyền hủy lớp học.");
         }
 
         // 5. Soft-delete: đánh dấu isActive = false
