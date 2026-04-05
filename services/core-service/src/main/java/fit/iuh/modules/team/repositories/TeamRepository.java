@@ -11,5 +11,5 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
     boolean existsByJoinCode(String joinCode);
 
     @org.springframework.data.jpa.repository.Query("SELECT t FROM Team t JOIN t.members m WHERE m.account.id = :accountId AND t.deletedAt IS NULL")
-    java.util.List<Team> findAllByMemberAccountId(@org.springframework.data.jpa.repository.Param("accountId") Long accountId);
+    java.util.List<Team> findAllByMemberAccountId(@org.springframework.data.repository.query.Param("accountId") Long accountId);
 }
