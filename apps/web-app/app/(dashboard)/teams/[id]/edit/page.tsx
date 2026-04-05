@@ -46,8 +46,9 @@ export default function EditClassPage() {
             createdAt: team.createdAt ? new Date(team.createdAt).toLocaleDateString() : '',
           });
         }
-      } catch (error: any) {
-        const errorMsg = String(error?.message || 'Failed to fetch class information');
+      } catch (error: unknown) {
+        const err = error as any;
+        const errorMsg = String(err?.message || 'Failed to fetch class information');
         console.error("Failed to fetch class info:", error);
         
         if (errorMsg.includes('not found') || errorMsg.includes('not a member')) {
