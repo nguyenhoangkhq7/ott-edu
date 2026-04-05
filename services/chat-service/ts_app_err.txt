@@ -1,0 +1,10 @@
+node_modules/socket.io/dist/index.d.ts(1,8): error TS1192: Module '"http"' has no default export.
+src/app.ts(1,8): error TS1259: Module '"D:/study-at-school/Projects/nhom/ott-edu/services/chat-service/node_modules/@types/express/index"' can only be default-imported using the 'esModuleInterop' flag
+src/app.ts(6,8): error TS1259: Module '"D:/study-at-school/Projects/nhom/ott-edu/services/chat-service/node_modules/@types/cors/index"' can only be default-imported using the 'esModuleInterop' flag
+src/app.ts(7,23): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+src/app.ts(8,24): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+src/controllers/chat.controller.ts(2,29): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+src/controllers/chat.controller.ts(3,27): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+src/routes/chat.routes.ts(2,32): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+src/services/chat.service.ts(1,26): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.
+src/services/chat.service.ts(2,21): error TS5097: An import path can only end with a '.ts' extension when 'allowImportingTsExtensions' is enabled.

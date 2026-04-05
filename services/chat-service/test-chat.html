@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Test Realtime Chat</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h2>Màn hình của người nhận</h2>
+    <div
+      id="chat-box"
+      style="border: 1px solid black; height: 300px; padding: 10px"
+    ></div>
+
+    <script>
+      // 1. Khai báo ID của người dùng đang test (Nhập ID của User B vào đây)
+      const myUserId = prompt("Nhập User ID của bạn để kết nối:");
+
+      // 2. Kết nối tới server backend của bạn
+      const socket = io("http://localhost:3000", {
+        query: { userId: myUserId }, // Gửi kèm ID để backend lưu vào Map()
+      });
+
+      socket.on("connect", () => {
+        console.log("Đã kết nối Socket thành công! ID kết nối:", socket.id);
+      });
+
+      // 3. Lắng nghe sự kiện nhận tin nhắn từ server
+      socket.on("receive_message", (newMessage) => {
+        console.log("CÓ TIN NHẮN MỚI:", newMessage);
+
+        // Hiển thị ra màn hình
+        const chatBox = document.getElementById("chat-box");
+        chatBox.innerHTML += `<p><strong>Tin nhắn mới:</strong> ${newMessage.content}</p>`;
+      });
+    </script>
+  </body>
+</html>
