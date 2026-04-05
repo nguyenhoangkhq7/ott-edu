@@ -26,11 +26,10 @@ const DEFAULT_TIMEOUT_MS = 30000;
 function getApiBaseUrl(): string {
   const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
   const value = raw && raw.length > 0 ? raw : DEFAULT_API_BASE_URL;
-  const normalized = value.replace(/\/$/, "");
-
-  return normalized.endsWith("/api/core") ? normalized : `${normalized}/api/core`;
+  
+  // Chỉ xóa dấu gạch chéo cuối cùng, không tự thêm /api/core nữa
+  return value.replace(/\/$/, "");
 }
-
 function getApiTimeout(): number {
   const raw = process.env.NEXT_PUBLIC_API_TIMEOUT;
   const parsed = Number(raw);
