@@ -31,7 +31,6 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const socketRef = useRef<Socket | null>(null);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -49,6 +48,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           isOnline: true,
         };
 
+  const socketRef = useRef<Socket | null>(null);
+  const activeConversationIdRef = useRef<string | null>(null);
+
+  // Giữ ref luôn cập nhật để xài trong socket handler (tránh dependency bắt reconnect socket)
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
   // ── Khởi tạo Socket.IO ───────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUserId) return;
@@ -63,26 +70,32 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     // Nhận tin nhắn mới từ server real-time
     const handleNewMessage = (rawMessage: any) => {
       const incoming = mapApiMessageToMessage(rawMessage);
+      const isActive = activeConversationIdRef.current === incoming.conversationId;
+      const isSelf = incoming.senderId === currentUserId;
 
       // Append tin nhắn vào cửa sổ chat nếu đang mở đúng conversation đó
-      setActiveConversationId((activeId) => {
-        if (activeId && incoming.conversationId === activeId) {
-          setMessages((prev) => {
-            // Deduplication: bỏ qua nếu message ID đã tồn tại
-            if (prev.some((m) => m.id === incoming.id)) return prev;
-            return [...prev, incoming];
-          });
-        }
-        return activeId;
-      });
+      if (isActive) {
+        setMessages((prev) => {
+          // Deduplication: bỏ qua nếu message ID đã tồn tại
+          if (prev.some((m) => m.id === incoming.id)) return prev;
+          return [...prev, incoming];
+        });
+      }
 
       // Cập nhật lastMessage ở sidebar
       setConversations((prev) =>
-        prev.map((c) =>
-          c.id === incoming.conversationId
-            ? { ...c, lastMessage: incoming, unreadCount: c.unreadCount + 1 }
-            : c,
-        ),
+        prev.map((c) => {
+          if (c.id === incoming.conversationId) {
+            // Không tăng biến đếm nếu đang mở khung chat đó hoặc tự mình gửi
+            const shouldIncrement = !isActive && !isSelf;
+            return {
+              ...c,
+              lastMessage: incoming,
+              unreadCount: shouldIncrement ? c.unreadCount + 1 : c.unreadCount,
+            };
+          }
+          return c;
+        }),
       );
     };
 
@@ -94,6 +107,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       socket.disconnect();
     };
   }, [currentUserId]);
+
+  // Handle khi click đổi cuộc trò chuyện: Reset số đếm unread về 0
+  const handleSelectConversation = useCallback((id: string) => {
+    setActiveConversationId(id);
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
+    );
+  }, []);
 
 
   // ── Fetch Conversations ──────────────────────────────────────────────────
@@ -218,7 +239,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         conversations={conversations}
         currentUser={currentUser}
         activeConversationId={activeConversationId}
-        onSelectConversation={setActiveConversationId}
+        onSelectConversation={handleSelectConversation}
         isLoading={isLoadingConversations}
         error={error}
       />
