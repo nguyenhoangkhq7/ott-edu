@@ -8,7 +8,7 @@ import TeamPostsTab from '@/modules/teams/TeamPostsTab';
 import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
 
-export default function TeamDetailPage({ params: _params }: { params: { id: string } }) {
+export default function TeamDetailPage() {
   const [activeTab, setActiveTab] = useState('posts');
 
   return (

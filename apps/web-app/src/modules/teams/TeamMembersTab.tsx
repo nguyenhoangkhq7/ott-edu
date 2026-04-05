@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 
 export default function TeamMembersTab() {
   // Trạng thái đóng/mở của các danh sách
@@ -66,7 +67,7 @@ export default function TeamMembersTab() {
                 <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group rounded-b-xl">
                   <div className="flex items-center gap-4">
                     <div className="relative">
-                      <img src="https://i.pravatar.cc/150?img=11" alt="Dr. Aris Thorne" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      <Image src="https://i.pravatar.cc/150?img=11" alt="Dr. Aris Thorne" className="w-10 h-10 rounded-full object-cover border border-slate-200" width={40} height={40} />
                       <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
                     </div>
                     <div>
@@ -132,7 +133,7 @@ export default function TeamMembersTab() {
                 <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group">
                   <div className="flex items-center gap-4">
                     <div className="relative">
-                      <img src="https://i.pravatar.cc/150?img=32" alt="Elena Rodriguez" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      <Image src="https://i.pravatar.cc/150?img=32" alt="Elena Rodriguez" className="w-10 h-10 rounded-full object-cover border border-slate-200" width={40} height={40} />
                       <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
                     </div>
                     <div>
@@ -213,7 +214,7 @@ export default function TeamMembersTab() {
                 <div className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group">
                   <div className="flex items-center gap-4">
                     <div className="relative">
-                      <img src="https://i.pravatar.cc/150?img=12" alt="Marcus Chen" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                      <Image src="https://i.pravatar.cc/150?img=12" alt="Marcus Chen" className="w-10 h-10 rounded-full object-cover border border-slate-200" width={40} height={40} />
                       <div className="absolute bottom-0 right-0 w-3 h-3 bg-slate-400 border-2 border-white rounded-full"></div>
                     </div>
                     <div>
