@@ -7,6 +7,8 @@ import { useMemo, useState } from "react";
 import { validateLoginForm } from "@/modules/auth/validators";
 import Input from "@/shared/components/ui/Input";
 import { useAuth } from "@/shared/providers/AuthProvider";
+import Cookies from "js-cookie";
+import { getCurrentUser } from "@/services/auth/auth.service";
 
 import {
   AuthCard,
@@ -16,6 +18,15 @@ import {
   AuthStatusAlert,
   AuthSubmitButton,
 } from "./components";
+
+// Thêm mảng teams vào Interface để lấy đúng ID của Lớp
+interface LoginResult {
+  user: {
+    code: string | null;
+    email: string;
+    teams?: Array<{ id: number | string; name?: string; joinCode?: string }>;
+  };
+}
 
 type LoginFormState = {
   email: string;
@@ -73,11 +84,38 @@ export default function LoginPage() {
 
     try {
       setIsSubmitting(true);
-      await login({ email: form.email.trim(), password: form.password });
-      setSubmitSuccess("Dang nhap thanh cong, dang chuyen huong...");
+      
+      // 1. Chỉ gọi login để nó xử lý Token, không cần hứng kết quả (result) nữa
+      await login({ 
+        email: form.email.trim(), 
+        password: form.password 
+      });
+
+      // 2. Chắc cú 100%: Tự gọi API lấy thông tin user mới nhất
+      const latestUser = await getCurrentUser();
+      const typedUser = latestUser as unknown as { 
+          email?: string; 
+          teams?: Array<{ id: string | number }> 
+      };
+      // 3. Lấy danh sách Lớp từ latestUser
+      const userTeams = typedUser?.teams || [];
+      const userClassId = userTeams.length > 0 ? userTeams[0].id.toString() : "no-class"; 
+      const userEmail = typedUser?.email || form.email.trim();
+
+      // 4. CỰC KỲ QUAN TRỌNG: Xóa sạch cookie cũ đang bị kẹt chữ 'no-class'
+      Cookies.remove("classId");
+
+      // 5. Lưu classId (Team ID) thật vào Cookie
+      Cookies.set("classId", userClassId, { expires: 7 });
+      Cookies.set("userEmail", userEmail, { expires: 7 });
+
+      setSubmitSuccess("Đăng nhập thành công, đang chuyển hướng...");
       setForm(INITIAL_FORM);
       setTouched({ email: false, password: false });
-      router.replace("/teams");
+
+      // 6. Chuyển hướng
+      router.replace(`/teams/${userClassId}`);
+      
     } catch (error) {
       if (error instanceof Error) {
         setSubmitError(error.message);
