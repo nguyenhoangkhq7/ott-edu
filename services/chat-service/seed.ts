@@ -7,7 +7,9 @@ import Conversation from "./src/model/Conversation.ts";
 import Message from "./src/model/Message.ts";
 
 // TODO: Điền chuỗi kết nối MongoDB của bạn vào đây
-const MONGO_URI: string = "mongodb://localhost:27017/ott_edu_db";
+// Thử lấy từ biến môi trường (Docker Compose thường set cái này), nếu không có thì dùng tên service mongo-db
+const MONGO_URI: string =
+  "mongodb://root:secret_mongo_pass@mongo-db:27017/ott_edu_db?authSource=admin";
 
 const seedData = async (): Promise<void> => {
   try {
