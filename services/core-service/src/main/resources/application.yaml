@@ -1,5 +1,7 @@
 server:
   port: ${CORE_PORT:8080}
+  servlet:
+    context-path: /api/core
 
 spring:
   application:
@@ -10,6 +12,9 @@ spring:
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+  mongodb:
+    uri: mongodb://localhost:27017/ott_education_db
 
   flyway:
     enabled: true
@@ -43,8 +48,8 @@ spring:
           writetimeout: ${MAIL_SMTP_WRITE_TIMEOUT:5000}
   servlet:
     multipart:
-      max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:5MB}
-      max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:5MB}
+      max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:100MB}
+      max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:100MB}
 
 jwt:
   # Base64-encoded secret for HMAC signing (replace in production via JWT_SECRET env var).
