@@ -1,0 +1,4 @@
+﻿C:\Users\MSI\Desktop\ott-edu\services\core-service\src\main\java\fit\iuh\modules\auth\repositories\TeamMemberRepository.java
+C:\Users\MSI\Desktop\ott-edu\services\core-service\src\main\java\fit\iuh\modules\auth\repositories\TeamRepository.java
+C:\Users\MSI\Desktop\ott-edu\services\core-service\src\main\java\fit\iuh\modules\team\repositories\TeamMemberRepository.java
+C:\Users\MSI\Desktop\ott-edu\services\core-service\src\main\java\fit\iuh\modules\team\repositories\TeamRepository.java

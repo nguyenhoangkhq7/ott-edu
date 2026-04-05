@@ -135,8 +135,6 @@ interface AttachmentInfo {
   url: string;
 }
 
-import Image from 'next/image';
-
 // ================= KIỂU DỮ LIỆU =================
 interface Message {
   id: string;
