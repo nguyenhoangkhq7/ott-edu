@@ -7,20 +7,7 @@ import fit.iuh.models.RefreshToken;
 import fit.iuh.models.Role;
 import fit.iuh.models.School;
 import fit.iuh.modules.auth.config.JwtService;
-import fit.iuh.modules.auth.dtos.auth.AuthUserResponse;
-import fit.iuh.modules.auth.dtos.auth.ChangePasswordRequest;
-import fit.iuh.modules.auth.dtos.auth.ForgotPasswordRequest;
-import fit.iuh.modules.auth.dtos.auth.LoginRequest;
-import fit.iuh.modules.auth.dtos.auth.LoginResponse;
-import fit.iuh.modules.auth.dtos.auth.LogoutRequest;
-import fit.iuh.modules.auth.dtos.auth.OtpChallengeResponse;
-import fit.iuh.modules.auth.dtos.auth.OtpPurpose;
-import fit.iuh.modules.auth.dtos.auth.RefreshTokenRequest;
-import fit.iuh.modules.auth.dtos.auth.RefreshTokenResponse;
-import fit.iuh.modules.auth.dtos.auth.ResetPasswordRequest;
-import fit.iuh.modules.auth.dtos.auth.UpdateProfileRequest;
-import fit.iuh.modules.auth.dtos.auth.VerifyOtpRequest;
-import fit.iuh.modules.auth.dtos.auth.VerifyOtpResponse;
+import fit.iuh.modules.auth.dtos.auth.*;
 import fit.iuh.modules.auth.dtos.register.RegisterRequest;
 import fit.iuh.modules.auth.mappers.AuthMapper;
 import fit.iuh.modules.auth.repositories.AccountRepository;
@@ -33,6 +20,7 @@ import fit.iuh.modules.auth.services.support.OtpEmailService;
 import fit.iuh.modules.auth.services.support.storage.AvatarStorageService;
 import fit.iuh.modules.department.repositories.DepartmentRepository;
 import fit.iuh.modules.school.repositories.SchoolRepository;
+import fit.iuh.modules.team.repositories.TeamMemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -66,6 +54,7 @@ public class AuthServiceImpl implements AuthService {
     private final OtpChallengeManager otpChallengeManager;
     private final OtpEmailService otpEmailService;
     private final AvatarStorageService avatarStorageService;
+    private final TeamMemberRepository teamMemberRepository;
 
     @Value("${app.otp.ttl-seconds:300}")
     private long otpTtlSeconds;
@@ -371,7 +360,26 @@ public class AuthServiceImpl implements AuthService {
     private AuthUserResponse buildUserResponse(Account account) {
         Profile profile = profileRepository.findById(account.getId()).orElse(null);
 
-        return authMapper.toAuthUserResponse(account, profile);
+        // 1. Dùng AuthMapper để tạo ra object response ban đầu
+        AuthUserResponse response = authMapper.toAuthUserResponse(account, profile);
+
+        // 2. Đi tìm danh sách các nhóm (teams) mà tài khoản này tham gia
+        List<fit.iuh.models.TeamMember> memberships = teamMemberRepository.findByAccountId(account.getId());
+
+        // 3. Chuyển đổi sang chuẩn TeamResponse (nếu bạn có class TeamResponse)
+        // Lưu ý: Import class TeamResponse vào đầu file nhé.
+        List<TeamResponse> teamResponses = memberships.stream()
+                .map(m -> TeamResponse.builder()
+                        .id(m.getTeam().getId())
+                        .name(m.getTeam().getName())
+                        .joinCode(m.getTeam().getJoinCode())
+                        .build())
+                .toList();
+
+        // 4. Gắn danh sách team vào response
+        response.setTeams(teamResponses);
+
+        return response;
     }
 
     private Role parseRole(String roleName) {
