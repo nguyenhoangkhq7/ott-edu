@@ -47,7 +47,7 @@ export default function EditClassPage() {
           });
         }
       } catch (error: unknown) {
-        const err = error as any;
+        const err = error as { message?: string };
         const errorMsg = String(err?.message || 'Failed to fetch class information');
         console.error("Failed to fetch class info:", error);
         

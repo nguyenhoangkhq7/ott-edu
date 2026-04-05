@@ -77,7 +77,7 @@ export default function EditClassForm({ onBack, classData }: EditClassFormProps)
       setHasChanges(false);
     } catch (error: unknown) {
       console.error(error);
-      const err = error as any;
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
       const detail = err?.response?.data?.message || err?.message || 'Please check your role permissions.';
       alert(`Failed to save class information.\nDetails: ${detail}`);
     } finally {
