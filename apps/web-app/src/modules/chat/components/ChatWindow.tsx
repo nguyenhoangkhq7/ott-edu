@@ -3,6 +3,7 @@ import { Conversation, Message, User } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { Phone, Video, Info, RefreshCw } from "lucide-react";
+import Image from "next/image";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -79,12 +80,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm z-10 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <img
+          <Image
             src={
               displayAvatar ||
               `https://i.pravatar.cc/150?u=${conversation.id}`
             }
             alt="Avatar"
+            width={40}
+            height={40}
             className="w-10 h-10 rounded-full object-cover"
           />
           <div>

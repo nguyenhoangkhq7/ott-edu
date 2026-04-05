@@ -1,5 +1,6 @@
 import React from 'react';
 import { Conversation, User } from '../types';
+import Image from 'next/image';
 
 interface ConversationItemProps {
   conversation: Conversation;
@@ -19,7 +20,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
   let displayAvatar = conversation.avatarUrl;
   let isOnline = false;
 
-  if (conversation.type === 'direct') {
+  if (conversation.type === 'private') {
     const otherParticipant = conversation.participants.find(p => p.id !== currentUser.id);
     if (otherParticipant) {
       displayName = otherParticipant.name;
@@ -44,12 +45,14 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       }`}
     >
       <div className="relative flex-shrink-0">
-        <img
+        <Image
           src={displayAvatar || 'https://via.placeholder.com/150'}
           alt={displayName || 'Conversation'}
+          width={48}
+          height={48}
           className="w-12 h-12 rounded-full object-cover"
         />
-        {conversation.type === 'direct' && isOnline && (
+        {conversation.type === 'private' && isOnline && (
           <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full" />
         )}
       </div>

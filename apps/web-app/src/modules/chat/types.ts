@@ -52,7 +52,7 @@ export interface ApiConversation {
   type: "private" | "class";
   name?: string;
   avatarUrl?: string;
-  metadata?: any;
+  metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;
   otherParticipant?: ApiUser;  // Được tính sẵn trong ChatService.getConversations()

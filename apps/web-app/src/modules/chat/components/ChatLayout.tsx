@@ -68,8 +68,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     socketRef.current = socket;
 
     // Nhận tin nhắn mới từ server real-time
-    const handleNewMessage = (rawMessage: any) => {
-      const incoming = mapApiMessageToMessage(rawMessage);
+    const handleNewMessage = (rawMessage: unknown) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const incoming = mapApiMessageToMessage(rawMessage as any);
       const isActive = activeConversationIdRef.current === incoming.conversationId;
       const isSelf = incoming.senderId === currentUserId;
 
@@ -125,7 +126,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     try {
       const data = await fetchConversations(currentUserId);
       setConversations(data);
-    } catch (err: any) {
+    } catch (err) {
       console.error("[ChatLayout] fetch conversations error:", err);
       setError(
         "Không thể tải danh sách cuộc trò chuyện. Kiểm tra lại chat-service.",

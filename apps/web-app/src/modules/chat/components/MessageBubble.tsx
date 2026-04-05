@@ -1,5 +1,6 @@
 import React from 'react';
 import { Message, User } from '../types';
+import Image from 'next/image';
 
 interface MessageBubbleProps {
   message: Message;
@@ -16,9 +17,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMess
   return (
     <div className={`flex w-full mb-4 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
       {!isOwnMessage && sender && (
-        <img
+        <Image
           src={sender.avatarUrl}
           alt={sender.name}
+          width={32}
+          height={32}
           className="w-8 h-8 rounded-full mt-auto mr-2"
         />
       )}

@@ -32,7 +32,7 @@ export const mockConversations: Conversation[] = [
   {
     id: 'c1',
     name: null,
-    type: 'direct',
+    type: 'private',
     participants: [currentUser, mockUsers.u2],
     avatarUrl: null,
     unreadCount: 2,
@@ -48,7 +48,7 @@ export const mockConversations: Conversation[] = [
   {
     id: 'c2',
     name: null,
-    type: 'direct',
+    type: 'private',
     participants: [currentUser, mockUsers.u3],
     avatarUrl: null,
     unreadCount: 0,
@@ -64,7 +64,7 @@ export const mockConversations: Conversation[] = [
   {
     id: 'c3',
     name: 'Nhóm Học Tập',
-    type: 'group',
+    type: 'class',
     participants: [currentUser, mockUsers.u2, mockUsers.u3],
     avatarUrl: 'https://i.pravatar.cc/150?img=33',
     unreadCount: 5,
