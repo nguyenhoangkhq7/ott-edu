@@ -12,4 +12,5 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
     Optional<TeamMember> findByTeamIdAndAccountId(Long teamId, Long accountId);
 
     boolean existsByTeamIdAndAccountId(Long teamId, Long accountId);
+    List<TeamMember> findByAccountId(Long accountId);
 }

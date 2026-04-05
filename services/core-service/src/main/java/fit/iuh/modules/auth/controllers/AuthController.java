@@ -41,12 +41,17 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
     private static final String REFRESH_COOKIE_NAME = "refreshToken";
+    private static final String HEADER_AUTH_USER_ID = "X-Auth-User-Id";
+    private static final String HEADER_AUTH_EMAIL = "X-Auth-Email";
+    private static final String HEADER_AUTH_ROLES = "X-Auth-Roles";
 
     private final AuthService authService;
     private final JwtService jwtService;
@@ -238,7 +243,20 @@ public class AuthController {
                 throw new BadCredentialsException("Access token không hợp lệ hoặc đã hết hạn.");
             }
 
-            return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Access token hợp lệ.", null));
+            Long accountId = jwtService.extractAccountId(token);
+            String rolesHeader = jwtService.extractRoles(token).stream()
+                    .collect(Collectors.joining(","));
+
+            ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.ok()
+                    .header(HEADER_AUTH_EMAIL, subject)
+                    .header(HEADER_AUTH_ROLES, rolesHeader);
+
+            if (accountId != null) {
+                responseBuilder.header(HEADER_AUTH_USER_ID, String.valueOf(accountId));
+            }
+
+            return responseBuilder
+                    .body(ApiResponseFactory.success(HttpStatus.OK, "Access token hợp lệ.", null));
         } catch (JwtException | IllegalArgumentException ex) {
             throw new BadCredentialsException("Access token không hợp lệ hoặc đã hết hạn.");
         }

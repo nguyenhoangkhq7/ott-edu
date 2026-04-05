@@ -1,6 +1,8 @@
 package fit.iuh.modules.platform.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import fit.iuh.modules.auth.config.JwtAuthenticationFilter;
 import fit.iuh.modules.auth.services.CustomUserDetailsService;
 import fit.iuh.modules.platform.api.ApiErrorResponse;
@@ -43,7 +45,10 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:8000}")
     private String allowedOrigins;
 
-    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
     private final CustomUserDetailsService customUserDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -67,29 +72,29 @@ public class SecurityConfig {
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) ->
-            writeErrorResponse(request, response, HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để truy cập tài nguyên này.");
+                writeErrorResponse(request, response, HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để truy cập tài nguyên này.");
     }
 
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) ->
-            writeErrorResponse(request, response, HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập tài nguyên này.");
+                writeErrorResponse(request, response, HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập tài nguyên này.");
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
-            .map(String::trim)
-            .filter(value -> !value.isBlank())
-            .collect(Collectors.toList()));
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toList()));
         configuration.setAllowedMethods(List.of(
-            HttpMethod.GET.name(),
-            HttpMethod.POST.name(),
-            HttpMethod.PUT.name(),
-            HttpMethod.DELETE.name(),
-            HttpMethod.PATCH.name(),
-            HttpMethod.OPTIONS.name()
+                HttpMethod.GET.name(),
+                HttpMethod.POST.name(),
+                HttpMethod.PUT.name(),
+                HttpMethod.DELETE.name(),
+                HttpMethod.PATCH.name(),
+                HttpMethod.OPTIONS.name()
         ));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Set-Cookie"));
@@ -103,27 +108,31 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authenticationProvider(authenticationProvider())
-            .exceptionHandling(ex -> ex
-                .authenticationEntryPoint(authenticationEntryPoint())
-                .accessDeniedHandler(accessDeniedHandler())
-            )
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/register").permitAll()
-                .requestMatchers("/auth/login").permitAll()
-                .requestMatchers("/auth/refresh").permitAll()
-                .requestMatchers("/auth/logout").permitAll()
-                .requestMatchers("/auth/validate").permitAll()
-                .requestMatchers("/auth/forgot-password").permitAll()
-                .requestMatchers("/auth/verify-otp").permitAll()
-                .requestMatchers("/auth/reset-password").permitAll()
-                .requestMatchers("/api/schools/**").permitAll()
-                .requestMatchers("/schools/**").permitAll()
-                .anyRequest().authenticated()
-            );
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authenticationProvider(authenticationProvider())
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint())
+                        .accessDeniedHandler(accessDeniedHandler())
+                )
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/core/auth/**", "/auth/**").permitAll()
+                        .requestMatchers("/auth/register").permitAll()
+                        .requestMatchers("/auth/login").permitAll()
+                        .requestMatchers("/auth/refresh").permitAll()
+                        .requestMatchers("/auth/logout").permitAll()
+                        .requestMatchers("/auth/validate").permitAll()
+                        .requestMatchers("/auth/forgot-password").permitAll()
+                        .requestMatchers("/auth/verify-otp").permitAll()
+                        .requestMatchers("/auth/reset-password").permitAll()
+                        .requestMatchers("/api/schools/**").permitAll()
+                        .requestMatchers("/schools/**").permitAll()
+                        .requestMatchers("/posts/**").permitAll()
+                        .requestMatchers("/attachments/**").permitAll()
+                        .requestMatchers("/interact/**").permitAll()
+                        .anyRequest().authenticated()
+                );
 
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

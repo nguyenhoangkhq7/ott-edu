@@ -25,4 +25,6 @@ public class AuthUserResponse {
     private Long schoolId;
     private Long departmentId;
     private String departmentName;
+
+    private List<TeamResponse> teams;
 }

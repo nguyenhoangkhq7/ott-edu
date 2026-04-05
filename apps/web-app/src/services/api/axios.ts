@@ -28,7 +28,6 @@ function getApiBaseUrl(): string {
   const value = raw && raw.length > 0 ? raw : DEFAULT_API_BASE_URL;
   return value.replace(/\/$/, "");
 }
-
 function getApiTimeout(): number {
   const raw = process.env.NEXT_PUBLIC_API_TIMEOUT;
   const parsed = Number(raw);
@@ -74,12 +73,28 @@ function unwrapApiSuccessEnvelope<T>(response: AxiosResponse<T>): AxiosResponse<
   };
 }
 
+// ==========================================
+// THÊM LOGIC QUEUE (HÀNG ĐỢI) XỬ LÝ REFRESH
+// ==========================================
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (value?: unknown) => void; reject: (reason?: unknown) => void }> = [];
+
+const processQueue = (error: AxiosError | null, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
   return config;
 });
 
@@ -91,6 +106,7 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
     const statusCode = error.response?.status;
 
+    // Nếu không phải lỗi 401 hoặc request này đã được retry rồi thì bỏ qua
     if (!originalRequest || statusCode !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
@@ -100,7 +116,23 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // NẾU ĐANG TRONG QUÁ TRÌNH REFRESH -> CHO CÁC REQUEST KHÁC XẾP HÀNG
+    if (isRefreshing) {
+      return new Promise(function (resolve, reject) {
+        failedQueue.push({ resolve, reject });
+      })
+        .then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return apiClient(originalRequest);
+        })
+        .catch((err) => {
+          return Promise.reject(err);
+        });
+    }
+
+    // ĐÁNH DẤU BẮT ĐẦU REFRESH
     originalRequest._retry = true;
+    isRefreshing = true;
 
     try {
       const refreshResponse = await refreshClient.post<RefreshResponse>("/auth/refresh", {});
@@ -110,14 +142,26 @@ apiClient.interceptors.response.use(
         throw new Error("Missing access token after refresh.");
       }
 
+      // Lưu Token mới
       setAccessToken(nextAccessToken);
+      
+      // Gắn token mới vào request đang bị lỗi
       originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`;
 
+      // BÁO CHO CÁC REQUEST ĐANG XẾP HÀNG BIẾT LÀ ĐÃ CÓ TOKEN MỚI
+      processQueue(null, nextAccessToken);
+
+      // Chạy lại request hiện tại
       return apiClient(originalRequest);
     } catch (refreshError) {
+      // NẾU REFRESH LỖI -> HỦY TOÀN BỘ HÀNG ĐỢI VÀ ĐĂNG XUẤT
+      processQueue(refreshError as AxiosError, null);
       clearAccessToken();
       emitSessionExpired();
       return Promise.reject(refreshError);
+    } finally {
+      // KẾT THÚC QUÁ TRÌNH REFRESH
+      isRefreshing = false;
     }
   }
 );
