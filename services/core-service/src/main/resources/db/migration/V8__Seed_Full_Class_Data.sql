@@ -39,20 +39,20 @@ INSERT INTO teams (id, name, description, join_code, is_active) VALUES
 
 -- 5. Assign TEACHER to these classes (Assuming your testuser@gmail.com is ID 2)
 -- If your ID is different, please let me know, but typically it is 2 in this setup.
-INSERT INTO team_members (team_id, account_id, member_role) VALUES
+INSERT INTO team_members (team_id, account_id, role) VALUES
 (100, 2, 'TEACHER'),
 (200, 2, 'TEACHER'),
 (300, 2, 'TEACHER');
 
 -- 6. Assign Students to these classes
 -- Computer Science 101 members
-INSERT INTO team_members (team_id, account_id, member_role) VALUES
+INSERT INTO team_members (team_id, account_id, role) VALUES
 (100, 10, 'STUDENT'), (100, 11, 'STUDENT'), (100, 12, 'STUDENT'), (100, 15, 'STUDENT');
 
 -- Graphic Design Basics members
-INSERT INTO team_members (team_id, account_id, member_role) VALUES
+INSERT INTO team_members (team_id, account_id, role) VALUES
 (200, 11, 'STUDENT'), (200, 13, 'STUDENT'), (200, 14, 'STUDENT'), (200, 17, 'STUDENT');
 
 -- Fullstack Web Development members
-INSERT INTO team_members (team_id, account_id, member_role) VALUES
+INSERT INTO team_members (team_id, account_id, role) VALUES
 (300, 12, 'STUDENT'), (300, 18, 'STUDENT'), (100, 19, 'STUDENT'), (300, 16, 'STUDENT');

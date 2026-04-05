@@ -74,6 +74,22 @@ public class GlobalExceptionHandler {
         return buildError(HttpStatus.PAYLOAD_TOO_LARGE, "Anh vuot qua kich thuoc toi da cho phep.", request, null);
     }
 
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<ApiErrorResponse> handleSecurity(
+            SecurityException ex,
+            HttpServletRequest request
+    ) {
+        return buildError(HttpStatus.FORBIDDEN, ex.getMessage(), request, null);
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiErrorResponse> handleIllegalState(
+            IllegalStateException ex,
+            HttpServletRequest request
+    ) {
+        return buildError(HttpStatus.CONFLICT, ex.getMessage(), request, null);
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiErrorResponse> handleRuntime(
             RuntimeException ex,
