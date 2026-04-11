@@ -94,6 +94,12 @@ public class Submission {
     private Long studentId;
 
     /**
+     * Team ID (lớp/nhóm) mà sinh viên thuộc về
+     */
+    @Column(name = "team_id", nullable = false)
+    private Long teamId;
+
+    /**
      * Thời gian tạo bản ghi
      */
     @Column(name = "created_at", nullable = false, updatable = false)

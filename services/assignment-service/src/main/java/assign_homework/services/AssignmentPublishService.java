@@ -107,6 +107,7 @@ public class AssignmentPublishService {
                     Submission submission = Submission.builder()
                             .assignment(assignment)
                             .studentId(studentId)
+                            .teamId(teamId)
                             .build();
                     submissions.add(submission);
                 }

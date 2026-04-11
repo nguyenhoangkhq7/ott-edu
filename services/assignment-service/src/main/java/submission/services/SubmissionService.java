@@ -107,6 +107,7 @@ public class SubmissionService {
             submission = Submission.builder()
                     .assignment(assignment)
                     .studentId(studentId)
+                    .teamId(assignment.getTeamId())
                     .status(SubmissionStatus.SUBMITTED)
                     .build();
         }
