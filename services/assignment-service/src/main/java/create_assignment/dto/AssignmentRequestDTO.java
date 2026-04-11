@@ -1,6 +1,7 @@
 package create_assignment.dto;
 
 import create_assignment.enums.AssignmentType;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +23,7 @@ public class AssignmentRequestDTO {
 
     private Double maxScore;
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime dueDate;
 
     private AssignmentType type;

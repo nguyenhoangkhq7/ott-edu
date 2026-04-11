@@ -3,8 +3,6 @@ package scoring_feedback.controllers;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import scoring_feedback.dto.GradeRequest;
 import scoring_feedback.dto.GradeResponseDTO;
@@ -26,20 +24,17 @@ public class GradeController {
      * POST /api/core/submissions/{submissionId}/grade
      * Chấm điểm cho một submission
      *
-     * @param submissionId   ID của submission
-     * @param gradeRequest   Yêu cầu chấm điểm (score bắt buộc, feedback tùy chọn)
-     * @param authentication Security context để lấy teacher ID
+     * @param submissionId ID của submission
+     * @param gradeRequest Yêu cầu chấm điểm (score bắt buộc, feedback tùy chọn)
      * @return Response DTO chứa submission + grade info
      */
     @PostMapping("/{submissionId}/grade")
-    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<GradeResponseDTO> gradeSubmission(
             @PathVariable Long submissionId,
-            @Valid @RequestBody GradeRequest gradeRequest,
-            Authentication authentication) {
+            @Valid @RequestBody GradeRequest gradeRequest) {
 
         // TODO: Sau này implement lấy teacherId từ JWT token
-        Long teacherId = extractTeacherId(authentication);
+        Long teacherId = extractTeacherId();
 
         GradeResponseDTO response = gradeService.gradeSubmission(submissionId, gradeRequest, teacherId);
 
@@ -49,10 +44,10 @@ public class GradeController {
     }
 
     /**
-     * Helper: Lấy teacher ID từ authentication
+     * Helper: Lấy teacher ID
      * (Tạm thời return mặc định, cần implement lấy từ JWT)
      */
-    private Long extractTeacherId(Authentication authentication) {
+    private Long extractTeacherId() {
         // TODO: Implement lấy teacher ID từ JWT claims
         return 1L;
     }

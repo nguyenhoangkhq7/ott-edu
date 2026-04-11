@@ -7,9 +7,9 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 
-@SpringBootApplication(scanBasePackages = { "fit.iuh", "create_assignment", "assign_homework", "scoring_feedback" })
-@EnableJpaRepositories(basePackages = { "fit.iuh", "create_assignment", "assign_homework", "scoring_feedback" })
-@EntityScan(basePackages = { "fit.iuh", "create_assignment", "assign_homework", "scoring_feedback" })
+@SpringBootApplication(scanBasePackages = { "fit.iuh", "create_assignment", "assign_homework", "scoring_feedback", "view_results", "submission" })
+@EnableJpaRepositories(basePackages = { "fit.iuh", "create_assignment", "assign_homework", "scoring_feedback", "view_results", "submission" })
+@EntityScan(basePackages = { "fit.iuh", "create_assignment", "assign_homework", "scoring_feedback", "view_results", "submission" })
 @EnableFeignClients(basePackages = { "assign_homework" })
 @EnableAsync
 public class AssignmentServiceApplication {

@@ -1,15 +1,34 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Import 3 file Tab mà chúng ta đã tạo
 import TeamPostsTab from '@/modules/teams/TeamPostsTab';
 import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
+import CreateAssignmentForm, { type IAssignmentFormData } from '@/modules/assignments/components/CreateAssignmentForm';
 
-export default function TeamDetailPage({ params }: { params: { id: string } }) {
+export default function TeamDetailPage() {
+  const params = useParams();
   const [activeTab, setActiveTab] = useState('posts');
+  const [showCreateAssignment, setShowCreateAssignment] = useState(false);
+  const [buttonRect, setButtonRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const assignmentButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (showCreateAssignment && assignmentButtonRef.current) {
+      const rect = assignmentButtonRef.current.getBoundingClientRect();
+      setButtonRect({
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+      });
+    }
+  }, [showCreateAssignment]);
 
   return (
     <div className="flex h-[calc(100vh-60px)] w-full bg-white text-slate-800">
@@ -61,7 +80,10 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
           <ul className="space-y-1 px-3">
             {/* Giao bài tập */}
             <li>
-              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
+              <button 
+                ref={assignmentButtonRef}
+                onClick={() => setShowCreateAssignment(true)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
                 <div className="w-6 h-6 rounded flex items-center justify-center bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                 </div>
@@ -133,6 +155,69 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </div>
+
+      {/* ================= MODAL FORM GỠI BÀI TẬP ================= */}
+      <AnimatePresence>
+        {showCreateAssignment && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/30 z-40"
+              onClick={() => setShowCreateAssignment(false)}
+              style={{ willChange: 'opacity' }}
+            />
+
+            {/* Modal with Genie Effect - Opens from Assignments button */}
+            <motion.div
+              initial={{
+                scale: 0.1,
+                opacity: 0,
+                x: buttonRect ? buttonRect.x - (window.innerWidth / 2 - 448) : 0,
+                y: buttonRect ? buttonRect.y - 100 : 0,
+              }}
+              animate={{
+                scale: 1,
+                opacity: 1,
+                x: 0,
+                y: 0,
+              }}
+              exit={{
+                scale: 0.1,
+                opacity: 0,
+                x: buttonRect ? buttonRect.x - (window.innerWidth / 2 - 448) : 0,
+                y: buttonRect ? buttonRect.y - 100 : 0,
+              }}
+              transition={{
+                type: 'spring',
+                stiffness: 380,
+                damping: 40,
+                mass: 1.2,
+              }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              style={{
+                willChange: 'transform, opacity',
+              }}
+            >
+              <div className="bg-white rounded-xl shadow-2xl w-full h-[90vh] max-w-7xl pointer-events-auto" style={{ willChange: 'transform' }}>
+                <CreateAssignmentForm
+                  teamId={(params.id as string) || '1'}
+                  teamName="Advanced Mathematics - Section B"
+                  onClose={() => setShowCreateAssignment(false)}
+                  onSubmit={(data: IAssignmentFormData) => {
+                    console.log('Assignment created:', data);
+                    // TODO: Gửi API để tạo bài tập
+                    setShowCreateAssignment(false);
+                  }}
+                />
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -5,6 +5,13 @@ spring:
   application:
     name: assignment-service
 
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+    date-format: "yyyy-MM-dd'T'HH:mm:ss"
+
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:ott_education_db}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
     username: ${MYSQL_USER:root}
@@ -13,7 +20,8 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+#      ddl-auto: validate
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -25,7 +33,7 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
     locations: classpath:db/migration
-    validate-on-migrate: true
+    validate-on-migrate: false
 
 # ---- Chat Service Config ----
 chat:

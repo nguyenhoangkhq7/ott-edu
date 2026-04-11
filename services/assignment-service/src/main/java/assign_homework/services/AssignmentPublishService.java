@@ -3,8 +3,8 @@ package assign_homework.services;
 import assign_homework.clients.ChatServiceClient;
 import assign_homework.dto.ChatNotificationDTO;
 import assign_homework.dto.PublishAssignmentResponseDTO;
-import assign_homework.entities.Submission;
-import assign_homework.repositories.SubmissionRepository;
+import submission.entities.Submission;
+import submission.repositories.SubmissionRepository;
 import create_assignment.entities.Assignment;
 import create_assignment.exceptions.BadRequestException;
 import create_assignment.repositories.AssignmentRepository;
@@ -95,16 +95,18 @@ public class AssignmentPublishService {
             // GET /api/teams/{teamId}/students
             // Tạm thời hardcode 30 sinh viên để demo
 
+            Assignment assignment = assignmentRepository.findById(assignmentId)
+                    .orElseThrow(() -> new BadRequestException("Assignment không tồn tại với ID: " + assignmentId));
+
             List<Submission> submissions = new ArrayList<>();
             for (long i = 1; i <= 30; i++) {
                 long studentId = i; // ID giả định
 
                 // Kiểm tra xem submission đã tồn tại chưa
-                if (!submissionRepository.existsByAssignmentIdAndStudentId(assignmentId, studentId)) {
+                if (submissionRepository.findByAssignmentIdAndStudentId(assignmentId, studentId).isEmpty()) {
                     Submission submission = Submission.builder()
-                            .assignmentId(assignmentId)
+                            .assignment(assignment)
                             .studentId(studentId)
-                            .teamId(teamId)
                             .build();
                     submissions.add(submission);
                 }

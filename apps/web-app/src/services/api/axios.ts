@@ -12,7 +12,7 @@ declare module "axios" {
   }
 }
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const DEFAULT_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost";
 const DEFAULT_TIMEOUT_MS = 30000;
 
 function getApiBaseUrl(): string {

@@ -8,8 +8,9 @@ const debuggerHost = Constants.expoConfig?.hostUri;
 const localhost = debuggerHost?.split(":")[0];
 
 // Logic chọn URL: Ưu tiên .env -> Sau đó đến IP mạng LAN -> Cuối cùng là localhost
+// Note: Production uses http://localhost/api/core (via nginx gateway on port 80)
 export const API_URL =
   ENV_API_URL ||
-  (localhost ? `http://${localhost}:8000` : "http://localhost:8000");
+  (localhost ? `http://${localhost}` : "http://localhost");
 
 console.log("🔗 Mobile API URL đang dùng:", API_URL);

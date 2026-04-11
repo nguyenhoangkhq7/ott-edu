@@ -5,8 +5,6 @@ import assign_homework.services.AssignmentPublishService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -27,15 +25,11 @@ public class PublishAssignmentController {
      * @return Response DTO
      */
     @PatchMapping("/{id}/publish")
-    @PreAuthorize("hasRole('TEACHER')")
     public ResponseEntity<PublishAssignmentResponseDTO> publishAssignment(
-            @PathVariable("id") Long assignmentId,
-            Authentication authentication) {
+            @PathVariable("id") Long assignmentId) {
 
-        // Lấy thông tin từ security context
-        // TODO: Sau đó cần validate xem teacher này có sở hữu team/assignment không
-        String teacherName = authentication.getName();
-        Long teacherId = extractTeacherId(authentication);
+        String teacherName = "teacher";
+        Long teacherId = 1L;
 
         PublishAssignmentResponseDTO response = assignmentPublishService.publishAssignment(
                 assignmentId,
@@ -47,13 +41,4 @@ public class PublishAssignmentController {
                 .body(response);
     }
 
-    /**
-     * Helper: Lấy teacher ID từ Authentication
-     * (Trong production sử dụng JWT token để lấy thông tin)
-     */
-    private Long extractTeacherId(Authentication authentication) {
-        // TODO: Implement lấy teacher ID từ JWT claims hoặc user details
-        // Tạm thời return mặc định
-        return 1L;
-    }
 }

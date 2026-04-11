@@ -5,6 +5,8 @@ import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Entity
 @Table(name = "questions")
@@ -24,6 +26,7 @@ public class Question {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignment_id", nullable = false)
+    @JsonBackReference
     private Assignment assignment;
 
     @OneToMany(
@@ -31,6 +34,7 @@ public class Question {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonManagedReference
     @Builder.Default
     private List<AnswerOption> answerOptions = new ArrayList<>();
 }

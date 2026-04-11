@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -33,11 +34,38 @@ public class AssignmentServiceImpl implements AssignmentService {
     private final AssignmentMapper assignmentMapper;
 
     @Override
+    @Transactional(readOnly = true)
+    public List<AssignmentResponseDTO> getAllAssignments() {
+        List<Assignment> assignments = assignmentRepository.findAll();
+        return assignments.stream()
+                .map(assignmentMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AssignmentResponseDTO> getAssignmentsByTeam(Long teamId) {
+        List<Assignment> assignments = assignmentRepository.findByTeamId(teamId);
+        return assignments.stream()
+                .map(assignmentMapper::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AssignmentResponseDTO getAssignmentById(Long id) {
+        Assignment assignment = assignmentRepository.findById(id)
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy bài tập với ID: " + id));
+
+        return assignmentMapper.toResponseDTO(assignment);
+    }
+
+    @Override
     @Transactional
     public AssignmentResponseDTO createAssignment(AssignmentRequestDTO dto) {
         // ---- Validation ----
         validateRequest(dto);
-
+        System.out.println("validate xong");
         // ---- Build Assignment entity ----
         Assignment assignment = Assignment.builder()
                 .title(dto.getTitle().trim())
@@ -47,7 +75,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .type(dto.getType())
                 .teamId(dto.getTeamId())
                 .build();
-
+        System.out.println("Tạo assignment xong");
         // ---- Link existing Materials ----
         if (dto.getMaterialIds() != null && !dto.getMaterialIds().isEmpty()) {
             List<Material> materials = materialRepository.findAllByIdIn(dto.getMaterialIds());
@@ -59,7 +87,7 @@ public class AssignmentServiceImpl implements AssignmentService {
 
             assignment.setMaterials(materials);
         }
-
+        System.out.println("Như 1");
         // ---- Build Questions (chỉ khi type == QUIZ) ----
         if (AssignmentType.QUIZ.equals(dto.getType())
                 && dto.getQuestions() != null
@@ -68,7 +96,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             List<Question> questions = buildQuestions(dto.getQuestions(), assignment);
             assignment.setQuestions(questions);
         }
-
+        System.out.println("Như 2");
         // ---- Persist ----
         Assignment saved = assignmentRepository.save(assignment);
         log.info("Assignment created successfully: id={}, title={}", saved.getId(), saved.getTitle());

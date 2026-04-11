@@ -1,6 +1,5 @@
 package assign_homework.dto;
 
-import create_assignment.enums.AssignmentType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

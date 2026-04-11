@@ -6,7 +6,6 @@ import create_assignment.entities.Assignment;
 import create_assignment.entities.Material;
 import create_assignment.entities.Question;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 
 import java.util.List;
 
