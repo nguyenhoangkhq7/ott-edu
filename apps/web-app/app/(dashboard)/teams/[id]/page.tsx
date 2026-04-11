@@ -1,15 +1,41 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
 // Import 3 file Tab mà chúng ta đã tạo
 import TeamPostsTab from '@/modules/teams/TeamPostsTab';
 import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
+import LockTeamDialog from '@/modules/teams/LockTeamDialog';
+import EditTeamDialog from '@/modules/teams/EditTeamDialog';
+import { teamApi, Team } from '@/services/api/teamApi';
 
 export default function TeamDetailPage() {
+  const params = useParams();
+  const teamId = parseInt(params.id as string) || 0;
   const [activeTab, setActiveTab] = useState('posts');
+  const [isLockDialogOpen, setIsLockDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [lockSuccessMessage, setLockSuccessMessage] = useState<string | null>(null);
+  const [editSuccessMessage, setEditSuccessMessage] = useState<string | null>(null);
+  const [team, setTeam] = useState<Team | null>(null);
+
+  useEffect(() => {
+    const fetchTeam = async () => {
+      try {
+        const response = await teamApi.getById(teamId);
+        setTeam(response.data);
+      } catch (err) {
+        console.error('Error fetching team:', err);
+      }
+    };
+
+    if (teamId > 0) {
+      fetchTeam();
+    }
+  }, [teamId]);
 
   return (
     <div className="flex h-[calc(100vh-60px)] w-full bg-white text-slate-800">
@@ -97,13 +123,51 @@ export default function TeamDetailPage() {
         
         {/* Header & Tabs */}
         <div className="px-8 pt-8 border-b border-slate-200">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-2xl shadow-sm border border-blue-100">Σ</div>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900">Advanced Mathematics - Section B</h1>
-              <p className="text-sm text-slate-500 mt-0.5">2024 Fall Semester • Room 402</p>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold text-2xl shadow-sm border border-blue-100">
+                {team?.name?.charAt(0).toUpperCase() || 'T'}
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">{team?.name || 'Đang tải...'}</h1>
+                <p className="text-sm text-slate-500 mt-0.5">{team?.description || 'Mã lớp: ' + team?.joinCode}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsEditDialogOpen(true)}
+                className="px-4 py-2 flex items-center gap-2 text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg font-medium transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Sửa
+              </button>
+              <button
+                onClick={() => setIsLockDialogOpen(true)}
+                className="px-4 py-2 flex items-center gap-2 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg font-medium transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Khóa lớp
+              </button>
             </div>
           </div>
+
+          {lockSuccessMessage && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+              {lockSuccessMessage}
+            </div>
+          )}
+
+          {editSuccessMessage && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+              {editSuccessMessage}
+            </div>
+          )}
 
           <div className="flex gap-8 text-sm font-medium text-slate-500">
             {['Posts', 'Files', 'Members'].map((tab) => (
@@ -128,11 +192,47 @@ export default function TeamDetailPage() {
             
             {activeTab === 'posts' && <TeamPostsTab />}
             {activeTab === 'files' && <TeamFilesTab />}
-            {activeTab === 'members' && <TeamMembersTab />}
+            {activeTab === 'members' && <TeamMembersTab teamId={teamId} />}
 
           </div>
         </div>
       </div>
+
+      <LockTeamDialog
+        isOpen={isLockDialogOpen}
+        teamId={teamId}
+        teamName={team?.name || 'Lớp học'}
+        onClose={() => setIsLockDialogOpen(false)}
+        onSuccess={() => {
+          setLockSuccessMessage('Lớp học đã khóa thành công!');
+          setTimeout(() => setLockSuccessMessage(null), 3000);
+          if (team) {
+            setTeam({ ...team, isActive: false });
+          }
+        }}
+      />
+
+      <EditTeamDialog
+        isOpen={isEditDialogOpen}
+        team={team}
+        onClose={() => setIsEditDialogOpen(false)}
+        onSuccess={() => {
+          setEditSuccessMessage('Thông tin lớp học đã cập nhật thành công!');
+          setTimeout(() => setEditSuccessMessage(null), 3000);
+          // Re-fetch team data
+          const fetchTeam = async () => {
+            try {
+              const response = await teamApi.getById(teamId);
+              setTeam(response.data);
+            } catch (err) {
+              console.error('Error fetching team:', err);
+            }
+          };
+          if (teamId > 0) {
+            fetchTeam();
+          }
+        }}
+      />
     </div>
   );
 }
