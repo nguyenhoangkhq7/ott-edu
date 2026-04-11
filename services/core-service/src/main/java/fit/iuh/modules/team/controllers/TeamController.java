@@ -2,14 +2,18 @@ package fit.iuh.modules.team.controllers;
 
 import fit.iuh.modules.platform.api.ApiResponseFactory;
 import fit.iuh.modules.platform.api.ApiSuccessResponse;
+import fit.iuh.modules.team.dtos.AddTeamMemberRequest;
+import fit.iuh.modules.team.dtos.TeamMemberResponse;
 import fit.iuh.modules.team.dtos.TeamRequest;
 import fit.iuh.modules.team.dtos.TeamResponse;
+import fit.iuh.modules.team.dtos.UpdateTeamStatusRequest;
 import fit.iuh.modules.team.services.TeamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -34,8 +38,7 @@ public class TeamController {
                 .body(ApiResponseFactory.success(
                         HttpStatus.CREATED,
                         "Tạo lớp học thành công.",
-                        response
-                ));
+                        response));
     }
 
     @GetMapping("/{teamId}")
@@ -45,9 +48,7 @@ public class TeamController {
                 ApiResponseFactory.success(
                         HttpStatus.OK,
                         "Lấy thông tin lớp học thành công.",
-                        response
-                )
-        );
+                        response));
     }
 
     @GetMapping
@@ -57,9 +58,7 @@ public class TeamController {
                 ApiResponseFactory.success(
                         HttpStatus.OK,
                         "Lấy danh sách lớp học thành công.",
-                        response
-                )
-        );
+                        response));
     }
 
     @GetMapping("/department/{departmentId}")
@@ -70,9 +69,7 @@ public class TeamController {
                 ApiResponseFactory.success(
                         HttpStatus.OK,
                         "Lấy danh sách lớp học theo khoa thành công.",
-                        response
-                )
-        );
+                        response));
     }
 
     @PutMapping("/{teamId}")
@@ -84,9 +81,7 @@ public class TeamController {
                 ApiResponseFactory.success(
                         HttpStatus.OK,
                         "Cập nhật lớp học thành công.",
-                        response
-                )
-        );
+                        response));
     }
 
     @DeleteMapping("/{teamId}")
@@ -96,9 +91,7 @@ public class TeamController {
                 ApiResponseFactory.success(
                         HttpStatus.OK,
                         "Xóa lớp học thành công.",
-                        null
-                )
-        );
+                        null));
     }
 
     @GetMapping("/join-code/{joinCode}")
@@ -109,8 +102,41 @@ public class TeamController {
                 ApiResponseFactory.success(
                         HttpStatus.OK,
                         "Lấy lớp học theo mã tham gia thành công.",
-                        response
-                )
-        );
+                        response));
+    }
+
+    @GetMapping("/{teamId}/members")
+    public ResponseEntity<ApiSuccessResponse<java.util.List<TeamMemberResponse>>> getTeamMembers(
+            @PathVariable Long teamId) {
+        java.util.List<TeamMemberResponse> response = teamService.getTeamMembers(teamId);
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Lấy danh sách thành viên lớp học thành công.",
+                        response));
+    }
+
+    @PostMapping("/{teamId}/members")
+    public ResponseEntity<ApiSuccessResponse<TeamMemberResponse>> addTeamMember(
+            @PathVariable Long teamId,
+            @RequestBody AddTeamMemberRequest request) {
+        TeamMemberResponse response = teamService.addTeamMember(teamId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponseFactory.success(
+                        HttpStatus.CREATED,
+                        "Thêm thành viên vào lớp học thành công.",
+                        response));
+    }
+
+    @PatchMapping("/{teamId}/status")
+    public ResponseEntity<ApiSuccessResponse<TeamResponse>> updateTeamStatus(
+            @PathVariable Long teamId,
+            @RequestBody UpdateTeamStatusRequest request) {
+        TeamResponse response = teamService.updateTeamStatus(teamId, request);
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Cập nhật trạng thái lớp học thành công.",
+                        response));
     }
 }
