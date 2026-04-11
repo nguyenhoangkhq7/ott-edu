@@ -21,7 +21,6 @@ export default function TeamDetailPage() {
   const [lockSuccessMessage, setLockSuccessMessage] = useState<string | null>(null);
   const [editSuccessMessage, setEditSuccessMessage] = useState<string | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -30,8 +29,6 @@ export default function TeamDetailPage() {
         setTeam(response.data);
       } catch (err) {
         console.error('Error fetching team:', err);
-      } finally {
-        setIsLoading(false);
       }
     };
 

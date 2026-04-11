@@ -7,7 +7,6 @@ interface LockTeamDialogProps {
   isOpen: boolean;
   teamId: number;
   teamName: string;
-  isCurrentlyActive: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -16,7 +15,6 @@ export default function LockTeamDialog({
   isOpen,
   teamId,
   teamName,
-  isCurrentlyActive,
   onClose,
   onSuccess,
 }: LockTeamDialogProps) {
@@ -54,7 +52,7 @@ export default function LockTeamDialog({
           </div>
 
           <p className="text-slate-700 mb-2">
-            Bạn có chắc chắn muốn khóa lớp học <span className="font-semibold">"{teamName}"</span>?
+            Bạn có chắc chắn muốn khóa lớp học <span className="font-semibold">&quot;{teamName}&quot;</span>?
           </p>
           <p className="text-sm text-slate-500 mb-6">
             Các thành viên sẽ không thể truy cập lớp học này. Bạn có thể mở khóa bất kỳ lúc nào.

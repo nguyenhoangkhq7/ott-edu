@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from 'react';
-import { teamApi } from '@/services/api/teamApi';
 
 interface DeleteMemberDialogProps {
   isOpen: boolean;
@@ -70,7 +69,7 @@ export default function DeleteMemberDialog({
           </div>
 
           <p className="text-slate-700 mb-2">
-            Bạn có chắc chắn muốn xóa <span className="font-semibold">"{memberName}"</span> khỏi lớp học này?
+            Bạn có chắc chắn muốn xóa <span className="font-semibold">&quot;{memberName}&quot;</span> khỏi lớp học này?
           </p>
           <p className="text-sm text-slate-500 mb-6">
             Thành viên sẽ không còn truy cập được lớp học này. Hành động này không thể hoàn tác.

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { teamApi, TeamMember } from '@/services/api/teamApi';
 import DeleteMemberDialog from '@/modules/teams/DeleteMemberDialog';
 
@@ -127,9 +128,11 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
                             <div key={owner.id} className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group rounded-b-xl">
                               <div className="flex items-center gap-4">
                                 <div className="relative">
-                                  <img 
+                                  <Image 
                                     src={`https://i.pravatar.cc/150?u=${owner.email}`} 
                                     alt={owner.firstName}
+                                    width={40}
+                                    height={40}
                                     className="w-10 h-10 rounded-full object-cover border border-slate-200" 
                                   />
                                   <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
@@ -185,9 +188,11 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
                             <div key={member.id} className="flex items-center justify-between p-4 hover:bg-slate-50/80 transition-colors group">
                               <div className="flex items-center gap-4">
                                 <div className="relative">
-                                  <img 
+                                  <Image 
                                     src={`https://i.pravatar.cc/150?u=${member.email}`} 
                                     alt={member.firstName}
+                                    width={40}
+                                    height={40}
                                     className="w-10 h-10 rounded-full object-cover border border-slate-200" 
                                   />
                                   <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
