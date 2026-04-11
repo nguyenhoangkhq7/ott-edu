@@ -10,6 +10,8 @@ import { chatApiClient } from "./chat-axios";
 
 type ApiErrorPayload = {
   message?: string;
+  error?: string;
+  detail?: string;
 };
 
 export type HttpRequestOptions = {
@@ -31,7 +33,9 @@ function mapApiError(error: unknown): Error {
     const message =
       typeof error.response?.data === "string"
         ? error.response.data
-        : (error.response?.data as ApiErrorPayload | undefined)?.message;
+        : (error.response?.data as ApiErrorPayload | undefined)?.message ||
+          (error.response?.data as ApiErrorPayload | undefined)?.detail ||
+          (error.response?.data as ApiErrorPayload | undefined)?.error;
 
     return new Error(message || "Khong the xu ly yeu cau luc nay.");
   }

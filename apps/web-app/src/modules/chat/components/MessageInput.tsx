@@ -3,7 +3,7 @@
 import React, { useState, useRef } from "react";
 import { Send, Paperclip, Smile, X, AlertCircle } from "lucide-react";
 import { Message, Attachment } from "../types";
-import { getPresignedUrl, uploadToS3 } from "../chatApi";
+import { uploadFileToChatService } from "../chatApi";
 
 interface MessageInputProps {
   onSendMessage: (
@@ -73,14 +73,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             );
           }
 
-          // Get presigned URL from backend
-          const { presignedUrl, fileUrl } = await getPresignedUrl(
-            file.name,
-            file.type,
-          );
-
-          // Upload file directly to S3
-          await uploadToS3(presignedUrl, file);
+          // Upload qua backend để tránh CORS browser -> S3
+          const { fileUrl } = await uploadFileToChatService(file);
 
           // Add attachment to state
           uploadedAttachments.push({

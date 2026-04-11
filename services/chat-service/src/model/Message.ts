@@ -68,7 +68,17 @@ const messageSchema: Schema = new Schema(
     },
     content: {
       type: String,
-      required: true,
+      trim: true,
+      default: "",
+      validate: {
+        validator: function (this: IMessage, value: string) {
+          const hasContent = typeof value === "string" && value.trim().length > 0;
+          const hasAttachments =
+            Array.isArray(this.attachments) && this.attachments.length > 0;
+          return hasContent || hasAttachments;
+        },
+        message: "Content or attachments is required",
+      },
     },
     attachments: [attachmentSchema],
     replyTo: {

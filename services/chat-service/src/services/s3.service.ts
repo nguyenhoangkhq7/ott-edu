@@ -2,10 +2,12 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
+  region: process.env.AWS_S3_REGION || process.env.AWS_REGION || "us-east-1",
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+    accessKeyId:
+      process.env.AWS_S3_ACCESS_KEY || process.env.AWS_ACCESS_KEY_ID || "",
+    secretAccessKey:
+      process.env.AWS_S3_SECRET_KEY || process.env.AWS_SECRET_ACCESS_KEY || "",
   },
 });
 
@@ -62,6 +64,44 @@ export class S3Service {
         `Failed to generate presigned URL: ${
           error instanceof Error ? error.message : "Unknown error"
         }`,
+      );
+    }
+  }
+
+  /**
+   * Upload file directly from backend to S3 to avoid browser-to-S3 CORS issues.
+   */
+  static async uploadFile(
+    fileName: string,
+    fileType: string,
+    fileBuffer: Buffer,
+  ): Promise<{
+    fileUrl: string;
+    s3Key: string;
+  }> {
+    try {
+      if (!fileName || !fileType || !fileBuffer || fileBuffer.length === 0) {
+        throw new Error("fileName, fileType and file content are required");
+      }
+
+      const sanitizedFileName = this.sanitizeFileName(fileName);
+      const s3Key = `uploads/${Date.now()}_${sanitizedFileName}`;
+
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: this.BUCKET_NAME,
+          Key: s3Key,
+          Body: fileBuffer,
+          ContentType: fileType,
+        }),
+      );
+
+      const fileUrl = `https://${this.BUCKET_NAME}.s3.amazonaws.com/${s3Key}`;
+      return { fileUrl, s3Key };
+    } catch (error) {
+      console.error("[S3Service] Error uploading file:", error);
+      throw new Error(
+        `Failed to upload file: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

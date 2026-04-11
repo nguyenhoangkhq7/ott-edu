@@ -97,6 +97,73 @@ export class ChatController {
     }
   }
 
+  // API: POST /api/upload-file
+  static async uploadFile(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const { fileName, fileType } = req.query;
+      const fileBuffer = req.body as Buffer;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!fileName || !fileType) {
+        return res
+          .status(400)
+          .json({ error: "fileName and fileType query parameters are required" });
+      }
+
+      if (!Buffer.isBuffer(fileBuffer) || fileBuffer.length === 0) {
+        return res.status(400).json({ error: "File content is required" });
+      }
+
+      // Validate file size (max 20MB)
+      if (fileBuffer.length > 20 * 1024 * 1024) {
+        return res
+          .status(400)
+          .json({ error: "File too large. Maximum size is 20MB." });
+      }
+
+      // Validate file type
+      const validFileTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/plain",
+        "application/zip",
+      ];
+
+      if (!validFileTypes.includes(fileType as string)) {
+        return res.status(400).json({ error: "Invalid file type" });
+      }
+
+      const uploaded = await S3Service.uploadFile(
+        fileName as string,
+        fileType as string,
+        fileBuffer,
+      );
+
+      return res.status(200).json({
+        data: {
+          ...uploaded,
+        },
+      });
+    } catch (error: any) {
+      console.error("[ChatController] uploadFile error:", error);
+      return res.status(500).json({
+        error: "Failed to upload file",
+        detail: error.message,
+      });
+    }
+  }
+
   // API: POST /api/messages
   static async sendMessage(req: Request, res: Response) {
     try {
@@ -104,13 +171,19 @@ export class ChatController {
       // Dựa vào việc body gửi lên receiverId (private) hay conversationId (group)
       const { receiverId, conversationId, content, attachments, replyTo } =
         req.body;
+      const normalizedContent =
+        typeof content === "string" ? content.trim() : "";
+      const hasAttachments =
+        Array.isArray(attachments) && attachments.length > 0;
 
       if (!senderId) {
         return res.status(401).json({ error: "Unauthorized access" });
       }
 
-      if (!content) {
-        return res.status(400).json({ error: "Content is required" });
+      if (!normalizedContent && !hasAttachments) {
+        return res
+          .status(400)
+          .json({ error: "Content or attachments is required" });
       }
 
       let result;
@@ -119,7 +192,7 @@ export class ChatController {
         result = await ChatService.sendGroupMessage(
           senderId,
           conversationId,
-          content,
+          normalizedContent,
           attachments,
           replyTo,
         );
@@ -129,7 +202,7 @@ export class ChatController {
         result = await ChatService.sendPrivateMessage(
           senderId,
           receiverId,
-          content,
+          normalizedContent,
           attachments,
           replyTo,
         );

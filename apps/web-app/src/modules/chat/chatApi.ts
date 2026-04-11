@@ -142,6 +142,27 @@ export async function uploadToS3(
 }
 
 /**
+ * POST /api/upload-file
+ * Upload file qua chat-service (server-side), rồi server đẩy lên S3.
+ * Cách này tránh lỗi CORS từ browser -> S3.
+ */
+export async function uploadFileToChatService(file: File): Promise<{
+  fileUrl: string;
+  s3Key: string;
+}> {
+  const data = await chatHttpService.post<{
+    data: { fileUrl: string; s3Key: string };
+  }>("/upload-file", file, {
+    params: { fileName: file.name, fileType: file.type },
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+    },
+  });
+
+  return data.data;
+}
+
+/**
  * POST /api/messages
  * Gửi tin nhắn mới tới người nhận HOẶC nhóm với hỗ trợ attachments và replies
  */
