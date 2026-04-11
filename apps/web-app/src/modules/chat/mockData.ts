@@ -43,6 +43,8 @@ export const mockConversations: Conversation[] = [
       content: 'Mai bạn có đi học không?',
       createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(), // 5 mins ago
       status: 'delivered',
+      isRevoked: false,
+      reactions: [],
     },
   },
   {
@@ -59,6 +61,8 @@ export const mockConversations: Conversation[] = [
       content: 'Cảm ơn bạn nhé!',
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
       status: 'read',
+      isRevoked: false,
+      reactions: [],
     },
   },
   {
@@ -75,6 +79,8 @@ export const mockConversations: Conversation[] = [
       content: 'Mọi người làm bài tập chưa?',
       createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
       status: 'read',
+      isRevoked: false,
+      reactions: [],
     },
   },
 ];
@@ -88,6 +94,8 @@ export const mockMessages: Record<string, Message[]> = {
       content: 'Chào Linh, bạn khỏe không?',
       createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
       status: 'read',
+      isRevoked: false,
+      reactions: [],
     },
     {
       id: 'm2',
@@ -96,6 +104,8 @@ export const mockMessages: Record<string, Message[]> = {
       content: 'Mai bạn có đi học không?',
       createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
       status: 'delivered',
+      isRevoked: false,
+      reactions: [],
     },
   ],
   c3: [
@@ -106,6 +116,8 @@ export const mockMessages: Record<string, Message[]> = {
       content: 'Xin chào mọi người!',
       createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
       status: 'read',
+      isRevoked: false,
+      reactions: [],
     },
     {
       id: 'm4',
@@ -114,6 +126,8 @@ export const mockMessages: Record<string, Message[]> = {
       content: 'Mọi người làm bài tập chưa?',
       createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
       status: 'read',
+      isRevoked: false,
+      reactions: [],
     },
   ]
 };

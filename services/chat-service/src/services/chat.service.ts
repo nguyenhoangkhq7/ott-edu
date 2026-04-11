@@ -14,7 +14,7 @@ export class ChatService {
       .sort({ updatedAt: -1 }) // Sắp xếp theo thời gian hoạt động mới nhất
       .populate({
         path: "participants",
-        select: "fullName avatarUrl", // Chỉ lấy thông tin tối thiểu
+        select: "fullName avatarUrl email code", // Dùng cho tìm kiếm name/email/MSSV
       })
       .populate({
         path: "lastMessage",
@@ -50,6 +50,8 @@ export class ChatService {
     senderId: string,
     receiverId: string,
     content: string,
+    attachments?: any[],
+    replyTo?: string,
   ) {
     // 1. Tìm xem giữa 2 người dã có phòng chat private chưa
     let conversation = await Conversation.findOne({
@@ -66,11 +68,27 @@ export class ChatService {
     }
 
     // 2. Tạo record Message vào cơ sở dữ liệu
-    const message = await Message.create({
+    const messagePayload: any = {
       conversationId: conversation._id,
       senderId,
       content,
-    });
+      reactions: [],
+    };
+
+    if (attachments && attachments.length > 0) {
+      messagePayload.attachments = attachments;
+    }
+
+    if (replyTo) {
+      messagePayload.replyTo = replyTo;
+    }
+
+    const message = await Message.create(messagePayload);
+
+    // Populate replyTo if it exists
+    if (replyTo) {
+      await message.populate("replyTo");
+    }
 
     // 3. Cập nhật lastMessage cho parent là conversation
     conversation.lastMessage = message._id as any;
@@ -84,17 +102,35 @@ export class ChatService {
     senderId: string,
     conversationId: string,
     content: string,
+    attachments?: any[],
+    replyTo?: string,
   ) {
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {
       throw new Error("Conversation not found");
     }
 
-    const message = await Message.create({
+    const messagePayload: any = {
       conversationId: conversation._id,
       senderId,
       content,
-    });
+      reactions: [],
+    };
+
+    if (attachments && attachments.length > 0) {
+      messagePayload.attachments = attachments;
+    }
+
+    if (replyTo) {
+      messagePayload.replyTo = replyTo;
+    }
+
+    const message = await Message.create(messagePayload);
+
+    // Populate replyTo if it exists
+    if (replyTo) {
+      await message.populate("replyTo");
+    }
 
     conversation.lastMessage = message._id as any;
     await conversation.save();
@@ -108,7 +144,7 @@ export class ChatService {
     name: string,
     participants: string[],
     avatarUrl?: string,
-    metadata?: any
+    metadata?: any,
   ) {
     const allParticipants = [...new Set([creatorId, ...participants])];
 

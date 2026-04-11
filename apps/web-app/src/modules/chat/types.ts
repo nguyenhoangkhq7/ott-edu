@@ -5,23 +5,40 @@
 export type ChatMode = "private" | "class";
 
 export interface User {
-  id: string;           // mapped từ _id của MongoDB
-  name: string;         // mapped từ fullName của MongoDB
+  id: string; // mapped từ _id của MongoDB
+  name: string; // mapped từ fullName của MongoDB
+  email?: string;
+  code?: string; // MSSV / MSGV
   avatarUrl: string;
   isOnline: boolean;
 }
 
+export interface Attachment {
+  url: string;
+  fileType: string;
+  fileName: string;
+}
+
+export interface Reaction {
+  userId: string;
+  emoji: string;
+}
+
 export interface Message {
-  id: string;           // mapped từ _id của MongoDB
+  id: string; // mapped từ _id của MongoDB
   conversationId: string;
   senderId: string;
   content: string;
   createdAt: string;
   status: "sent" | "delivered" | "read";
+  attachments?: Attachment[];
+  replyTo?: Message | null;
+  isRevoked: boolean;
+  reactions: Reaction[];
 }
 
 export interface Conversation {
-  id: string;           // mapped từ _id
+  id: string; // mapped từ _id
   name: string | null;
   type: ChatMode;
   participants: User[];
@@ -35,7 +52,20 @@ export interface Conversation {
 export interface ApiUser {
   _id: string;
   fullName: string;
+  email?: string;
+  code?: string;
   avatarUrl?: string;
+}
+
+export interface ApiAttachment {
+  url: string;
+  fileType: string;
+  fileName: string;
+}
+
+export interface ApiReaction {
+  userId: string;
+  emoji: string;
 }
 
 export interface ApiMessage {
@@ -45,6 +75,10 @@ export interface ApiMessage {
   content: string;
   createdAt: string;
   updatedAt?: string;
+  attachments?: ApiAttachment[];
+  replyTo?: ApiMessage | null;
+  isRevoked: boolean;
+  reactions: ApiReaction[];
 }
 
 export interface ApiConversation {
@@ -55,8 +89,7 @@ export interface ApiConversation {
   metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;
-  otherParticipant?: ApiUser;  // Được tính sẵn trong ChatService.getConversations()
+  otherParticipant?: ApiUser; // Được tính sẵn trong ChatService.getConversations()
   createdAt?: string;
   updatedAt?: string;
 }
-

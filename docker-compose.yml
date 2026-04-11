@@ -15,7 +15,17 @@ services:
     ports:
       - "3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "$${MYSQL_USER}", "-p$${MYSQL_PASSWORD}"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "$${MYSQL_USER}",
+          "-p$${MYSQL_PASSWORD}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 60
@@ -82,8 +92,8 @@ services:
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
-    expose:
-      - "3001"
+    ports:
+      - "${CHAT_PORT}:3001"
     depends_on:
       - mongo-db
     networks:

@@ -1,3 +1,11 @@
+/**
+ * @deprecated Use `chatHttpService` from `@/services/api` instead.
+ * This file is kept for reference but should NOT be imported directly.
+ *
+ * The chatApiClient has been moved to services/api/chat-axios.ts
+ * to avoid circular dependencies.
+ */
+
 import axios from "axios";
 
 const CHAT_SERVICE_URL =

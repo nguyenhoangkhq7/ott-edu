@@ -1,17 +1,25 @@
-import React, { useRef, useEffect } from "react";
-import { Conversation, Message, User } from "../types";
+"use client";
+
+import React, { useRef, useEffect, useState } from "react";
+import { Conversation, Message, User, Attachment, Reaction } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { Phone, Video, Info, RefreshCw } from "lucide-react";
 import Image from "next/image";
+import { Socket } from "socket.io-client";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
   currentUser: User | null;
-  onSendMessage: (text: string) => void;
+  onSendMessage: (
+    text: string,
+    attachments?: Attachment[],
+    replyToId?: string,
+  ) => Promise<void>;
   isLoadingMessages?: boolean;
   isSending?: boolean;
+  socket?: Socket | null;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -21,12 +29,62 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onSendMessage,
   isLoadingMessages = false,
   isSending = false,
+  socket,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [localMessages, setLocalMessages] = useState<Message[]>(messages);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
+  // Update local messages when messages prop changes
+  useEffect(() => {
+    setLocalMessages(messages);
+  }, [messages]);
+
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [localMessages]);
+
+  // Setup socket listeners
+  useEffect(() => {
+    if (!socket || !conversation) return;
+
+    // Listen for message reactions
+    const handleMessageReacted = (data: {
+      messageId: string;
+      reactions: Reaction[];
+    }) => {
+      setLocalMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? { ...msg, reactions: data.reactions }
+            : msg,
+        ),
+      );
+    };
+
+    // Listen for message revocation
+    const handleMessageRevoked = (data: {
+      messageId: string;
+      isRevoked: boolean;
+    }) => {
+      setLocalMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? { ...msg, isRevoked: data.isRevoked }
+            : msg,
+        ),
+      );
+    };
+
+    socket.on("messageReacted", handleMessageReacted);
+    socket.on("messageRevoked", handleMessageRevoked);
+
+    return () => {
+      socket.off("messageReacted", handleMessageReacted);
+      socket.off("messageRevoked", handleMessageRevoked);
+    };
+  }, [socket, conversation]);
 
   if (!conversation) {
     return (
@@ -63,7 +121,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   if (conversation.type === "private" && currentUser) {
     const otherParticipant = conversation.participants.find(
-      (p) => p.id !== currentUser.id
+      (p) => p.id !== currentUser.id,
     );
     if (otherParticipant) {
       displayName = otherParticipant.name;
@@ -75,6 +133,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const getSender = (senderId: string) =>
     conversation.participants.find((p) => p.id === senderId);
 
+  const handleSendMessage = async (
+    text: string,
+    attachments?: Attachment[],
+    replyToId?: string,
+  ) => {
+    try {
+      await onSendMessage(text, attachments, replyToId);
+      setReplyingTo(null);
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
+
+  const handleReact = (messageId: string, emoji: string) => {
+    if (socket && conversation) {
+      socket.emit("reactMessage", {
+        messageId,
+        conversationId: conversation.id,
+        emoji,
+      });
+    }
+  };
+
+  const handleRevoke = (messageId: string) => {
+    if (socket && conversation) {
+      socket.emit("revokeMessage", {
+        messageId,
+        conversationId: conversation.id,
+      });
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-white dark:bg-gray-900 overflow-hidden">
       {/* Header */}
@@ -82,8 +172,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div className="flex items-center gap-3">
           <Image
             src={
-              displayAvatar ||
-              `https://i.pravatar.cc/150?u=${conversation.id}`
+              displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
             }
             alt="Avatar"
             width={40}
@@ -118,17 +207,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <RefreshCw size={16} className="animate-spin" />
             <span className="text-sm">Đang tải tin nhắn...</span>
           </div>
-        ) : messages.length === 0 ? (
+        ) : localMessages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-gray-400 text-sm">
             Hãy là người đầu tiên gửi tin nhắn! 👋
           </div>
         ) : (
-          messages.map((msg) => (
+          localMessages.map((msg) => (
             <MessageBubble
               key={msg.id}
               message={msg}
               isOwnMessage={msg.senderId === currentUser?.id}
               sender={getSender(msg.senderId)}
+              onReply={setReplyingTo}
+              onReact={handleReact}
+              onRevoke={handleRevoke}
             />
           ))
         )}
@@ -137,7 +229,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
 
       {/* Input */}
-      <MessageInput onSendMessage={onSendMessage} isSending={isSending} />
+      <MessageInput
+        onSendMessage={handleSendMessage}
+        isSending={isSending}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+      />
     </div>
   );
 };
