@@ -1,10 +1,13 @@
 import express, {
   type Application,
+  type NextFunction,
   type Request,
   type Response,
 } from "express";
 import cors from "cors";
+import mongoose from "mongoose";
 import connectDB from "./config/db.ts";
+import User from "./model/User.ts";
 import chatRoutes from "./routes/chat.routes.ts";
 
 const app: Application = express();
@@ -21,15 +24,63 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// LƯU Ý: Giả lập middleware Auth (Tạm thời) để có req.user._id test trong Postman
-// Trong thực tế, bạn sẽ dùng authMiddleware (ví dụ xác thực JWT jwt.verify()) thay thế đoạn này.
-app.use((req: any, res: any, next: any) => {
-  // Postman có thể truyền header 'x-user-id' để giả lập đang đăng nhập bằng user đó
-  const testUserId = req.headers["x-user-id"];
-  if (testUserId) {
-    req.user = { _id: testUserId };
+function toSingleHeaderValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0] || "";
   }
-  next();
+  return value || "";
+}
+
+function fallbackFullNameFromEmail(email: string): string {
+  return email.split("@")[0] || "User";
+}
+
+// Dev auth adapter:
+// - Ưu tiên x-user-id nếu là Mongo ObjectId
+// - Nếu có x-user-email thì map/create chat user từ email để dùng với AuthProvider
+app.use(async (req: any, res: Response, next: NextFunction) => {
+  try {
+    const rawUserId = toSingleHeaderValue(req.headers["x-user-id"]).trim();
+    const rawUserEmail = toSingleHeaderValue(req.headers["x-user-email"])
+      .trim()
+      .toLowerCase();
+    const rawUserName = toSingleHeaderValue(req.headers["x-user-name"]).trim();
+    const rawAvatarUrl = toSingleHeaderValue(req.headers["x-user-avatar"]).trim();
+
+    if (rawUserId && mongoose.Types.ObjectId.isValid(rawUserId)) {
+      req.user = { _id: rawUserId };
+      return next();
+    }
+
+    if (rawUserEmail) {
+      let user = await User.findOne({ email: rawUserEmail });
+
+      if (!user) {
+        user = await User.create({
+          email: rawUserEmail,
+          fullName: rawUserName || fallbackFullNameFromEmail(rawUserEmail),
+          avatarUrl: rawAvatarUrl || undefined,
+        });
+      }
+
+      req.user = {
+        _id: user._id.toString(),
+        email: user.email,
+        fullName: user.fullName,
+        avatarUrl: user.avatarUrl,
+      };
+    } else if (rawUserId) {
+      req.user = { _id: rawUserId };
+    }
+
+    return next();
+  } catch (error: any) {
+    console.error("[app] auth adapter error:", error);
+    return res.status(500).json({
+      error: "Failed to resolve chat user",
+      detail: error.message,
+    });
+  }
 });
 
 // Đăng ký chat routes vào path /api

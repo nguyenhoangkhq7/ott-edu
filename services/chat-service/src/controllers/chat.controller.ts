@@ -2,8 +2,31 @@ import type { Request, Response } from "express";
 import { ChatService } from "../services/chat.service.ts";
 import S3Service from "../services/s3.service.ts";
 import socketManager from "../socketManager.ts";
+import User from "../model/User.ts";
 
 export class ChatController {
+  // API: GET /api/me
+  static async getCurrentChatUser(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      const user = await User.findById(userId).select("fullName avatarUrl email").lean();
+      if (!user) {
+        return res.status(404).json({ error: "Chat user not found" });
+      }
+
+      return res.status(200).json({ data: user });
+    } catch (error: any) {
+      console.error("[ChatController] getCurrentChatUser error:", error);
+      return res
+        .status(500)
+        .json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
   // API: GET /api/conversations
   static async getMyConversations(req: Request, res: Response) {
     try {

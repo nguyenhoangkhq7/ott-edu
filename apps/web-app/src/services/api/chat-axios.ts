@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getAccessToken } from "./token-store";
 
 const CHAT_SERVICE_URL =
   process.env.NEXT_PUBLIC_CHAT_SERVICE_URL || "http://localhost:3001";
@@ -11,12 +12,13 @@ export const chatApiClient = axios.create({
   },
 });
 
-// Interceptor: Đính kèm x-user-id header vào mọi request (giả lập auth cho dev)
+// Interceptor: Đính kèm Authorization nếu đã đăng nhập qua AuthProvider
 chatApiClient.interceptors.request.use((config) => {
-  const userId =
-    typeof window !== "undefined" ? localStorage.getItem("dev_user_id") : null;
-  if (userId) {
-    config.headers["x-user-id"] = userId;
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+export default chatApiClient;

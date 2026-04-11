@@ -8,6 +8,9 @@ const router = Router();
 // để đảm bảo mọi request đều có thông tin người dùng.
 
 // Lấy danh sách hộp thoại của user hiện tại
+router.get("/me", ChatController.getCurrentChatUser);
+
+// Lấy danh sách hộp thoại của user hiện tại
 router.get("/conversations", ChatController.getMyConversations);
 
 // Lấy toàn bộ lịch sử tin nhắn của một cuộc trò chuyện

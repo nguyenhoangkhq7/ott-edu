@@ -21,6 +21,10 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
   };
 }
 
+export type ChatAuthIdentity = {
+  email: string;
+};
+
 export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
   return {
     id: apiMsg._id,
@@ -83,6 +87,22 @@ export async function fetchConversations(
   return data.data.map((conv) =>
     mapApiConversationToConversation(conv, currentUserId),
   );
+}
+
+/**
+ * GET /api/me
+ * Resolve chat user từ identity của AuthProvider.
+ */
+export async function fetchCurrentChatUser(
+  identity: ChatAuthIdentity,
+): Promise<User> {
+  const data = await chatHttpService.get<{ data: ApiUser }>("/me", {
+    headers: {
+      "x-user-email": identity.email,
+    },
+  });
+
+  return mapApiUserToUser(data.data);
 }
 
 /**

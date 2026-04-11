@@ -255,7 +255,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     conversations.find((c) => c.id === activeConversationId) || null;
 
   return (
-    <div className="flex h-screen w-full bg-white dark:bg-gray-950 font-sans shadow-2xl overflow-hidden rounded-xl">
+    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white font-sans shadow-sm">
       <Sidebar
         currentMode={currentMode}
         onModeChange={setCurrentMode}
