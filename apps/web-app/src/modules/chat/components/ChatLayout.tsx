@@ -21,10 +21,12 @@ interface ChatLayoutProps {
 
 export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [currentMode, setCurrentMode] = useState<ChatMode>("private");
+  const [searchQuery, setSearchQuery] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<
     string | null
   >(null);
+  const [draftReceiver, setDraftReceiver] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -111,10 +113,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
   // Handle khi click đổi cuộc trò chuyện: Reset số đếm unread về 0
   const handleSelectConversation = useCallback((id: string) => {
+    setDraftReceiver(null);
     setActiveConversationId(id);
     setConversations((prev) =>
       prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
     );
+  }, []);
+
+  const handleStartPrivateChat = useCallback((user: User) => {
+    setCurrentMode("private");
+    setDraftReceiver(user);
+    setActiveConversationId(null);
+    setMessages([]);
   }, []);
 
   // ── Fetch Conversations ──────────────────────────────────────────────────
@@ -167,23 +177,27 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     attachments?: Array<{ url: string; fileType: string; fileName: string }>,
     replyToId?: string,
   ) => {
-    if (!activeConversationId || !currentUserId || isSending) return;
+    if (!currentUserId || isSending) return;
 
     const activeConversation = conversations.find(
       (c) => c.id === activeConversationId,
     );
-    if (!activeConversation) return;
+    const targetReceiver =
+      draftReceiver ||
+      activeConversation?.participants.find((p) => p.id !== currentUserId) ||
+      null;
 
-    // Tìm receiverId (người nhận = participant khác trong cuộc trò chuyện)
-    const receiver = activeConversation.participants.find(
-      (p) => p.id !== currentUserId,
-    );
-    if (!receiver && activeConversation.type === "private") return;
+    if (!activeConversation && !targetReceiver) return;
+    if (!activeConversationId && !targetReceiver) return;
+    if (activeConversation?.type === "private" && !targetReceiver) return;
+
+    const optimisticConversationId =
+      activeConversationId || `draft_${targetReceiver?.id || "unknown"}`;
 
     // Optimistic UI: hiển thị ngay không chờ server
     const optimisticMessage: Message = {
       id: `optimistic_${Date.now()}`,
-      conversationId: activeConversationId,
+      conversationId: optimisticConversationId,
       senderId: currentUserId,
       content: text,
       createdAt: new Date().toISOString(),
@@ -199,7 +213,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     try {
       // Gọi API thực POST /api/messages
       let savedMessage: Message;
-      if (activeConversation.type === "class") {
+      if (activeConversation?.type === "class") {
         savedMessage = await sendMessage(
           text,
           undefined,
@@ -210,7 +224,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       } else {
         savedMessage = await sendMessage(
           text,
-          receiver?.id,
+          targetReceiver?.id,
           undefined,
           attachments,
           replyToId,
@@ -234,13 +248,28 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       });
 
       // Cập nhật lastMessage của conversation trong danh sách
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === activeConversationId
-            ? { ...c, lastMessage: savedMessage }
-            : c,
-        ),
-      );
+      if (activeConversationId) {
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === activeConversationId
+              ? { ...c, lastMessage: savedMessage }
+              : c,
+          ),
+        );
+      } else if (targetReceiver) {
+        const refreshed = await fetchConversations(currentUserId);
+        setConversations(refreshed);
+        const createdConversation = refreshed.find(
+          (conv) =>
+            conv.type === "private" &&
+            conv.participants.some((p) => p.id === currentUserId) &&
+            conv.participants.some((p) => p.id === targetReceiver.id),
+        );
+        if (createdConversation) {
+          setActiveConversationId(createdConversation.id);
+          setDraftReceiver(null);
+        }
+      }
     } catch (err) {
       console.error("[ChatLayout] send message error:", err);
       // Xoá optimistic nếu thất bại
@@ -252,17 +281,68 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   };
 
   const activeConversation =
-    conversations.find((c) => c.id === activeConversationId) || null;
+    conversations.find((c) => c.id === activeConversationId) ||
+    (draftReceiver
+      ? {
+          id: `draft_${draftReceiver.id}`,
+          name: draftReceiver.name,
+          type: "private" as const,
+          participants: [currentUser as User, draftReceiver],
+          lastMessage: null,
+          unreadCount: 0,
+          avatarUrl: draftReceiver.avatarUrl,
+        }
+      : null);
+
+  const suggestedUsers = React.useMemo(() => {
+    const privatePeerIds = new Set<string>();
+    conversations
+      .filter((conv) => conv.type === "private")
+      .forEach((conv) => {
+        conv.participants.forEach((p) => {
+          if (p.id !== currentUserId) privatePeerIds.add(p.id);
+        });
+      });
+
+    const map = new Map<string, User>();
+    conversations
+      .filter((conv) => conv.type === "class")
+      .forEach((conv) => {
+        conv.participants.forEach((p) => {
+          if (p.id === currentUserId) return;
+          if (privatePeerIds.has(p.id)) return;
+          map.set(p.id, p);
+        });
+      });
+
+    const query = searchQuery.trim().toLowerCase();
+    const users = Array.from(map.values());
+    if (!query) return [];
+
+    return users
+      .filter((u) =>
+        [u.name, u.email, u.code]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
+      )
+      .slice(0, 20);
+  }, [conversations, currentUserId, searchQuery]);
 
   return (
     <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white font-sans shadow-sm">
       <Sidebar
         currentMode={currentMode}
         onModeChange={setCurrentMode}
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
         conversations={conversations}
+        suggestedUsers={suggestedUsers}
         currentUser={currentUser}
         activeConversationId={activeConversationId}
         onSelectConversation={handleSelectConversation}
+        onStartPrivateChat={handleStartPrivateChat}
         isLoading={isLoadingConversations}
         error={error}
       />

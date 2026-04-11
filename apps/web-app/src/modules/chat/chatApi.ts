@@ -15,6 +15,8 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
   return {
     id: apiUser._id,
     name: apiUser.fullName,
+    email: apiUser.email,
+    code: apiUser.code,
     avatarUrl:
       apiUser.avatarUrl || `https://i.pravatar.cc/150?u=${apiUser._id}`,
     isOnline: false, // Backend chưa cung cấp trạng thái online; có thể cập nhật qua Socket
@@ -23,6 +25,7 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
 
 export type ChatAuthIdentity = {
   email: string;
+  code?: string;
 };
 
 export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
@@ -99,6 +102,7 @@ export async function fetchCurrentChatUser(
   const data = await chatHttpService.get<{ data: ApiUser }>("/me", {
     headers: {
       "x-user-email": identity.email,
+      "x-user-code": identity.code || "",
     },
   });
 

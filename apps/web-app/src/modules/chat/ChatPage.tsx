@@ -17,6 +17,7 @@ export default function ChatPage() {
     if (!user?.email) return null;
     return {
       email: user.email,
+      code: user.code || undefined,
     };
   }, [user]);
 
@@ -27,6 +28,7 @@ export default function ChatPage() {
     }
 
     chatApiClient.defaults.headers.common["x-user-email"] = identity.email;
+    chatApiClient.defaults.headers.common["x-user-code"] = identity.code || "";
     delete chatApiClient.defaults.headers.common["x-user-name"];
     delete chatApiClient.defaults.headers.common["x-user-avatar"];
 

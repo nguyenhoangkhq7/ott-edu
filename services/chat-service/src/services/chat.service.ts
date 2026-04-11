@@ -14,7 +14,7 @@ export class ChatService {
       .sort({ updatedAt: -1 }) // Sắp xếp theo thời gian hoạt động mới nhất
       .populate({
         path: "participants",
-        select: "fullName avatarUrl", // Chỉ lấy thông tin tối thiểu
+        select: "fullName avatarUrl email code", // Dùng cho tìm kiếm name/email/MSSV
       })
       .populate({
         path: "lastMessage",

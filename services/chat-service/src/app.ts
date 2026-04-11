@@ -46,6 +46,7 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
       .toLowerCase();
     const rawUserName = toSingleHeaderValue(req.headers["x-user-name"]).trim();
     const rawAvatarUrl = toSingleHeaderValue(req.headers["x-user-avatar"]).trim();
+    const rawUserCode = toSingleHeaderValue(req.headers["x-user-code"]).trim();
 
     if (rawUserId && mongoose.Types.ObjectId.isValid(rawUserId)) {
       req.user = { _id: rawUserId };
@@ -60,7 +61,22 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
           email: rawUserEmail,
           fullName: rawUserName || fallbackFullNameFromEmail(rawUserEmail),
           avatarUrl: rawAvatarUrl || undefined,
+          code: rawUserCode || undefined,
         });
+      } else {
+        const nextCode = rawUserCode || user.code || "";
+        const nextName = rawUserName || user.fullName;
+        const nextAvatar = rawAvatarUrl || user.avatarUrl;
+        if (
+          nextCode !== (user.code || "") ||
+          nextName !== user.fullName ||
+          nextAvatar !== user.avatarUrl
+        ) {
+          user.code = nextCode || undefined;
+          user.fullName = nextName;
+          user.avatarUrl = nextAvatar;
+          await user.save();
+        }
       }
 
       req.user = {

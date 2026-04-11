@@ -13,7 +13,9 @@ export class ChatController {
         return res.status(401).json({ error: "Unauthorized access" });
       }
 
-      const user = await User.findById(userId).select("fullName avatarUrl email").lean();
+      const user = await User.findById(userId)
+        .select("fullName avatarUrl email code")
+        .lean();
       if (!user) {
         return res.status(404).json({ error: "Chat user not found" });
       }

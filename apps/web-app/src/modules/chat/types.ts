@@ -7,6 +7,8 @@ export type ChatMode = "private" | "class";
 export interface User {
   id: string; // mapped từ _id của MongoDB
   name: string; // mapped từ fullName của MongoDB
+  email?: string;
+  code?: string; // MSSV / MSGV
   avatarUrl: string;
   isOnline: boolean;
 }
@@ -50,6 +52,8 @@ export interface Conversation {
 export interface ApiUser {
   _id: string;
   fullName: string;
+  email?: string;
+  code?: string;
   avatarUrl?: string;
 }
 
