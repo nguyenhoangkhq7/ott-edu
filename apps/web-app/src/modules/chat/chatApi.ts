@@ -1,4 +1,4 @@
-import { chatApiClient } from "./axiosClient";
+import { chatHttpService } from "@/services/api";
 import {
   ApiConversation,
   ApiMessage,
@@ -77,10 +77,10 @@ export function mapApiConversationToConversation(
 export async function fetchConversations(
   currentUserId: string,
 ): Promise<Conversation[]> {
-  const response = await chatApiClient.get<{ data: ApiConversation[] }>(
+  const data = await chatHttpService.get<{ data: ApiConversation[] }>(
     "/conversations",
   );
-  return response.data.data.map((conv) =>
+  return data.data.map((conv) =>
     mapApiConversationToConversation(conv, currentUserId),
   );
 }
@@ -92,10 +92,10 @@ export async function fetchConversations(
 export async function fetchMessages(
   conversationId: string,
 ): Promise<Message[]> {
-  const response = await chatApiClient.get<{ data: ApiMessage[] }>(
+  const data = await chatHttpService.get<{ data: ApiMessage[] }>(
     `/messages/${conversationId}`,
   );
-  return response.data.data.map(mapApiMessageToMessage);
+  return data.data.map(mapApiMessageToMessage);
 }
 
 /**
@@ -111,10 +111,10 @@ export async function getPresignedUrl(
   s3Key: string;
   expiresIn: number;
 }> {
-  const response = await chatApiClient.get<{ data: any }>("/upload-url", {
+  const data = await chatHttpService.get<{ data: any }>("/upload-url", {
     params: { fileName, fileType },
   });
-  return response.data.data;
+  return data.data;
 }
 
 /**
@@ -152,12 +152,12 @@ export async function sendMessage(
   attachments?: Attachment[],
   replyToMessageId?: string,
 ): Promise<Message> {
-  const response = await chatApiClient.post<{ data: ApiMessage }>("/messages", {
+  const data = await chatHttpService.post<{ data: ApiMessage }>("/messages", {
     receiverId,
     conversationId,
     content,
     attachments,
     replyTo: replyToMessageId,
   });
-  return mapApiMessageToMessage(response.data.data);
+  return mapApiMessageToMessage(data.data);
 }

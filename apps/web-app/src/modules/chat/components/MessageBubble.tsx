@@ -111,7 +111,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <p className="text-gray-700 dark:text-gray-300 truncate">
               {message.replyTo.isRevoked
                 ? "Tin nhắn đã bị thu hồi"
-                : message.replyTo.content.substring(0, 100)}
+                : (message.replyTo.content || "(Tin nhắn trống)").substring(
+                    0,
+                    100,
+                  )}
             </p>
           </div>
         )}
