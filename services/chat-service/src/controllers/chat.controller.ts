@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { ChatService } from "../services/chat.service.ts";
+import S3Service from "../services/s3.service.ts";
 import socketManager from "../socketManager.ts";
 
 export class ChatController {
@@ -42,12 +43,67 @@ export class ChatController {
     }
   }
 
+  // API: GET /api/upload-url
+  static async getPresignedUploadUrl(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const { fileName, fileType } = req.query;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!fileName || !fileType) {
+        return res
+          .status(400)
+          .json({
+            error: "fileName and fileType query parameters are required",
+          });
+      }
+
+      // Validate file type
+      const validFileTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/plain",
+        "application/zip",
+      ];
+
+      if (!validFileTypes.includes(fileType as string)) {
+        return res.status(400).json({ error: "Invalid file type" });
+      }
+
+      const urlData = await S3Service.generatePresignedUrl(
+        fileName as string,
+        fileType as string,
+      );
+
+      return res.status(200).json({ data: JSON.parse(urlData) });
+    } catch (error: any) {
+      console.error("[ChatController] getPresignedUploadUrl error:", error);
+      return res
+        .status(500)
+        .json({
+          error: "Failed to generate upload URL",
+          detail: error.message,
+        });
+    }
+  }
+
   // API: POST /api/messages
   static async sendMessage(req: Request, res: Response) {
     try {
       const senderId = (req as any).user?._id;
       // Dựa vào việc body gửi lên receiverId (private) hay conversationId (group)
-      const { receiverId, conversationId, content } = req.body;
+      const { receiverId, conversationId, content, attachments, replyTo } =
+        req.body;
 
       if (!senderId) {
         return res.status(401).json({ error: "Unauthorized access" });
@@ -63,15 +119,19 @@ export class ChatController {
         result = await ChatService.sendGroupMessage(
           senderId,
           conversationId,
-          content
+          content,
+          attachments,
+          replyTo,
         );
-      } 
+      }
       // Nếu gửi theo receiverId -> Gửi 1-1 (Private Chat)
       else if (receiverId) {
         result = await ChatService.sendPrivateMessage(
           senderId,
           receiverId,
-          content
+          content,
+          attachments,
+          replyTo,
         );
       } else {
         return res
@@ -104,7 +164,9 @@ export class ChatController {
       }
 
       if (!name || !participants || !Array.isArray(participants)) {
-        return res.status(400).json({ error: "Name and participants array are required" });
+        return res
+          .status(400)
+          .json({ error: "Name and participants array are required" });
       }
 
       const conversation = await ChatService.createGroupConversation(
@@ -112,7 +174,7 @@ export class ChatController {
         name,
         participants,
         avatarUrl,
-        metadata
+        metadata,
       );
 
       return res.status(201).json({ data: conversation });

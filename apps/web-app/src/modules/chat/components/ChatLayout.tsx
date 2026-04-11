@@ -31,7 +31,6 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
     conversations.length > 0
@@ -71,7 +70,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const handleNewMessage = (rawMessage: unknown) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const incoming = mapApiMessageToMessage(rawMessage as any);
-      const isActive = activeConversationIdRef.current === incoming.conversationId;
+      const isActive =
+        activeConversationIdRef.current === incoming.conversationId;
       const isSelf = incoming.senderId === currentUserId;
 
       // Append tin nhắn vào cửa sổ chat nếu đang mở đúng conversation đó
@@ -113,10 +113,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const handleSelectConversation = useCallback((id: string) => {
     setActiveConversationId(id);
     setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
+      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
     );
   }, []);
-
 
   // ── Fetch Conversations ──────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
@@ -163,7 +162,11 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, [activeConversationId]);
 
   // ── Gửi tin nhắn ─────────────────────────────────────────────────────────
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (
+    text: string,
+    attachments?: Array<{ url: string; fileType: string; fileName: string }>,
+    replyToId?: string,
+  ) => {
     if (!activeConversationId || !currentUserId || isSending) return;
 
     const activeConversation = conversations.find(
@@ -175,7 +178,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const receiver = activeConversation.participants.find(
       (p) => p.id !== currentUserId,
     );
-    if (!receiver) return;
+    if (!receiver && activeConversation.type === "private") return;
 
     // Optimistic UI: hiển thị ngay không chờ server
     const optimisticMessage: Message = {
@@ -185,6 +188,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       content: text,
       createdAt: new Date().toISOString(),
       status: "sent",
+      attachments: attachments || [],
+      replyTo: undefined,
+      isRevoked: false,
+      reactions: [],
     };
     setMessages((prev) => [...prev, optimisticMessage]);
 
@@ -193,22 +200,36 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       // Gọi API thực POST /api/messages
       let savedMessage: Message;
       if (activeConversation.type === "class") {
-        savedMessage = await sendMessage(text, undefined, activeConversation.id);
+        savedMessage = await sendMessage(
+          text,
+          undefined,
+          activeConversation.id,
+          attachments,
+          replyToId,
+        );
       } else {
-        savedMessage = await sendMessage(text, receiver.id, undefined);
+        savedMessage = await sendMessage(
+          text,
+          receiver?.id,
+          undefined,
+          attachments,
+          replyToId,
+        );
       }
 
       // Thay optimistic message bằng message thực từ DB
       setMessages((prev) => {
-        // Kiểm tra xem socket đã chạy vào và nhét tin nhắn thực này vào mảng chưa
+        // Kiểm tra xem socket đã chạy vào và nhét tin nhắn thực này vào mảy chưa
         const alreadyHasSocketMess = prev.some((m) => m.id === savedMessage.id);
-        
+
         if (alreadyHasSocketMess) {
           // Xoá cái optimistic giả đi vì tin nhắn thực đã có
           return prev.filter((m) => m.id !== optimisticMessage.id);
         } else {
           // Socket chưa tới (hoặc ta là người gửi), nên lấy `savedMessage` thay thế cho optimistic giả
-          return prev.map((m) => (m.id === optimisticMessage.id ? savedMessage : m));
+          return prev.map((m) =>
+            m.id === optimisticMessage.id ? savedMessage : m,
+          );
         }
       });
 
@@ -224,6 +245,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       console.error("[ChatLayout] send message error:", err);
       // Xoá optimistic nếu thất bại
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id));
+      setError(err instanceof Error ? err.message : "Không thể gửi tin nhắn");
     } finally {
       setIsSending(false);
     }
@@ -251,6 +273,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onSendMessage={handleSendMessage}
         isLoadingMessages={isLoadingMessages}
         isSending={isSending}
+        socket={socketRef.current}
       />
     </div>
   );

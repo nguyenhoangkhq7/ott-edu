@@ -16,11 +16,13 @@ router.get(
   ChatController.getMessagesInConversation,
 );
 
+// Lấy presigned URL để upload file trực tiếp lên S3
+router.get("/upload-url", ChatController.getPresignedUploadUrl);
+
 // Gửi tin nhắn mới (hỗ trợ cả 1-1 và group)
 router.post("/messages", ChatController.sendMessage);
 
 // Tạo nhóm (Group Chat) mới
 router.post("/conversations/group", ChatController.createGroup);
-
 
 export default router;
