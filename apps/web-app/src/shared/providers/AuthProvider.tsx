@@ -57,26 +57,35 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
+ useEffect(() => {
     let isMounted = true;
 
     async function bootstrapSession() {
       try {
+        // 1. Nếu localStorage đã có token, thử lấy user luôn
+        const currentToken = getAccessToken();
+        if (currentToken) {
+           const currentUser = await getCurrentUser();
+           if (isMounted) {
+             setUser(currentUser);
+             setIsInitializing(false);
+           }
+           return; // Thoát sớm nếu thành công
+        }
+
+        // 2. Nếu không có token (hoặc token lỗi phía trên nhảy xuống catch), thử refresh
         const refreshResult = await refreshSession();
         setAccessToken(refreshResult.accessToken);
-
         const currentUser = await getCurrentUser();
         if (isMounted) {
           setUser(currentUser);
         }
+
       } catch {
-        // Avoid clobbering a successful manual login that may complete
-        // while the initial bootstrap refresh request is still in flight.
-        if (!getAccessToken()) {
-          clearAccessToken();
-          if (isMounted) {
-            setUser(null);
-          }
+        // Nếu refresh cũng thất bại -> Xóa phiên
+        clearAccessToken();
+        if (isMounted) {
+          setUser(null);
         }
       } finally {
         if (isMounted) {

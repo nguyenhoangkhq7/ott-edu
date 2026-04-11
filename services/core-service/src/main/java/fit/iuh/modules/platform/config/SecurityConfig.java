@@ -117,6 +117,10 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler())
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // 1. THÊM DÒNG NÀY ĐỂ CHO PHÉP REQUEST OPTIONS ĐI QUA TỰ DO
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // 2. Các cấu hình cũ của bạn giữ nguyên bên dưới
                         .requestMatchers("/api/core/auth/**", "/auth/**").permitAll()
                         .requestMatchers("/auth/register").permitAll()
                         .requestMatchers("/auth/login").permitAll()

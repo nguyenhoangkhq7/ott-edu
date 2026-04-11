@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image'; 
-import apiClient from '@/services/api/axios';
+import { httpService } from '@/services/api/http.service'; // Đã sửa import
 import { useAppContext } from '@/shared/providers/AppContext';
 import Cookies from 'js-cookie';
 
@@ -576,8 +576,8 @@ export default function TeamPostsTab() {
     if (!isLoaded || !classId) return;
 
     try {
-      const response = await apiClient.get<ApiPost[]>(`/posts/class/${classId}`);
-      const data = response.data;
+      // Đã sửa: Dùng httpService và bỏ response.data
+      const data = await httpService.get<ApiPost[]>(`/posts/class/${classId}`);
       
       // 👉 Lấy email từ context hoặc cookie để đảm bảo luôn có data so sánh
       const currentUser = userEmail || Cookies.get('userEmail') || "";
@@ -635,8 +635,8 @@ export default function TeamPostsTab() {
 
   const loadCommentsForPost = async (postId: string) => {
     try {
-      const response = await apiClient.get<ApiPost[]>(`/interact/comments/post/${postId}`);
-      const comments = response.data;
+      // Đã sửa: Dùng httpService và bỏ response.data
+      const comments = await httpService.get<ApiPost[]>(`/interact/comments/post/${postId}`);
       
       // 👉 Lấy email từ context hoặc cookie
       const currentUser = userEmail || Cookies.get('userEmail') || "";
@@ -719,7 +719,8 @@ const handleSendMessage = async () => {
       if (selectedFile) formData.append('files', selectedFile);
 
       try {
-        await apiClient.post('/posts', formData, {
+        // Đã sửa: Dùng httpService thay vì apiClient
+        await httpService.post('/posts', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         await fetchPosts(); 
@@ -739,7 +740,8 @@ const handleSendMessage = async () => {
       if (selectedFile) formData.append('files', selectedFile);
 
       try {
-        await apiClient.post('/interact/comments', formData, {
+        // Đã sửa: Dùng httpService thay vì apiClient
+        await httpService.post('/interact/comments', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         
@@ -760,7 +762,8 @@ const handleSendMessage = async () => {
   const handleDeleteClick = async (idToDelete: string, isPost: boolean, parentPostId?: string) => {
     const url = isPost ? `/posts/${idToDelete}` : `/interact/comments/${idToDelete}`;
     try {
-      await apiClient.delete(url);
+      // Đã sửa: Dùng httpService thay vì apiClient
+      await httpService.delete(url);
       
       if (isPost) {
         setPosts(posts.filter(p => p.id !== idToDelete));
@@ -779,7 +782,8 @@ const handleSendMessage = async () => {
   const handleReaction = async (id: string, isPost: boolean, parentPostId?: string, reactionType: string = 'LIKE') => {
     const targetType = isPost ? 'POST' : 'COMMENT';
     try {
-      await apiClient.post(`/interact/reactions?targetId=${id}&targetType=${targetType}&reactionType=${reactionType}`);
+      // Đã sửa: Dùng httpService thay vì apiClient
+      await httpService.post(`/interact/reactions?targetId=${id}&targetType=${targetType}&reactionType=${reactionType}`);
       
       if (isPost) {
         setPosts(posts.map(p => p.id === id ? { ...p, reactionCount: (p.reactionCount || 0) + 1 } : p));
@@ -808,7 +812,8 @@ const handleSendMessage = async () => {
     const url = isPost ? `/posts/${id}` : `/interact/comments/${id}`;
 
     try {
-      await apiClient.put(url, { content: editInputValue });
+      // Đã sửa: Dùng httpService thay vì apiClient
+      await httpService.put(url, { content: editInputValue });
 
       if (isPost) {
         setPosts(posts.map(p => p.id === id ? { ...p, text: editInputValue } : p));

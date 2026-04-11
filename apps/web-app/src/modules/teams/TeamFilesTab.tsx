@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import apiClient from '@/services/api/axios';
+import { httpService } from '@/services/api/http.service'; // Đã sửa import
 import { useAppContext } from '@/shared/providers/AppContext';
 import Cookies from 'js-cookie';
 
@@ -163,11 +163,12 @@ export default function TeamFilesTab() {
     if (!isLoaded || !classId) return;
     try {
       setIsLoading(true);
-      const response = await apiClient.get<BackendAttachment[]>(`/attachments/class/${classId}`);
+      // Đã sửa: Dùng httpService và bỏ .data
+      const data = await httpService.get<BackendAttachment[]>(`/attachments/class/${classId}`);
       
       const currentUser = userEmail || Cookies.get('userEmail') || "";
 
-      const mappedFiles: MappedFile[] = response.data.map((f) => {
+      const mappedFiles: MappedFile[] = data.map((f) => {
         const displayName = f.authorName || (f.userId || f.authorId || 'User').split('@')[0];
         const isMyFile = 
             String(f.userId || f.authorId || "").toLowerCase() === currentUser.toLowerCase() || 
@@ -224,7 +225,8 @@ export default function TeamFilesTab() {
     try {
       setIsUploading(true);
       setIsUploadMenuOpen(false);
-      await apiClient.post(`/attachments/class/${classId}`, formData, {
+      // Đã sửa: Dùng httpService thay vì apiClient
+      await httpService.post(`/attachments/class/${classId}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       await fetchFiles();
@@ -245,7 +247,8 @@ export default function TeamFilesTab() {
       for (let i = 0; i < selectedFiles.length; i++) {
         const formData = new FormData();
         formData.append('file', selectedFiles[i]);
-        await apiClient.post(`/attachments/class/${classId}`, formData, {
+        // Đã sửa: Dùng httpService thay vì apiClient
+        await httpService.post(`/attachments/class/${classId}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
       }
@@ -262,7 +265,8 @@ export default function TeamFilesTab() {
   const handleDeleteFile = async (fileId: string) => {
     if (!confirm("Delete this file permanently?")) return;
     try {
-      await apiClient.delete(`/attachments/${fileId}`);
+      // Đã sửa: Dùng httpService thay vì apiClient
+      await httpService.delete(`/attachments/${fileId}`);
       setFiles(prev => prev.filter(f => f.id !== fileId));
     } catch (_err) {
       alert("Delete failed.");
@@ -277,7 +281,8 @@ export default function TeamFilesTab() {
     if (!confirm(`Delete all ${myFiles.length} of your files?`)) return;
     setIsDeletingAll(true);
     try {
-      await Promise.all(myFiles.map(f => apiClient.delete(`/attachments/${f.id}`)));
+      // Đã sửa: Dùng httpService thay vì apiClient
+      await Promise.all(myFiles.map(f => httpService.delete(`/attachments/${f.id}`)));
       await fetchFiles();
     } finally {
       setIsDeletingAll(false);

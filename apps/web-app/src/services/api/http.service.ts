@@ -22,6 +22,7 @@ function toAxiosConfig(options?: HttpRequestOptions): AxiosRequestConfig {
 
 function mapApiError(error: unknown): Error {
   if (error instanceof AxiosError) {
+    console.error("🚨 LỖI API THẬT SỰ LÀ:", error.response?.status, error.response?.data);
     const message =
       typeof error.response?.data === "string"
         ? error.response.data

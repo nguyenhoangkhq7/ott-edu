@@ -20,16 +20,10 @@ declare module "axios" {
   }
 }
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const DEFAULT_API_BASE_URL = "/api/core";
 const DEFAULT_TIMEOUT_MS = 30000;
 
-function getApiBaseUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
-  const value = raw && raw.length > 0 ? raw : DEFAULT_API_BASE_URL;
-  const normalized = value.replace(/\/$/, "");
-
-  return normalized.endsWith("/api/core") ? normalized : `${normalized}/api/core`;
-}
+function getApiBaseUrl() { return DEFAULT_API_BASE_URL; }
 
 function getApiTimeout(): number {
   const raw = process.env.NEXT_PUBLIC_API_TIMEOUT;
