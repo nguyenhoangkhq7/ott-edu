@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState } from "react";
-import { Conversation, Message, User, Attachment } from "../types";
+import { Conversation, Message, User, Attachment, Reaction } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { Phone, Video, Info, RefreshCw } from "lucide-react";
@@ -52,7 +52,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     // Listen for message reactions
     const handleMessageReacted = (data: {
       messageId: string;
-      reactions: any[];
+      reactions: Reaction[];
     }) => {
       setLocalMessages((prev) =>
         prev.map((msg) =>

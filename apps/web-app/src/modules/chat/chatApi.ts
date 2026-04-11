@@ -135,7 +135,14 @@ export async function getPresignedUrl(
   s3Key: string;
   expiresIn: number;
 }> {
-  const data = await chatHttpService.get<{ data: any }>("/upload-url", {
+  const data = await chatHttpService.get<{
+    data: {
+      presignedUrl: string;
+      fileUrl: string;
+      s3Key: string;
+      expiresIn: number;
+    };
+  }>("/upload-url", {
     params: { fileName, fileType },
   });
   return data.data;
