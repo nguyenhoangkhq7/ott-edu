@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Send, Paperclip, Smile, X, AlertCircle } from "lucide-react";
 import { Message, Attachment } from "../types";
 import { uploadFileToChatService } from "../chatApi";
@@ -26,7 +26,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
+  const inputToolsRef = useRef<HTMLDivElement>(null);
+  const EMOJIS = ["😀", "😄", "😁", "😂", "😊", "😍", "😘", "👍", "👏", "🔥", "❤️", "🎉"];
 
   const handleSend = async () => {
     if (text.trim() || attachments.length > 0) {
@@ -110,6 +114,41 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleAttachmentClick = () => {
     fileInputRef.current?.click();
   };
+
+  const insertEmoji = (emoji: string) => {
+    const input = textInputRef.current;
+    if (!input) {
+      setText((prev) => `${prev}${emoji}`);
+      setShowEmojiPicker(false);
+      return;
+    }
+
+    const start = input.selectionStart ?? text.length;
+    const end = input.selectionEnd ?? text.length;
+    const next = `${text.slice(0, start)}${emoji}${text.slice(end)}`;
+    setText(next);
+    setShowEmojiPicker(false);
+
+    requestAnimationFrame(() => {
+      input.focus();
+      const cursor = start + emoji.length;
+      input.setSelectionRange(cursor, cursor);
+    });
+  };
+
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!inputToolsRef.current) return;
+      if (!inputToolsRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showEmojiPicker]);
 
   return (
     <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col gap-3">
@@ -203,8 +242,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           )}
         </button>
 
-        <div className="flex-1 relative flex items-center bg-gray-100 dark:bg-gray-800 border border-transparent rounded-full px-4 py-2 focus-within:border-blue-500 transition-colors">
+        <div
+          ref={inputToolsRef}
+          className="flex-1 relative flex items-center bg-gray-100 dark:bg-gray-800 border border-transparent rounded-full px-4 py-2 focus-within:border-blue-500 transition-colors"
+        >
           <input
+            ref={textInputRef}
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -213,9 +256,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             disabled={isSending || isUploading}
             className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 disabled:opacity-50"
           />
-          <button className="p-1 ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+          <button
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            className="p-1 ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            type="button"
+          >
             <Smile size={20} />
           </button>
+
+          {showEmojiPicker && (
+            <div className="absolute bottom-12 right-0 z-20 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+              <div className="grid grid-cols-6 gap-1">
+                {EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => insertEmoji(emoji)}
+                    className="rounded-lg p-2 text-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <button
