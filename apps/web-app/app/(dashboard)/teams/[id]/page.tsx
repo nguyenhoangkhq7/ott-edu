@@ -202,7 +202,6 @@ export default function TeamDetailPage() {
         isOpen={isLockDialogOpen}
         teamId={teamId}
         teamName={team?.name || 'Lớp học'}
-        isCurrentlyActive={team?.isActive !== false}
         onClose={() => setIsLockDialogOpen(false)}
         onSuccess={() => {
           setLockSuccessMessage('Lớp học đã khóa thành công!');
