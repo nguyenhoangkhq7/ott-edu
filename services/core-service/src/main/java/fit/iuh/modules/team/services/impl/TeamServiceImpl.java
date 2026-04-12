@@ -19,6 +19,7 @@ import fit.iuh.modules.team.repositories.TeamRepository;
 import fit.iuh.modules.team.services.TeamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class TeamServiceImpl implements TeamService {
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
@@ -34,6 +36,7 @@ public class TeamServiceImpl implements TeamService {
     private final TeamMapper teamMapper;
 
     @Override
+    @Transactional
     public TeamResponse createTeam(TeamRequest request) {
         Team team = Team.builder()
                 .name(request.getName())
@@ -66,6 +69,7 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    @Transactional
     public TeamResponse updateTeam(Long teamId, TeamRequest request) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
@@ -80,6 +84,7 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    @Transactional
     public void deleteTeam(Long teamId) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
@@ -124,6 +129,7 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    @Transactional
     public TeamMemberResponse addTeamMember(Long teamId, AddTeamMemberRequest request) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
@@ -156,6 +162,7 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    @Transactional
     public TeamResponse updateTeamStatus(Long teamId, UpdateTeamStatusRequest request) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));

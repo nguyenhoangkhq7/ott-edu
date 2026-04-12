@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8080";
+import { httpService } from "./http.service";
 
 export interface Team {
   id: number;
@@ -32,88 +32,55 @@ export interface AddTeamMemberRequest {
   role: "MEMBER" | "LEADER";
 }
 
+// Gateway route: /api/core/ -> core-service:8080/
+const BASE_PATH = "/api/core/teams";
+
 export const teamApi = {
   // Lấy tất cả lớp học
-  getAll: async (): Promise<{ data: Team[] }> => {
-    const res = await fetch(`${API_BASE}/teams`);
-    if (!res.ok) throw new Error("Failed to fetch teams");
-    return res.json();
+  getAll: async (): Promise<Team[]> => {
+    return httpService.get<Team[]>(BASE_PATH);
   },
 
   // Lấy 1 lớp học theo ID
-  getById: async (id: number): Promise<{ data: Team }> => {
-    const res = await fetch(`${API_BASE}/teams/${id}`);
-    if (!res.ok) throw new Error("Failed to fetch team");
-    return res.json();
+  getById: async (id: number): Promise<Team> => {
+    return httpService.get<Team>(`${BASE_PATH}/${id}`);
   },
 
   // Lấy lớp học theo khoa
-  getByDepartment: async (departmentId: number): Promise<{ data: Team[] }> => {
-    const res = await fetch(`${API_BASE}/teams/department/${departmentId}`);
-    if (!res.ok) throw new Error("Failed to fetch teams by department");
-    return res.json();
+  getByDepartment: async (departmentId: number): Promise<Team[]> => {
+    return httpService.get<Team[]>(`${BASE_PATH}/department/${departmentId}`);
   },
 
   // Tạo lớp học
-  create: async (data: TeamRequest): Promise<{ data: Team }> => {
-    const res = await fetch(`${API_BASE}/teams`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error("Failed to create team");
-    return res.json();
+  create: async (data: TeamRequest): Promise<Team> => {
+    return httpService.post<Team>(BASE_PATH, data);
   },
 
   // Cập nhật lớp học
-  update: async (id: number, data: TeamRequest): Promise<{ data: Team }> => {
-    const res = await fetch(`${API_BASE}/teams/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error("Failed to update team");
-    return res.json();
+  update: async (id: number, data: TeamRequest): Promise<Team> => {
+    return httpService.put<Team>(`${BASE_PATH}/${id}`, data);
   },
 
   // Xóa lớp học
-  delete: async (id: number): Promise<{ data: null }> => {
-    const res = await fetch(`${API_BASE}/teams/${id}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) throw new Error("Failed to delete team");
-    return res.json();
+  delete: async (id: number): Promise<null> => {
+    return httpService.delete<null>(`${BASE_PATH}/${id}`);
   },
 
   // Lấy danh sách thành viên lớp học
-  getMembers: async (teamId: number): Promise<{ data: TeamMember[] }> => {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/members`);
-    if (!res.ok) throw new Error("Failed to fetch team members");
-    return res.json();
+  getMembers: async (teamId: number): Promise<TeamMember[]> => {
+    return httpService.get<TeamMember[]>(`${BASE_PATH}/${teamId}/members`);
   },
 
   // Thêm thành viên vào lớp học
   addMember: async (
     teamId: number,
     data: AddTeamMemberRequest
-  ): Promise<{ data: TeamMember }> => {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/members`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) throw new Error("Failed to add team member");
-    return res.json();
+  ): Promise<TeamMember> => {
+    return httpService.post<TeamMember>(`${BASE_PATH}/${teamId}/members`, data);
   },
 
   // Cập nhật trạng thái lớp học (khóa/mở khóa)
-  updateStatus: async (teamId: number, isActive: boolean): Promise<{ data: Team }> => {
-    const res = await fetch(`${API_BASE}/teams/${teamId}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isActive }),
-    });
-    if (!res.ok) throw new Error("Failed to update team status");
-    return res.json();
+  updateStatus: async (teamId: number, isActive: boolean): Promise<Team> => {
+    return httpService.patch<Team>(`${BASE_PATH}/${teamId}/status`, { isActive });
   },
 };

@@ -35,9 +35,11 @@ export default function TeamsMainPage() {
       try {
         setLoading(true);
         const response = await teamApi.getAll();
-        setTeams(response.data || []);
+        console.log("Team API Payload:", response); // Log để kiểm tra thực tế dữ liệu
+        setTeams(response || []);
         setError(null);
       } catch (err) {
+        console.error("Fetch teams error:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch teams");
         setTeams([]);
       } finally {
@@ -73,7 +75,7 @@ export default function TeamsMainPage() {
           id: "classes",
           title: "Classes",
           items: teams.map((team, index) => ({
-            id: `team-${team.id}`,
+            id: team.id.toString(),
             name: team.name,
             subtitle: team.description || "Lớp học",
             initials: team.name.substring(0, 2).toUpperCase(),
@@ -242,7 +244,7 @@ export default function TeamsMainPage() {
                   try {
                     setLoading(true);
                     const response = await teamApi.getAll();
-                    setTeams(response.data || []);
+                    setTeams(response || []);
                     setError(null);
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Failed to fetch teams");
@@ -278,7 +280,7 @@ export default function TeamsMainPage() {
                 >
                   {section.items.map((item) => {
                     // Find the team object to get ID
-                    const teamObj = teams.find(t => `team-${t.id}` === item.id);
+                    const teamObj = teams.find(t => t.id.toString() === item.id);
                     const teamId = teamObj?.id || 0;
                     
                     return (
@@ -348,7 +350,7 @@ export default function TeamsMainPage() {
             const fetchTeams = async () => {
               try {
                 const response = await teamApi.getAll();
-                setTeams(response.data || []);
+                setTeams(response || []);
               } catch (err) {
                 console.error("Failed to refresh teams:", err);
               }
