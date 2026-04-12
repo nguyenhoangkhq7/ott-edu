@@ -197,7 +197,7 @@ export default function TeamDetailPage() {
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] p-8">
           <div className="max-w-6xl mx-auto flex gap-8">
             
-            {activeTab === 'posts' && <TeamPostsTab />}
+            {activeTab === 'posts' && <TeamPostsTab teamId={teamId} />}
             {activeTab === 'files' && <TeamFilesTab />}
             {activeTab === 'members' && <TeamMembersTab teamId={teamId} />}
             {activeTab === 'quizzes' && <div className="w-full"><AssignmentsPage teamId={teamId} /></div>}
