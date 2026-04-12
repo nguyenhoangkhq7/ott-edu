@@ -559,12 +559,7 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   const menuRef = useRef<HTMLDivElement>(null);
 
   const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
-  const [classId, setClassId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const resolvedTeamId = routeTeamId?.toString() ?? contextClassId ?? null;
-    setClassId(resolvedTeamId);
-  }, [contextClassId, routeTeamId]);
+  const classId = routeTeamId?.toString() ?? contextClassId ?? null;
 
   const fetchPosts = useCallback(async () => {
     if (!isLoaded || !classId) return;

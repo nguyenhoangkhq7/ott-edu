@@ -88,10 +88,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 gap-3">
-        <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-slate-50">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
           <svg
-            className="w-8 h-8 text-blue-500"
+            className="h-8 w-8 text-blue-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -104,7 +104,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             />
           </svg>
         </div>
-        <p className="text-gray-500 dark:text-gray-400 text-sm">
+        <p className="text-sm text-slate-500">
           Chọn một đoạn chat để bắt đầu trò chuyện
         </p>
       </div>
@@ -166,9 +166,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-gray-900 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm z-10 flex-shrink-0">
+    <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
         <div className="flex items-center gap-3">
           <Image
             src={
@@ -177,38 +176,37 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             alt="Avatar"
             width={40}
             height={40}
-            className="w-10 h-10 rounded-full object-cover"
+            className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
           />
           <div>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-sm font-semibold text-slate-900">
               {displayName || "Unknown"}
             </h2>
-            <p className="text-xs text-green-500">{subStatus}</p>
+            <p className="text-xs text-slate-500">{subStatus}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-gray-400">
-          <button className="hover:text-blue-500 transition-colors">
+        <div className="flex items-center gap-2 text-slate-400">
+          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
             <Phone size={20} />
           </button>
-          <button className="hover:text-blue-500 transition-colors">
+          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
             <Video size={20} />
           </button>
-          <button className="hover:text-blue-500 transition-colors">
+          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
             <Info size={20} />
           </button>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-950">
+      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4">
         {isLoadingMessages ? (
-          <div className="h-full flex items-center justify-center gap-2 text-gray-400">
+          <div className="flex h-full items-center justify-center gap-2 text-slate-400">
             <RefreshCw size={16} className="animate-spin" />
             <span className="text-sm">Đang tải tin nhắn...</span>
           </div>
         ) : localMessages.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+          <div className="flex h-full items-center justify-center text-sm text-slate-400">
             Hãy là người đầu tiên gửi tin nhắn! 👋
           </div>
         ) : (
@@ -224,11 +222,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             />
           ))
         )}
-        {/* Ghost div để auto-scroll */}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <MessageInput
         onSendMessage={handleSendMessage}
         isSending={isSending}
