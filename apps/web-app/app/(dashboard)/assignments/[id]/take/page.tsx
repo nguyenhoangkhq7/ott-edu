@@ -6,22 +6,9 @@ import { useAssignmentDetail, useSubmission, useTimer } from '@/shared/hooks/use
 import { QuestionCard } from '@/shared/components/quiz/QuestionCard';
 import { QuizTimer } from '@/shared/components/quiz/QuizTimer';
 import styles from './page.module.css';
+import { AssignmentDetail } from '@/shared/types/quiz';
 
-// Extended interfaces for type safety
-interface MinimalQuestion {
-  id: number;
-  content: string;
-  type: any;
-  options: any[];
-  points: number;
-  displayOrder: number;
-}
 
-interface AssignmentWithDetails {
-  title: string;
-  timeLimit: number;
-  questions: MinimalQuestion[];
-}
 
 export default function AssignmentTakePage() {
   const params = useParams();
@@ -30,7 +17,7 @@ export default function AssignmentTakePage() {
   const submissionId = parseInt(params.submissionId as string, 10);
 
   const { assignment, loading: assignmentLoading } = useAssignmentDetail(assignmentId);
-  const assignmentData = assignment as unknown as AssignmentWithDetails;
+  const assignmentData = assignment as AssignmentDetail | undefined;
 
   const { submitAssignment } = useSubmission();
   const { timeRemaining, start: startTimer, isTimeUp } = useTimer(
@@ -73,12 +60,13 @@ export default function AssignmentTakePage() {
 
   // Auto-submit when time is up
   useEffect(() => {
-    if (isTimeUp && submissionId && !isSubmitting) {
-      const autoSubmit = async () => {
-        await handleSubmit();
-      };
-      autoSubmit();
-    }
+    if (!isTimeUp || !submissionId || isSubmitting) return;
+    
+    const timer = setTimeout(() => {
+      handleSubmit();
+    }, 0);
+    
+    return () => clearTimeout(timer);
   }, [isTimeUp, submissionId, isSubmitting, handleSubmit]);
 
   if (assignmentLoading) {

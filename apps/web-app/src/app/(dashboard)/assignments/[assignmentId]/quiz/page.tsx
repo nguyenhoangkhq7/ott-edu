@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AssignmentDetail, Submission } from '@/shared/types/quiz';
 import { quizService } from '@/services/api/quiz.service';
@@ -18,7 +18,6 @@ export default function QuizPage() {
   const [assignment, setAssignment] = useState<AssignmentDetail | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!(assignmentId && !isNaN(assignmentId))) return;

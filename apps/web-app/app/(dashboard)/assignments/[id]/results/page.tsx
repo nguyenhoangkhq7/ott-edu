@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAssignmentDetail, useSubmission } from '@/shared/hooks/useQuiz';
+import { AssignmentDetail } from '@/shared/types/quiz';
 import styles from './page.module.css';
 
 export default function AssignmentResultsPage() {
@@ -56,14 +57,9 @@ export default function AssignmentResultsPage() {
     status: string;
     submittedAt?: string;
   }
-  interface AssignmentWithDetails {
-    totalPoints: number;
-    questions?: unknown[];
-    title: string;
-  }
 
   const s = submission as unknown as SubmissionWithGrade;
-  const a = assignment as unknown as AssignmentWithDetails;
+  const a = assignment as AssignmentDetail;
 
   const percentage = s.grade ? (s.grade.score / a.totalPoints) * 100 : 0;
   
