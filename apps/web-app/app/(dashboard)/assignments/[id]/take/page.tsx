@@ -6,7 +6,7 @@ import { useAssignmentDetail, useSubmission, useTimer } from '@/shared/hooks/use
 import { QuestionCard } from '@/shared/components/quiz/QuestionCard';
 import { QuizTimer } from '@/shared/components/quiz/QuizTimer';
 import styles from './page.module.css';
-import { AssignmentDetail } from '@/shared/types/quiz';
+import { AssignmentDetail, Question } from '@/shared/types/quiz';
 
 
 
@@ -20,9 +20,7 @@ export default function AssignmentTakePage() {
   const assignmentData = assignment as AssignmentDetail | undefined;
 
   const { submitAssignment } = useSubmission();
-  const { timeRemaining, start: startTimer, isTimeUp } = useTimer(
-    assignmentData?.timeLimit || 60
-  );
+  const { timeRemaining, start: startTimer, isTimeUp } = useTimer(60); // Default 60 minutes
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<{[key: number]: number[]}>({});
@@ -104,9 +102,9 @@ export default function AssignmentTakePage() {
             Question {currentQuestionIndex + 1} of {questions.length}
           </p>
         </div>
-        <QuizTimer {...({ 
-          timeRemainingSeconds: timeRemaining, 
-          timeLimit: assignmentData?.timeLimit || 60 
+        <QuizTimer {...({
+          timeRemainingSeconds: timeRemaining,
+          timeLimit: 60
         } as unknown as { timeRemainingSeconds: number; timeLimit: number })} />
       </div>
 
@@ -124,7 +122,7 @@ export default function AssignmentTakePage() {
       <div className={styles.content}>
         {currentQuestion && (
           <QuestionCard
-            question={currentQuestion as MinimalQuestion}
+            question={currentQuestion as Question}
             questionIndex={currentQuestionIndex}
             totalQuestions={questions.length}
             answers={answers}
@@ -144,7 +142,7 @@ export default function AssignmentTakePage() {
 
         <div className={styles.questionIndicators}>
           {questions.map((q, idx: number) => {
-            const question = q as MinimalQuestion;
+            const question = q as Question;
             return (
               <button
                 key={question.id}

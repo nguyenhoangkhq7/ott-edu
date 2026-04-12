@@ -61,7 +61,7 @@ export default function AssignmentResultsPage() {
   const s = submission as unknown as SubmissionWithGrade;
   const a = assignment as AssignmentDetail;
 
-  const percentage = s.grade ? (s.grade.score / a.totalPoints) * 100 : 0;
+  const percentage = s.grade ? (s.grade.score / a.maxScore) * 100 : 0;
   
   const getGrade = (pct: number) => {
     if (pct >= 90) return 'A';
@@ -108,7 +108,7 @@ export default function AssignmentResultsPage() {
             <div className={styles.scoreInfo}>
               <h2>Your Score</h2>
               <p className={styles.scoreText}>
-                {s.grade?.score?.toFixed(1) || '0'} / {a.totalPoints} points
+                {s.grade?.score?.toFixed(1) || '0'} / {a.maxScore} points
               </p>
               <p className={styles.answersText}>
                 {correctAnswers} of {totalQuestions} correct
