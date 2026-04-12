@@ -6,6 +6,7 @@ import SectionTitle from "@/shared/components/ui/SectionTitle";
 import TeamCard from "@/shared/components/ui/TeamCard";
 import SearchInput from "@/shared/components/ui/SearchInput";
 import AddTeamMemberModal from "./AddTeamMemberModal";
+import LockTeamDialog from "./LockTeamDialog";
 import type { TeamSection } from "@/shared/types/teams";
 import { teamApi, Team } from "@/services/api/teamApi";
 
@@ -19,6 +20,11 @@ export default function TeamsMainPage() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [selectedTeamName, setSelectedTeamName] = useState("");
+  
+  // State cho LockTeamDialog
+  const [showLockDialog, setShowLockDialog] = useState(false);
+  const [lockingTeamId, setLockingTeamId] = useState<number | null>(null);
+  const [lockingTeamName, setLockingTeamName] = useState("");
   
   // 1. State để quản lý việc đóng/mở các Section
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -35,8 +41,17 @@ export default function TeamsMainPage() {
       try {
         setLoading(true);
         const response = await teamApi.getAll();
-        console.log("Team API Payload:", response); // Log để kiểm tra thực tế dữ liệu
-        setTeams(response || []);
+        console.log("Team API Raw Response:", response);
+        
+        // Safety check: Nếu interceptor chưa unwrap, hoặc data nằm trong object
+        let finalTeams: Team[] = [];
+        if (Array.isArray(response)) {
+          finalTeams = response;
+        } else if (response && typeof response === 'object' && 'data' in (response as any)) {
+          finalTeams = (response as any).data || [];
+        }
+
+        setTeams(finalTeams);
         setError(null);
       } catch (err) {
         console.error("Fetch teams error:", err);
@@ -80,7 +95,8 @@ export default function TeamsMainPage() {
             subtitle: team.description || "Lớp học",
             initials: team.name.substring(0, 2).toUpperCase(),
             accentColor: ["#8269db", "#ff6b6b", "#2ecc71", "#3498db"][index % 4],
-            meta: `${team.joinCode} · Active class`,
+            meta: `${team.joinCode} · ${team.isActive === false ? 'Bị khóa' : 'Lớp đang hoạt động'}`,
+            isActive: team.isActive !== false, 
           })),
         },
       ];
@@ -282,28 +298,61 @@ export default function TeamsMainPage() {
                     // Find the team object to get ID
                     const teamObj = teams.find(t => t.id.toString() === item.id);
                     const teamId = teamObj?.id || 0;
+                    const isLocked = item.isActive === false;
                     
                     return (
                       <div key={item.id} className="relative group">
-                        <Link href={`/teams/${item.id}`} className="block hover:opacity-95 transition-opacity">
-                          <TeamCard item={item} />
-                        </Link>
+                        {isLocked ? (
+                          <div className="block opacity-50 cursor-not-allowed filter grayscale pointer-events-none select-none">
+                            <TeamCard item={item} />
+                          </div>
+                        ) : (
+                          <Link href={`/teams/${item.id}`} className="block hover:opacity-95 transition-opacity">
+                            <TeamCard item={item} />
+                          </Link>
+                        )}
                         
-                        {/* Add Member Button */}
+                        {/* Nút Khóa/Mở Khóa nhanh */}
                         <button
                           onClick={(e) => {
                             e.preventDefault();
-                            setSelectedTeamId(teamId);
-                            setSelectedTeamName(item.name);
-                            setShowAddMemberModal(true);
+                            setLockingTeamId(teamId);
+                            setLockingTeamName(item.name);
+                            setShowLockDialog(true);
                           }}
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 shadow-lg"
-                          title="Add member"
+                          className={`absolute top-2 right-12 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full shadow-lg ${isLocked ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}
+                          title={isLocked ? "Unlock class" : "Lock class"}
                         >
-                          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 5v14M5 12h14" />
-                          </svg>
+                          {isLocked ? (
+                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                          )}
                         </button>
+
+                        {/* Add Member Button - Only show if not locked or for teachers */}
+                        {!isLocked && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSelectedTeamId(teamId);
+                              setSelectedTeamName(item.name);
+                              setShowAddMemberModal(true);
+                            }}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 shadow-lg"
+                            title="Add member"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -356,6 +405,20 @@ export default function TeamsMainPage() {
               }
             };
             fetchTeams();
+          }}
+        />
+      )}
+
+      {/* Dialog xác nhận khóa lớp */}
+      {lockingTeamId && (
+        <LockTeamDialog
+          isOpen={showLockDialog}
+          teamId={lockingTeamId}
+          teamName={lockingTeamName}
+          onClose={() => setShowLockDialog(false)}
+          onSuccess={() => {
+            // Re-fetch để cập nhật trạng thái
+            window.location.reload(); 
           }}
         />
       )}

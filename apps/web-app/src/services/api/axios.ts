@@ -54,12 +54,11 @@ function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<u
     return false;
   }
 
-  const candidate = payload as Partial<ApiSuccessEnvelope<unknown>>;
+  const candidate = payload as any;
 
+  // Nới lỏng kiểm tra: Chỉ cần có data và status (không bắt bẻ timestamp/message)
   return (
-    typeof candidate.timestamp === "string" &&
     typeof candidate.status === "number" &&
-    typeof candidate.message === "string" &&
     "data" in candidate
   );
 }

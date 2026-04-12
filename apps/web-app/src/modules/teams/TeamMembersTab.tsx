@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { teamApi, TeamMember } from '@/services/api/teamApi';
 import DeleteMemberDialog from '@/modules/teams/DeleteMemberDialog';
+import LockTeamDialog from '@/modules/teams/LockTeamDialog'; // Thêm Dialog khóa
 
 interface TeamMembersTabProps {
   teamId: number;
@@ -22,6 +23,9 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedMemberName, setSelectedMemberName] = useState<string>('');
 
+  // Lock team dialog state
+  const [isLockDialogOpen, setIsLockDialogOpen] = useState(false);
+
   // Dùng chung 1 ref cho tất cả các menu để tiện xử lý click outside
   const menusRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +38,7 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
         setLoading(true);
         setError(null);
         const response = await teamApi.getMembers(teamId);
-        setMembers(response.data || []);
+        setMembers(response || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch members');
         setMembers([]);
@@ -76,6 +80,15 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
           <button className="bg-[#1868f0] hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap">
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" /></svg>
             Add member
+          </button>
+
+          {/* Nút Khóa lớp mới thêm vào theo yêu cầu */}
+          <button 
+            onClick={() => setIsLockDialogOpen(true)}
+            className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            Khóa lớp học
           </button>
         </div>
 
@@ -256,12 +269,23 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
           const fetchMembers = async () => {
             try {
               const response = await teamApi.getMembers(teamId);
-              setMembers(response.data || []);
+              setMembers(response || []);
             } catch (err) {
               console.error('Error refetching members:', err);
             }
           };
           fetchMembers();
+        }}
+      />
+
+      <LockTeamDialog
+        isOpen={isLockDialogOpen}
+        teamId={teamId}
+        teamName="Lớp học hiện tại"
+        onClose={() => setIsLockDialogOpen(false)}
+        onSuccess={() => {
+          // Refresh trang để cập nhật trạng thái đã khóa
+          window.location.reload();
         }}
       />
     </>

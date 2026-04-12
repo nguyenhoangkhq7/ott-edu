@@ -32,6 +32,14 @@ export interface AddTeamMemberRequest {
   role: "MEMBER" | "LEADER";
 }
 
+// Interface cho cấu trúc wrap data của backend
+export interface ApiSuccessResponse<T> {
+  timestamp: string;
+  status: number;
+  message: string;
+  data: T;
+}
+
 // Gateway route: /api/core/ -> core-service:8080/
 const BASE_PATH = "/api/core/teams";
 

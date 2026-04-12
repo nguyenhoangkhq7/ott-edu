@@ -5,6 +5,7 @@ export interface TeamItem {
   initials: string;
   accentColor: string;
   meta?: string;
+  isActive?: boolean;
 }
 
 export interface TeamSection {

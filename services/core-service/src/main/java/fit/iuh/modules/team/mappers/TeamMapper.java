@@ -12,6 +12,7 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface TeamMapper {
     @Mapping(target = "departmentId", source = "department.id")
+    @Mapping(target = "isActive", source = "active")
     TeamResponse toResponse(Team team);
 
     List<TeamResponse> toResponseList(List<Team> teams);
