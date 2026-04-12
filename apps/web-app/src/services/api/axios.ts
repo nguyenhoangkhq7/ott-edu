@@ -49,12 +49,11 @@ function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<u
     return false;
   }
 
-  const candidate = payload as Partial<ApiSuccessEnvelope<unknown>>;
+  const candidate = payload as Record<string, unknown>;
 
+  // Nới lỏng kiểm tra: Chỉ cần có data và status (không bắt bẻ timestamp/message)
   return (
-    typeof candidate.timestamp === "string" &&
     typeof candidate.status === "number" &&
-    typeof candidate.message === "string" &&
     "data" in candidate
   );
 }
@@ -109,7 +108,8 @@ apiClient.interceptors.response.use(
     }
 
     const requestUrl = originalRequest.url ?? "";
-    if (requestUrl.includes("/auth/login") || requestUrl.includes("/auth/refresh")) {
+    if (requestUrl.includes("/auth/login") || requestUrl.includes("/auth/refresh") || 
+        requestUrl.includes("auth/login") || requestUrl.includes("auth/refresh")) {
       return Promise.reject(error);
     }
 
@@ -132,7 +132,7 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshResponse = await refreshClient.post<RefreshResponse>("/auth/refresh", {});
+      const refreshResponse = await refreshClient.post<RefreshResponse>("/api/core/auth/refresh", {});
       const nextAccessToken = refreshResponse.data.accessToken;
 
       if (!nextAccessToken) {

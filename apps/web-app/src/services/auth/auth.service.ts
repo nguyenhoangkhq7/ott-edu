@@ -104,48 +104,48 @@ type RefreshResponse = {
 };
 
 export async function login(payload: LoginPayload): Promise<LoginResponse> {
-  return httpService.post<LoginResponse>("/auth/login", payload);
+  return httpService.post<LoginResponse>("/api/core/auth/login", payload);
 }
 
 export async function refreshSession(): Promise<RefreshResponse> {
-  return httpService.post<RefreshResponse>("/auth/refresh", {});
+  return httpService.post<RefreshResponse>("/api/core/auth/refresh", {});
 }
 
 export async function logout(): Promise<void> {
-  await httpService.post<void>("/auth/logout", {});
+  await httpService.post<void>("/api/core/auth/logout", {});
 }
 
 export async function getCurrentUser(): Promise<AuthUser> {
-  return httpService.get<AuthUser>("/auth/me");
+  return httpService.get<AuthUser>("/api/core/auth/me");
 }
 
 export async function getSchools(): Promise<SchoolOption[]> {
-  return httpService.get<SchoolOption[]>("/schools");
+  return httpService.get<SchoolOption[]>("/api/core/schools");
 }
 
 export async function getDepartmentsBySchoolId(schoolId: number): Promise<DepartmentOption[]> {
-  return httpService.get<DepartmentOption[]>(`/schools/${schoolId}/departments`);
+  return httpService.get<DepartmentOption[]>(`/api/core/schools/${schoolId}/departments`);
 }
 
 export async function registerAccount(payload: RegisterPayload): Promise<string> {
-  const response = await httpService.post<string>("/auth/register", payload);
+  const response = await httpService.post<string>("/api/core/auth/register", payload);
   return response || "Tao tai khoan thanh cong!";
 }
 
 export async function forgotPassword(payload: ForgotPasswordPayload): Promise<OtpChallenge> {
-  return httpService.post<OtpChallenge>("/auth/forgot-password", payload);
+  return httpService.post<OtpChallenge>("/api/core/auth/forgot-password", payload);
 }
 
 export async function sendChangePasswordOtp(): Promise<OtpChallenge> {
-  return httpService.post<OtpChallenge>("/auth/send-change-password-otp", {});
+  return httpService.post<OtpChallenge>("/api/core/auth/send-change-password-otp", {});
 }
 
 export async function verifyOtp(payload: VerifyOtpPayload): Promise<VerifyOtpResult> {
-  return httpService.post<VerifyOtpResult>("/auth/verify-otp", payload);
+  return httpService.post<VerifyOtpResult>("/api/core/auth/verify-otp", payload);
 }
 
 export async function resetPassword(payload: ResetPasswordPayload): Promise<string> {
-  return httpService.post<string>("/auth/reset-password", payload);
+  return httpService.post<string>("/api/core/auth/reset-password", payload);
 }
 
 export async function changePassword(payload: ChangePasswordPayload): Promise<string> {

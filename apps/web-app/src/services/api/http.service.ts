@@ -1,9 +1,17 @@
-import { AxiosError, AxiosRequestConfig, ResponseType } from "axios";
+import {
+  AxiosError,
+  AxiosInstance,
+  AxiosRequestConfig,
+  ResponseType,
+} from "axios";
 
 import apiClient from "./axios";
+import { chatApiClient } from "./chat-axios";
 
 type ApiErrorPayload = {
   message?: string;
+  error?: string;
+  detail?: string;
 };
 
 export type HttpRequestOptions = {
@@ -26,7 +34,9 @@ function mapApiError(error: unknown): Error {
     const message =
       typeof error.response?.data === "string"
         ? error.response.data
-        : (error.response?.data as ApiErrorPayload | undefined)?.message;
+        : (error.response?.data as ApiErrorPayload | undefined)?.message ||
+          (error.response?.data as ApiErrorPayload | undefined)?.detail ||
+          (error.response?.data as ApiErrorPayload | undefined)?.error;
 
     return new Error(message || "Khong the xu ly yeu cau luc nay.");
   }
@@ -39,40 +49,74 @@ function mapApiError(error: unknown): Error {
 }
 
 class HttpService {
+  private client: AxiosInstance;
+
+  constructor(axiosInstance: AxiosInstance) {
+    this.client = axiosInstance;
+  }
+
   async get<T>(url: string, options?: HttpRequestOptions): Promise<T> {
     try {
-      const response = await apiClient.get<T>(url, toAxiosConfig(options));
+      const response = await this.client.get<T>(url, toAxiosConfig(options));
       return response.data;
     } catch (error) {
       throw mapApiError(error);
     }
   }
 
-  async post<T>(url: string, payload?: unknown, options?: HttpRequestOptions): Promise<T> {
+  async post<T>(
+    url: string,
+    payload?: unknown,
+    options?: HttpRequestOptions,
+  ): Promise<T> {
     try {
-      const response = await apiClient.post<T>(url, payload, toAxiosConfig(options));
+      const response = await this.client.post<T>(
+        url,
+        payload,
+        toAxiosConfig(options),
+      );
       return response.data;
     } catch (error) {
       throw mapApiError(error);
     }
   }
 
-  async put<T>(url: string, payload?: unknown, options?: HttpRequestOptions): Promise<T> {
+  async put<T>(
+    url: string,
+    payload?: unknown,
+    options?: HttpRequestOptions,
+  ): Promise<T> {
     try {
-      const response = await apiClient.put<T>(url, payload, toAxiosConfig(options));
+      const response = await this.client.put<T>(
+        url,
+        payload,
+        toAxiosConfig(options),
+      );
       return response.data;
     } catch (error) {
       throw mapApiError(error);
     }
   }
 
-  async update<T>(url: string, payload?: unknown, options?: HttpRequestOptions): Promise<T> {
+  async update<T>(
+    url: string,
+    payload?: unknown,
+    options?: HttpRequestOptions,
+  ): Promise<T> {
     return this.put<T>(url, payload, options);
   }
 
-  async patch<T>(url: string, payload?: unknown, options?: HttpRequestOptions): Promise<T> {
+  async patch<T>(
+    url: string,
+    payload?: unknown,
+    options?: HttpRequestOptions,
+  ): Promise<T> {
     try {
-      const response = await apiClient.patch<T>(url, payload, toAxiosConfig(options));
+      const response = await this.client.patch<T>(
+        url,
+        payload,
+        toAxiosConfig(options),
+      );
       return response.data;
     } catch (error) {
       throw mapApiError(error);
@@ -81,7 +125,7 @@ class HttpService {
 
   async delete<T>(url: string, options?: HttpRequestOptions): Promise<T> {
     try {
-      const response = await apiClient.delete<T>(url, toAxiosConfig(options));
+      const response = await this.client.delete<T>(url, toAxiosConfig(options));
       return response.data;
     } catch (error) {
       throw mapApiError(error);
@@ -89,4 +133,5 @@ class HttpService {
   }
 }
 
-export const httpService = new HttpService();
+export const httpService = new HttpService(apiClient);
+export const chatHttpService = new HttpService(chatApiClient);

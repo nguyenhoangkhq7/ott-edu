@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { teamApi } from '@/services/api/teamApi';
 
 interface CreateClassFormProps {
   onBack: () => void;
@@ -12,21 +13,42 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
   
   // State lưu tên lớp học người dùng nhập vào
   const [className, setClassName] = useState('');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // State điều khiển việc Ẩn/Hiện Modal thành công
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     // Nếu chưa nhập tên thì cảnh báo (UX cơ bản)
     if (!className.trim()) {
       alert("Please enter a class name!");
       return;
     }
     
-    // Gọi API lưu dữ liệu ở đây...
-    
-    // Hiện modal thành công
-    setShowSuccessModal(true);
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Tạo mã tham gia ngẫu nhiên (6 ký tự)
+      const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      await teamApi.create({
+        name: className,
+        description: description,
+        joinCode: joinCode,
+        departmentId: 1 // Mặc định là khoa 1
+      });
+      
+      // Hiện modal thành công
+      setShowSuccessModal(true);
+    } catch (err) {
+      console.error("Failed to create team:", err);
+      setError(err instanceof Error ? err.message : "Đã có lỗi xảy ra khi tạo lớp.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -79,9 +101,17 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
               </div>
               <textarea 
                 placeholder="Tell your students what this class is about..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 className="w-full border border-gray-300 rounded-md p-2.5 text-sm h-28 resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               ></textarea>
             </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {error}
+              </div>
+            )}
 
             <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 flex gap-3">
               <div className="text-gray-400 mt-0.5">
@@ -99,9 +129,16 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
             </button>
             <button 
               onClick={handleCreate} 
-              className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
+              disabled={loading}
+              className={`px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm flex items-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              Create
+              {loading && (
+                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              {loading ? 'Creating...' : 'Create'}
             </button>
           </div>
         </div>

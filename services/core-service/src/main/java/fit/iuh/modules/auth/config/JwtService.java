@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class JwtService {
@@ -76,6 +77,26 @@ public class JwtService {
 
     public String extractSubject(String token) {
         return extractAllClaims(token).getSubject();
+    }
+
+    public Long extractAccountId(String token) {
+        Object accountId = extractAllClaims(token).get(CLAIM_ACCOUNT_ID);
+        if (accountId instanceof Number number) {
+            return number.longValue();
+        }
+        return null;
+    }
+
+    public List<String> extractRoles(String token) {
+        Object roles = extractAllClaims(token).get(CLAIM_ROLES);
+        if (!(roles instanceof List<?> roleList)) {
+            return List.of();
+        }
+
+        return roleList.stream()
+                .filter(item -> item != null && !item.toString().isBlank())
+                .map(Object::toString)
+                .collect(Collectors.toList());
     }
 
     public boolean isAccessToken(String token) {
