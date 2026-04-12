@@ -109,8 +109,8 @@ export default function AssignmentsPage() {
                     </div>
                     <span
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ml-4 ${assignment.type === 'QUIZ'
-                          ? 'bg-purple-100 text-purple-700'
-                          : 'bg-amber-100 text-amber-700'
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-amber-100 text-amber-700'
                         }`}
                     >
                       {assignment.type === 'QUIZ' ? '📝 Trắc nghiệm' : '✍️ Tự luận'}
@@ -166,7 +166,7 @@ export default function AssignmentsPage() {
                         >
                           Xem chi tiết
                         </Link>
-                        <Link
+                        {/* <Link
                           href={`/assignment/${assignment.id}/submit`}
                           className="px-4 py-2 bg-green-100 text-green-600 font-medium rounded-lg hover:bg-green-200 transition-colors text-sm"
                         >
@@ -177,7 +177,7 @@ export default function AssignmentsPage() {
                           className="px-4 py-2 bg-indigo-100 text-indigo-600 font-medium rounded-lg hover:bg-indigo-200 transition-colors text-sm"
                         >
                           Xem kết quả
-                        </Link>
+                        </Link> */}
                       </>
                     )}
                   </div>
