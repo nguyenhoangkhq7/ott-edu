@@ -1,4 +1,4 @@
-import { httpService } from './http.service';
+import { assignmentHttpService } from './assignment-http.service';
 import {
   Assignment,
   AssignmentDetail,
@@ -6,9 +6,8 @@ import {
   SubmissionResult,
 } from '@/shared/types/quiz';
 
-// Gateway route: /api/assignment/ -> assignment-service:8080/
-// Controller: @RequestMapping("/assignments")
-// So full path: /api/assignment/assignments/...
+// Assignment Service runs at: /api/assignment/ (via nginx gateway)
+// Use separate client (assignmentHttpService) that doesn't have /api/core baseURL
 const BASE = '/api/assignment/assignments';
 
 export const quizService = {
@@ -16,14 +15,14 @@ export const quizService = {
    * Lấy danh sách assignments theo lớp học (teamId)
    */
   getAssignments: async (teamId: number): Promise<Assignment[]> => {
-    return httpService.get<Assignment[]>(`${BASE}/team/${teamId}`);
+    return assignmentHttpService.get<Assignment[]>(`${BASE}/team/${teamId}`);
   },
 
   /**
    * Lấy chi tiết assignment kèm câu hỏi (không có đáp án đúng)
    */
   getAssignmentDetail: async (assignmentId: number): Promise<AssignmentDetail> => {
-    return httpService.get<AssignmentDetail>(`${BASE}/${assignmentId}`);
+    return assignmentHttpService.get<AssignmentDetail>(`${BASE}/${assignmentId}`);
   },
 
   /**
@@ -31,7 +30,7 @@ export const quizService = {
    * Header X-User-Id được gắn tự động từ Gateway (auth_request set header)
    */
   startAssignment: async (assignmentId: number): Promise<Submission> => {
-    return httpService.post<Submission>(`${BASE}/${assignmentId}/start`, {});
+    return assignmentHttpService.post<Submission>(`${BASE}/${assignmentId}/start`, {});
   },
 
   /**
@@ -39,7 +38,7 @@ export const quizService = {
    */
   getMySubmission: async (assignmentId: number): Promise<Submission | null> => {
     try {
-      return await httpService.get<Submission | null>(`${BASE}/${assignmentId}/my-submission`);
+      return await assignmentHttpService.get<Submission | null>(`${BASE}/${assignmentId}/my-submission`);
     } catch {
       return null;
     }
@@ -53,7 +52,7 @@ export const quizService = {
     questionId: number,
     selectedOptionIds: number[]
   ): Promise<void> => {
-    return httpService.post<void>(`${BASE}/submission/${submissionId}/answer`, {
+    return assignmentHttpService.post<void>(`${BASE}/submission/${submissionId}/answer`, {
       questionId,
       selectedOptionIds,
     });
@@ -63,7 +62,7 @@ export const quizService = {
    * Nộp bài và nhận kết quả điểm
    */
   submitAssignment: async (submissionId: number): Promise<SubmissionResult> => {
-    return httpService.post<SubmissionResult>(
+    return assignmentHttpService.post<SubmissionResult>(
       `${BASE}/submission/${submissionId}/submit`,
       {}
     );

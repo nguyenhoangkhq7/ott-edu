@@ -41,7 +41,7 @@ export interface ApiSuccessResponse<T> {
 }
 
 // Gateway route: /api/core/ -> core-service:8080/
-const BASE_PATH = "/api/core/teams";
+const BASE_PATH = "/teams";
 
 export const teamApi = {
   // Lấy tất cả lớp học
