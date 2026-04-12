@@ -15,7 +15,10 @@
     "next": "16.1.6",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "@aws-sdk/client-s3": "^3.710.0",
+    "@aws-sdk/lib-storage": "^3.710.0",
+    "@aws-sdk/s3-request-presigner": "^3.710.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
