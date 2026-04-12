@@ -1,14 +1,9 @@
 package fit.iuh.modules.auth.services.impl;
 
 
-import fit.iuh.models.Attachment;
-import fit.iuh.models.AttachmentTargetType;
-import fit.iuh.models.Comment;
-import fit.iuh.models.Post;
+import fit.iuh.models.*;
 import fit.iuh.modules.auth.dtos.interaction.CommentRequest;
-import fit.iuh.modules.auth.repositories.AttachmentRepository;
-import fit.iuh.modules.auth.repositories.CommentRepository;
-import fit.iuh.modules.auth.repositories.PostRepository;
+import fit.iuh.modules.auth.repositories.*;
 import fit.iuh.modules.auth.services.CommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,7 +25,8 @@ public class CommentServiceImpl implements CommentService {
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final AttachmentRepository attachmentRepository; // Thêm repo xử lý file
-
+    private final ProfileRepository profileRepository;
+    private final ReactionRepository reactionRepository;
     // TÍCH HỢP S3 CLIENT
     private final S3Client s3Client;
 
@@ -92,17 +88,32 @@ public class CommentServiceImpl implements CommentService {
         return comment;
     }
 
+
     @Override
-    public List<Comment> getCommentsByPost(String postId) {
+    public List<Comment> getCommentsByPost(String postId, String currentUserEmail) {
         List<Comment> comments = commentRepository.findByPostIdOrderByCreatedAtAsc(postId);
 
-        // CHỖ QUAN TRỌNG: Ghép file vào từng Comment để trả về cho Frontend
         for (Comment comment : comments) {
+            // 1. Map File đính kèm
             List<Attachment> files = attachmentRepository.findByTargetIdAndTargetType(
-                    comment.getId(),
-                    AttachmentTargetType.COMMENT
-            );
+                    comment.getId(), AttachmentTargetType.COMMENT);
             comment.setAttachments(files);
+
+            // 2. Map Thông tin User (Tên, Ảnh)
+            // Giả sử bạn có profileRepository
+            profileRepository.findByAccount_Email(comment.getAuthorId()).ifPresent(profile -> {
+                comment.setAuthorName(profile.getFirstName() + " " + profile.getLastName());
+                comment.setAuthorAvatar(profile.getAvatarUrl());
+            });
+
+            // 3. Map Cảm xúc của User hiện hành
+            if (currentUserEmail != null) {
+                reactionRepository.findByTargetIdAndTargetTypeAndAuthorId(
+                        comment.getId(), TargetType.COMMENT, currentUserEmail
+                ).ifPresent(reaction -> {
+                    comment.setUserReaction(reaction.getType().name());
+                });
+            }
         }
 
         return comments;
