@@ -42,7 +42,7 @@ export default function AddTeamMemberModal({
       });
 
       setSuccess(true);
-      console.log("Thêm thành viên thành công:", response.data);
+      console.log("Thêm thành viên thành công:", response);
       
       // Reset form
       setAccountId("");
