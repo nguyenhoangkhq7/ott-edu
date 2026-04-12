@@ -19,6 +19,7 @@ interface ApiPost {
   authorName?: string;
   authorId: string;
   authorAvatar?: string;
+  // Bắt rào các trường hợp Backend trả về object lồng nhau
   user?: { name?: string; avatar?: string; avatarUrl?: string }; 
   author?: { name?: string; fullName?: string; avatar?: string; avatarUrl?: string }; 
   content: string;
@@ -27,6 +28,7 @@ interface ApiPost {
   reactionCount?: number;
   commentCount?: number;
   replyToCommentId?: string | null; 
+  // Bắt rào các kiểu trả về Reaction của Backend
   userReaction?: string; 
   myReaction?: string;
   reactionType?: string;
@@ -338,6 +340,7 @@ const MessageItem = ({
   msg, isPost, parentPostId, rootCommentId, activeMenuId, setActiveMenuId, menuRef, handleReaction, handleOpenComment, handleOpenReply, handleDeleteClick, onZoomImage,
   editingItemId, editInputValue, setEditInputValue, onEditStart, onEditCancel, onEditSubmit
 }: MessageItemProps) => {
+  // Lấy icon emoji tương ứng nếu user đã react, nếu không thì lấy icon mặc định
   const displayEmoji = msg.userReaction 
     ? REACTIONS.find(r => r.type === msg.userReaction)?.emoji || '👍'
     : '👍';
@@ -457,15 +460,17 @@ const MessageItem = ({
           </div>
         )}
 
-        {/* Khung đếm cảm xúc: Click thẳng vào đây để gỡ/thay đổi */}
+        {/* ĐÃ SỬA: Hiển thị emoji trạng thái hiện tại */}
         {(msg.reactionCount || 0) > 0 && (
           <div className="mt-2 flex">
              <div 
                onClick={() => handleReaction(msg.id, isPost, parentPostId, msg.userReaction || 'LIKE')}
                className={`border rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm cursor-pointer transition-colors ${msg.userReaction ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'}`}
-               title={msg.userReaction ? "Bỏ bày tỏ cảm xúc" : "Bày tỏ cảm xúc"}
              >
-               <span className="text-xs">{displayEmoji}</span><span className={`text-[10px] font-medium ml-1 ${msg.userReaction ? 'text-blue-700' : 'text-slate-600'}`}>{msg.reactionCount}</span>
+               <span className="text-xs">{displayEmoji}</span>
+               <span className={`text-[10px] font-medium ml-1 ${msg.userReaction ? 'text-blue-600' : 'text-slate-600'}`}>
+                 {msg.reactionCount}
+               </span>
              </div>
           </div>
         )}
@@ -474,11 +479,11 @@ const MessageItem = ({
       {editingItemId !== msg.id && (
         <div className="absolute top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-white border border-slate-200 rounded-md shadow-sm z-10 px-0.5">
           <div className="relative group/react">
-            {/* Nút Like nhanh: Nếu đã reaction thì tô màu xanh và click lần 2 sẽ gỡ */}
+            {/* ĐÃ SỬA: Nút like nhanh có màu nếu đã thả icon */}
             <button 
               onClick={() => handleReaction(msg.id, isPost, parentPostId, msg.userReaction || 'LIKE')} 
               className={`p-1.5 transition-colors ${msg.userReaction ? 'text-[#1868f0]' : 'text-slate-400 hover:text-blue-500'}`} 
-              title={msg.userReaction ? "Remove reaction" : "Like"}
+              title={msg.userReaction ? "Bỏ bày tỏ cảm xúc" : "Thích"}
             >
               <svg className="w-4 h-4" fill={msg.userReaction ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
             </button>
@@ -606,7 +611,6 @@ export default function TeamPostsTab() {
             String(p.authorId).toLowerCase() === currentUser.toLowerCase() || 
             String(p.authorName).toLowerCase() === currentUser.toLowerCase();
 
-        // Bắt rào lấy tên và avatar mồi chài nhất có thể
         const name = p.authorName || p.user?.name || p.author?.name || p.author?.fullName || p.authorId;
         const avatar = p.authorAvatar || p.user?.avatar || p.user?.avatarUrl || p.author?.avatar || p.author?.avatarUrl || null;
         const userReact = p.userReaction || p.myReaction || p.reactionType || null;
@@ -658,7 +662,6 @@ export default function TeamPostsTab() {
             String(c.authorId).toLowerCase() === currentUser.toLowerCase() || 
             String(c.authorName).toLowerCase() === currentUser.toLowerCase();
 
-        // Bắt rào lấy tên và avatar cho Comments
         const name = c.authorName || c.user?.name || c.author?.name || c.author?.fullName || c.authorId;
         const avatar = c.authorAvatar || c.user?.avatar || c.user?.avatarUrl || c.author?.avatar || c.author?.avatarUrl || null;
         const userReact = c.userReaction || c.myReaction || c.reactionType || null;
@@ -797,21 +800,28 @@ const handleSendMessage = async () => {
   const handleReaction = async (id: string, isPost: boolean, parentPostId?: string, reactionType: string = 'LIKE') => {
     const targetType = isPost ? 'POST' : 'COMMENT';
     try {
+      // Backend của bạn đã có logic toggle, Frontend cần cập nhật state tương ứng
       await httpService.post(`/interact/reactions?targetId=${id}&targetType=${targetType}&reactionType=${reactionType}`);
       
       setPosts(prevPosts => {
         return prevPosts.map(p => {
+          // Trường hợp Post
           if (isPost && p.id === id) {
-            const isUnreacting = p.userReaction === reactionType;
-            const isChangingReaction = p.userReaction && p.userReaction !== reactionType;
+            const isUnreacting = p.userReaction === reactionType; // Nhấn đúng icon cũ -> Gỡ
+            const isChangingReaction = p.userReaction && p.userReaction !== reactionType; // Nhấn icon khác -> Đổi
             
             let newCount = p.reactionCount || 0;
-            if (isUnreacting) newCount = Math.max(0, newCount - 1);
-            else if (!isChangingReaction) newCount += 1;
+            if (isUnreacting) {
+                newCount = Math.max(0, newCount - 1);
+            } else if (!isChangingReaction) {
+                // Chỉ cộng 1 nếu trước đó chưa thả gì. Nếu đang đổi icon thì count giữ nguyên
+                newCount += 1;
+            }
 
             return { ...p, reactionCount: newCount, userReaction: isUnreacting ? null : reactionType };
           } 
           
+          // Trường hợp Comment
           if (!isPost && p.id === parentPostId) {
             return {
               ...p,
@@ -821,8 +831,11 @@ const handleSendMessage = async () => {
                   const isChangingReaction = r.userReaction && r.userReaction !== reactionType;
                   
                   let newCount = r.reactionCount || 0;
-                  if (isUnreacting) newCount = Math.max(0, newCount - 1);
-                  else if (!isChangingReaction) newCount += 1;
+                  if (isUnreacting) {
+                      newCount = Math.max(0, newCount - 1);
+                  } else if (!isChangingReaction) {
+                      newCount += 1;
+                  }
 
                   return { ...r, reactionCount: newCount, userReaction: isUnreacting ? null : reactionType };
                 }
