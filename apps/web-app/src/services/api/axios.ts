@@ -132,7 +132,7 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshResponse = await refreshClient.post<RefreshResponse>("/api/core/auth/refresh", {});
+      const refreshResponse = await refreshClient.post<RefreshResponse>("/auth/refresh", {});
       const nextAccessToken = refreshResponse.data.accessToken;
 
       if (!nextAccessToken) {
