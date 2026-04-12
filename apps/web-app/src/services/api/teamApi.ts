@@ -87,6 +87,11 @@ export const teamApi = {
     return httpService.post<TeamMember>(`${BASE_PATH}/${teamId}/members`, data);
   },
 
+  // Xóa thành viên khỏi lớp học
+  deleteMember: async (teamId: number, memberId: number): Promise<null> => {
+    return httpService.delete<null>(`${BASE_PATH}/${teamId}/members/${memberId}`);
+  },
+
   // Cập nhật trạng thái lớp học (khóa/mở khóa)
   updateStatus: async (teamId: number, isActive: boolean): Promise<Team> => {
     return httpService.patch<Team>(`${BASE_PATH}/${teamId}/status`, { isActive });

@@ -14,8 +14,8 @@ const userSchema: Schema = new Schema(
       type: String,
       required: true,
       unique: true,
-      // Kiểm tra định dạng email bằng regex
-      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Email không hợp lệ']
+      // Cho phép các địa chỉ email hợp lệ phổ biến, gồm cả dấu + và TLD dài
+      match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email không hợp lệ']
     },
     fullName: {
       type: String,

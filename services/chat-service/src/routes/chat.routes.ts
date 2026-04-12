@@ -35,4 +35,7 @@ router.post("/messages", ChatController.sendMessage);
 // Tạo nhóm (Group Chat) mới
 router.post("/conversations/group", ChatController.createGroup);
 
+// Đồng bộ conversation của class từ core-service
+router.post("/conversations/class", ChatController.syncClassConversation);
+
 export default router;

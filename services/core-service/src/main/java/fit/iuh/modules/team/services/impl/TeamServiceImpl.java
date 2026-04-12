@@ -8,6 +8,7 @@ import fit.iuh.models.TeamMember;
 import fit.iuh.models.TeamMemberRole;
 import fit.iuh.modules.auth.repositories.AccountRepository;
 import fit.iuh.modules.auth.repositories.ProfileRepository;
+import fit.iuh.modules.team.integration.ChatConversationSyncService;
 import fit.iuh.modules.team.dtos.AddTeamMemberRequest;
 import fit.iuh.modules.team.dtos.TeamMemberResponse;
 import fit.iuh.modules.team.dtos.TeamRequest;
@@ -34,10 +35,11 @@ public class TeamServiceImpl implements TeamService {
     private final ProfileRepository profileRepository;
     private final AccountRepository accountRepository;
     private final TeamMapper teamMapper;
+    private final ChatConversationSyncService chatConversationSyncService;
 
     @Override
     @Transactional
-    public TeamResponse createTeam(TeamRequest request) {
+    public TeamResponse createTeam(TeamRequest request, String creatorEmail) {
         Team team = Team.builder()
                 .name(request.getName())
                 .description(request.getDescription())
@@ -48,7 +50,25 @@ public class TeamServiceImpl implements TeamService {
                 .build();
 
         Team savedTeam = teamRepository.save(team);
-        return teamMapper.toResponse(savedTeam);
+        Account creatorAccount = accountRepository.findByEmail(creatorEmail)
+                .orElseThrow(() -> new RuntimeException("Account not found with email: " + creatorEmail));
+
+        TeamMember creatorMember = TeamMember.builder()
+                .account(creatorAccount)
+                .team(savedTeam)
+                .role(TeamMemberRole.LEADER)
+                .joinedAt(LocalDateTime.now())
+                .build();
+        teamMemberRepository.save(creatorMember);
+
+        Team syncedTeam = teamRepository.findById(savedTeam.getId())
+                .orElseThrow(() -> new RuntimeException("Team not found with id: " + savedTeam.getId()));
+        chatConversationSyncService.syncClassConversation(
+                syncedTeam,
+                !syncedTeam.isActive(),
+                teamMemberRepository.findAllByTeamId(savedTeam.getId()));
+
+        return teamMapper.toResponse(syncedTeam);
     }
 
     @Override
@@ -80,7 +100,13 @@ public class TeamServiceImpl implements TeamService {
         team.setDepartment(Department.builder().id(request.getDepartmentId()).build());
 
         Team updatedTeam = teamRepository.save(team);
-        return teamMapper.toResponse(updatedTeam);
+        Team syncedTeam = teamRepository.findById(updatedTeam.getId())
+                .orElseThrow(() -> new RuntimeException("Team not found with id: " + updatedTeam.getId()));
+        chatConversationSyncService.syncClassConversation(
+                syncedTeam,
+                !syncedTeam.isActive(),
+                teamMemberRepository.findAllByTeamId(updatedTeam.getId()));
+        return teamMapper.toResponse(syncedTeam);
     }
 
     @Override
@@ -91,7 +117,13 @@ public class TeamServiceImpl implements TeamService {
 
         team.setActive(false);
         team.setDeletedAt(LocalDateTime.now());
-        teamRepository.save(team);
+        Team deletedTeam = teamRepository.save(team);
+        Team syncedTeam = teamRepository.findById(deletedTeam.getId())
+                .orElseThrow(() -> new RuntimeException("Team not found with id: " + deletedTeam.getId()));
+        chatConversationSyncService.syncClassConversation(
+                syncedTeam,
+                true,
+                teamMemberRepository.findAllByTeamId(deletedTeam.getId()));
     }
 
     @Override
@@ -137,6 +169,10 @@ public class TeamServiceImpl implements TeamService {
         Account account = accountRepository.findById(request.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Account not found with id: " + request.getAccountId()));
 
+        if (teamMemberRepository.findByTeamIdAndAccountId(teamId, account.getId()).isPresent()) {
+            throw new RuntimeException("Account already exists in team: " + teamId);
+        }
+
         TeamMember newMember = TeamMember.builder()
                 .account(account)
                 .team(team)
@@ -149,6 +185,13 @@ public class TeamServiceImpl implements TeamService {
         Profile profile = profileRepository.findById(account.getId()).orElse(null);
         String firstName = profile != null ? profile.getFirstName() : "";
         String lastName = profile != null ? profile.getLastName() : "";
+
+        Team syncedTeam = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
+        chatConversationSyncService.syncClassConversation(
+                syncedTeam,
+                !syncedTeam.isActive(),
+                teamMemberRepository.findAllByTeamId(teamId));
 
         return TeamMemberResponse.builder()
                 .id(newMember.getId())
@@ -163,12 +206,41 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     @Transactional
+    public void deleteTeamMember(Long teamId, Long memberId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
+
+        TeamMember member = teamMemberRepository.findById(memberId)
+                .orElseThrow(() -> new RuntimeException("Team member not found with id: " + memberId));
+
+        if (!member.getTeam().getId().equals(team.getId())) {
+            throw new RuntimeException("Team member does not belong to team: " + teamId);
+        }
+
+        teamMemberRepository.delete(member);
+
+        Team syncedTeam = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
+        chatConversationSyncService.syncClassConversation(
+                syncedTeam,
+                !syncedTeam.isActive(),
+                teamMemberRepository.findAllByTeamId(teamId));
+    }
+
+    @Override
+    @Transactional
     public TeamResponse updateTeamStatus(Long teamId, UpdateTeamStatusRequest request) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
         team.setActive(request.isActive());
         Team updatedTeam = teamRepository.save(team);
-        return teamMapper.toResponse(updatedTeam);
+        Team syncedTeam = teamRepository.findById(updatedTeam.getId())
+                .orElseThrow(() -> new RuntimeException("Team not found with id: " + updatedTeam.getId()));
+        chatConversationSyncService.syncClassConversation(
+                syncedTeam,
+                !syncedTeam.isActive(),
+                teamMemberRepository.findAllByTeamId(updatedTeam.getId()));
+        return teamMapper.toResponse(syncedTeam);
     }
 }

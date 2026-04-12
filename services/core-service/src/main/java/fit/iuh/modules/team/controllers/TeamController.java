@@ -9,6 +9,8 @@ import fit.iuh.modules.team.dtos.TeamResponse;
 import fit.iuh.modules.team.dtos.UpdateTeamStatusRequest;
 import fit.iuh.modules.team.services.TeamService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,8 +34,14 @@ public class TeamController {
     private final TeamService teamService;
 
     @PostMapping
-    public ResponseEntity<ApiSuccessResponse<TeamResponse>> createTeam(@RequestBody TeamRequest request) {
-        TeamResponse response = teamService.createTeam(request);
+    public ResponseEntity<ApiSuccessResponse<TeamResponse>> createTeam(
+        Authentication authentication,
+            @RequestBody TeamRequest request) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy thông tin người dùng đăng nhập.");
+        }
+
+        TeamResponse response = teamService.createTeam(request, authentication.getName());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponseFactory.success(
                         HttpStatus.CREATED,
@@ -126,6 +134,18 @@ public class TeamController {
                         HttpStatus.CREATED,
                         "Thêm thành viên vào lớp học thành công.",
                         response));
+    }
+
+    @DeleteMapping("/{teamId}/members/{memberId}")
+    public ResponseEntity<ApiSuccessResponse<String>> deleteTeamMember(
+            @PathVariable Long teamId,
+            @PathVariable Long memberId) {
+        teamService.deleteTeamMember(teamId, memberId);
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Xóa thành viên khỏi lớp học thành công.",
+                        null));
     }
 
     @PatchMapping("/{teamId}/status")

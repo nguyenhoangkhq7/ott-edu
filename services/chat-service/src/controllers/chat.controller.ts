@@ -283,4 +283,35 @@ export class ChatController {
         .json({ error: "Internal server error", detail: error.message });
     }
   }
+
+  // API: POST /api/conversations/class
+  static async syncClassConversation(req: Request, res: Response) {
+    try {
+      const { teamId, name, description, departmentId, archived, participants } =
+        req.body;
+
+      if (!teamId || !name || !Array.isArray(participants)) {
+        return res.status(400).json({
+          error: "teamId, name and participants array are required",
+        });
+      }
+
+      const conversation = await ChatService.syncClassConversation({
+        teamId: Number(teamId),
+        name,
+        description,
+        departmentId: departmentId !== undefined ? Number(departmentId) : null,
+        archived: Boolean(archived),
+        participants,
+      });
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] syncClassConversation error:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        detail: error.message,
+      });
+    }
+  }
 }
