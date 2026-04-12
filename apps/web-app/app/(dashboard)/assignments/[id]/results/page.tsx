@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAssignmentDetail, useSubmission } from '@/shared/hooks/useQuiz';
-import { Submission, SubmissionStatus } from '@/shared/types/quiz';
 import styles from './page.module.css';
 
 export default function AssignmentResultsPage() {
@@ -14,7 +13,7 @@ export default function AssignmentResultsPage() {
   const submissionId = parseInt(searchParams.get('submissionId') || '0', 10);
 
   const { assignment, loading: assignmentLoading } = useAssignmentDetail(assignmentId);
-  const { submission, getSubmission, loading: submissionLoading } = useSubmission();
+  const { submission, getSubmission } = useSubmission();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -50,7 +49,23 @@ export default function AssignmentResultsPage() {
     );
   }
 
-  const percentage = submission.grade ? (submission.grade.score / assignment.totalPoints) * 100 : 0;
+  // Local interfaces to avoid 'any'
+  interface SubmissionWithGrade {
+    grade?: { score: number; gradedAt?: string; comment?: string };
+    answers?: Array<{ isCorrect: boolean }>;
+    status: string;
+    submittedAt?: string;
+  }
+  interface AssignmentWithDetails {
+    totalPoints: number;
+    questions?: unknown[];
+    title: string;
+  }
+
+  const s = submission as unknown as SubmissionWithGrade;
+  const a = assignment as unknown as AssignmentWithDetails;
+
+  const percentage = s.grade ? (s.grade.score / a.totalPoints) * 100 : 0;
   
   const getGrade = (pct: number) => {
     if (pct >= 90) return 'A';
@@ -77,15 +92,15 @@ export default function AssignmentResultsPage() {
     });
   };
 
-  const correctAnswers = submission.answers?.filter((a) => a.isCorrect).length || 0;
-  const totalQuestions = assignment.questions?.length || 0;
+  const correctAnswers = s.answers?.filter((ans) => ans.isCorrect).length || 0;
+  const totalQuestions = a.questions?.length || 0;
 
   return (
     <div className={styles.container}>
       <div className={styles.resultsCard}>
         <div className={styles.header}>
           <h1 className={styles.title}>✅ Assignment Submitted!</h1>
-          <p className={styles.subtitle}>{assignment.title}</p>
+          <p className={styles.subtitle}>{a.title}</p>
         </div>
 
         <div className={`${styles.scoreSection} ${getScoreColor(percentage)}`}>
@@ -97,7 +112,7 @@ export default function AssignmentResultsPage() {
             <div className={styles.scoreInfo}>
               <h2>Your Score</h2>
               <p className={styles.scoreText}>
-                {submission.grade?.score?.toFixed(1) || '0'} / {assignment.totalPoints} points
+                {s.grade?.score?.toFixed(1) || '0'} / {a.totalPoints} points
               </p>
               <p className={styles.answersText}>
                 {correctAnswers} of {totalQuestions} correct
@@ -109,29 +124,29 @@ export default function AssignmentResultsPage() {
         <div className={styles.info}>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Status</span>
-            <span className={`${styles.infoValue} ${styles[submission.status.toLowerCase()]}`}>
-              {submission.status}
+            <span className={`${styles.infoValue} ${styles[s.status.toLowerCase()]}`}>
+              {s.status}
             </span>
           </div>
           <div className={styles.infoItem}>
             <span className={styles.infoLabel}>Submitted</span>
             <span className={styles.infoValue}>
-              {submission.submittedAt ? formatDate(submission.submittedAt) : 'Not submitted'}
+              {s.submittedAt ? formatDate(s.submittedAt) : 'Not submitted'}
             </span>
           </div>
-          {submission.grade && (
+          {s.grade && (
             <>
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Graded</span>
                 <span className={styles.infoValue}>
-                  {submission.grade.gradedAt ? formatDate(submission.grade.gradedAt) : 'Pending'}
+                  {s.grade.gradedAt ? formatDate(s.grade.gradedAt) : 'Pending'}
                 </span>
               </div>
-              {submission.grade.comment && (
+              {s.grade.comment && (
                 <div className={styles.infoItem + ' ' + styles.fullWidth}>
                   <span className={styles.infoLabel}>Feedback</span>
                   <span className={styles.infoValue + ' ' + styles.comment}>
-                    {submission.grade.comment}
+                    {s.grade.comment}
                   </span>
                 </div>
               )}

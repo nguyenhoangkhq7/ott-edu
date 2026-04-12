@@ -4,7 +4,6 @@ import {
   AssignmentDetail,
   Submission,
   SubmissionResult,
-  LocalAnswers,
 } from '@/shared/types/quiz';
 
 // Gateway route: /api/assignment/ -> assignment-service:8080/

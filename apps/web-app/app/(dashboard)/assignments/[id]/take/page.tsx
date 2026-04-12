@@ -7,6 +7,22 @@ import { QuestionCard } from '@/shared/components/quiz/QuestionCard';
 import { QuizTimer } from '@/shared/components/quiz/QuizTimer';
 import styles from './page.module.css';
 
+// Extended interfaces for type safety
+interface MinimalQuestion {
+  id: number;
+  content: string;
+  type: any;
+  options: any[];
+  points: number;
+  displayOrder: number;
+}
+
+interface AssignmentWithDetails {
+  title: string;
+  timeLimit: number;
+  questions: MinimalQuestion[];
+}
+
 export default function AssignmentTakePage() {
   const params = useParams();
   const router = useRouter();
@@ -14,27 +30,29 @@ export default function AssignmentTakePage() {
   const submissionId = parseInt(params.submissionId as string, 10);
 
   const { assignment, loading: assignmentLoading } = useAssignmentDetail(assignmentId);
+  const assignmentData = assignment as unknown as AssignmentWithDetails;
+
   const { submitAssignment } = useSubmission();
   const { timeRemaining, start: startTimer, isTimeUp } = useTimer(
-    (assignment as any)?.timeLimit || 60
+    assignmentData?.timeLimit || 60
   );
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<{ [questionId: number]: number[] | string }>({});
+  const [answers, setAnswers] = useState<{[key: number]: number[]}>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Auto-load submission
   useEffect(() => {
     if (!submissionId || !assignment) return;
-    // Load existing submission data
+    // Start timing
     startTimer();
   }, [submissionId, assignment, startTimer]);
 
-  const handleAnswerChange = (questionId: number, answer: number[] | string) => {
+  const handleAnswerChange = (questionId: number, selectedIds: number[]) => {
     setAnswers((prev) => ({
       ...prev,
-      [questionId]: answer,
+      [questionId]: selectedIds,
     }));
   };
 
@@ -45,8 +63,9 @@ export default function AssignmentTakePage() {
 
     try {
       const result = await submitAssignment(submissionId);
-      router.push(`/assignments/${assignmentId}/results?submissionId=${(result as any).id}`);
-    } catch (err) {
+      const res = result as unknown as { id: number };
+      router.push(`/assignments/${assignmentId}/results?submissionId=${res.id}`);
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to submit assignment');
       setIsSubmitting(false);
     }
@@ -55,7 +74,10 @@ export default function AssignmentTakePage() {
   // Auto-submit when time is up
   useEffect(() => {
     if (isTimeUp && submissionId && !isSubmitting) {
-      handleSubmit();
+      const autoSubmit = async () => {
+        await handleSubmit();
+      };
+      autoSubmit();
     }
   }, [isTimeUp, submissionId, isSubmitting, handleSubmit]);
 
@@ -80,7 +102,7 @@ export default function AssignmentTakePage() {
     );
   }
 
-  const questions = (assignment as any)?.questions || [];
+  const questions = assignmentData?.questions || [];
   const currentQuestion = questions[currentQuestionIndex];
   const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
   const answeredCount = Object.keys(answers).length;
@@ -89,12 +111,15 @@ export default function AssignmentTakePage() {
     <div className={styles.container}>
       <div className={styles.header}>
         <div className={styles.headerContent}>
-          <h1 className={styles.title}>{assignment?.title}</h1>
+          <h1 className={styles.title}>{assignmentData?.title}</h1>
           <p className={styles.breadcrumb}>
             Question {currentQuestionIndex + 1} of {questions.length}
           </p>
         </div>
-        <QuizTimer {...({ timeRemaining, timeLimit: (assignment as any)?.timeLimit || 60 } as any)} />
+        <QuizTimer {...({ 
+          timeRemainingSeconds: timeRemaining, 
+          timeLimit: assignmentData?.timeLimit || 60 
+        } as unknown as { timeRemainingSeconds: number; timeLimit: number })} />
       </div>
 
       <div className={styles.progressContainer}>
@@ -111,9 +136,10 @@ export default function AssignmentTakePage() {
       <div className={styles.content}>
         {currentQuestion && (
           <QuestionCard
-            question={currentQuestion}
-            questionNumber={currentQuestionIndex + 1}
-            answers={answers as any}
+            question={currentQuestion as MinimalQuestion}
+            questionIndex={currentQuestionIndex}
+            totalQuestions={questions.length}
+            answers={answers}
             onChange={handleAnswerChange}
           />
         )}
@@ -129,18 +155,21 @@ export default function AssignmentTakePage() {
         </button>
 
         <div className={styles.questionIndicators}>
-          {(questions as any[]).map((q: any, idx: number) => (
-            <button
-              key={q.id}
-              className={`${styles.indicator} ${
-                idx === currentQuestionIndex ? styles.active : ''
-              } ${answers[q.id] !== undefined ? styles.answered : ''}`}
-              onClick={() => setCurrentQuestionIndex(idx)}
-              title={`Question ${idx + 1}`}
-            >
-              {idx + 1}
-            </button>
-          ))}
+          {questions.map((q, idx: number) => {
+            const question = q as MinimalQuestion;
+            return (
+              <button
+                key={question.id}
+                className={`${styles.indicator} ${
+                  idx === currentQuestionIndex ? styles.active : ''
+                } ${answers[question.id] !== undefined ? styles.answered : ''}`}
+                onClick={() => setCurrentQuestionIndex(idx)}
+                title={`Question ${idx + 1}`}
+              >
+                {idx + 1}
+              </button>
+            );
+          })}
         </div>
 
         {currentQuestionIndex === questions.length - 1 ? (

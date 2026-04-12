@@ -35,6 +35,16 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
 
   const saveDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
+  const handleForceSubmit = useCallback(async () => {
+    try {
+      const res = await quizService.submitAssignment(submission.id);
+      const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
+      setResult({ ...res, answeredQuestions: answeredCount });
+    } catch {
+      // Silent
+    }
+  }, [submission.id, answers]);
+
   // Countdown timer
   useEffect(() => {
     if (result) return;
@@ -49,7 +59,7 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [result]);
+  }, [result, handleForceSubmit]);
 
   const handleAnswerChange = useCallback(
     (questionId: number, selectedOptionIds: number[]) => {
@@ -90,20 +100,10 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
       const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
       setResult({ ...res, answeredQuestions: answeredCount });
       setShowSubmitModal(false);
-    } catch (err) {
+    } catch {
       alert('Nộp bài thất bại. Vui lòng thử lại.');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleForceSubmit = async () => {
-    try {
-      const res = await quizService.submitAssignment(submission.id);
-      const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
-      setResult({ ...res, answeredQuestions: answeredCount });
-    } catch {
-      // Silent
     }
   };
 

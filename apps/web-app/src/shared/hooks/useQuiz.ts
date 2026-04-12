@@ -2,9 +2,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { quizService } from '@/services/api/quiz.service';
 import {
   Assignment,
+  AssignmentDetail,
   Submission,
-  StudentAnswer,
-  SubmissionStatus,
 } from '@/shared/types/quiz';
 
 export const useAssignments = (teamId: number | null) => {
@@ -36,7 +35,7 @@ export const useAssignments = (teamId: number | null) => {
 };
 
 export const useAssignmentDetail = (assignmentId: number | null) => {
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
+  const [assignment, setAssignment] = useState<AssignmentDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,11 +67,11 @@ export const useSubmission = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const startAssignment = useCallback(async (assignmentId: number, accountId: number) => {
+  const startAssignment = useCallback(async (assignmentId: number) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await quizService.startAssignment(assignmentId, accountId);
+      const data = await quizService.startAssignment(assignmentId);
       setSubmission(data);
       return data;
     } catch (err) {
@@ -84,11 +83,11 @@ export const useSubmission = () => {
     }
   }, []);
 
-  const getSubmission = useCallback(async (submissionId: number) => {
+  const getSubmission = useCallback(async (assignmentId: number) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await quizService.getSubmission(submissionId);
+      const data = await quizService.getMySubmission(assignmentId);
       setSubmission(data);
       return data;
     } catch (err) {
@@ -99,9 +98,9 @@ export const useSubmission = () => {
     }
   }, []);
 
-  const submitAnswer = useCallback(async (submissionId: number, answer: StudentAnswer) => {
+  const submitAnswer = useCallback(async (submissionId: number, questionId: number, selectedOptionIds: number[]) => {
     try {
-      await quizService.submitAnswer(submissionId, answer);
+      await quizService.saveAnswer(submissionId, questionId, selectedOptionIds);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save answer');
       throw err;
@@ -113,7 +112,6 @@ export const useSubmission = () => {
     setError(null);
     try {
       const data = await quizService.submitAssignment(submissionId);
-      setSubmission(data);
       return data;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to submit assignment';

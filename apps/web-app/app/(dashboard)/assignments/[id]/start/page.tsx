@@ -15,8 +15,7 @@ export default function StartAssignmentPage() {
 
   const handleStartClick = async () => {
     try {
-      const accountId = 1; // TODO: Get from auth context
-      const submission = await startAssignment(assignmentId, accountId);
+      const submission = await startAssignment(assignmentId);
       router.push(`/assignments/${assignmentId}/take?submissionId=${submission.id}`);
     } catch (error) {
       console.error('Failed to start assignment:', error);
@@ -65,12 +64,8 @@ export default function StartAssignmentPage() {
               <span className={styles.detailValue}>{assignment.questions?.length || 0}</span>
             </div>
             <div className={styles.detailItem}>
-              <span className={styles.detailLabel}>⏱️ Time Limit</span>
-              <span className={styles.detailValue}>{assignment.timeLimit} minutes</span>
-            </div>
-            <div className={styles.detailItem}>
               <span className={styles.detailLabel}>⭐ Total Points</span>
-              <span className={styles.detailValue}>{assignment.totalPoints}</span>
+              <span className={styles.detailValue}>{assignment.maxScore}</span>
             </div>
             <div className={styles.detailItem}>
               <span className={styles.detailLabel}>📅 Due Date</span>
@@ -89,7 +84,7 @@ export default function StartAssignmentPage() {
           <div className={styles.infoBox}>
             <h4>Important Notes</h4>
             <ul>
-              <li>Once you start, you will have {assignment.timeLimit} minutes to complete the assignment</li>
+              <li>Once you start, you will complete the assignment</li>
               <li>The timer will start counting down automatically</li>
               <li>You can navigate between questions using Previous/Next or by clicking question numbers</li>
               <li>Your progress is automatically saved as you answer questions</li>
