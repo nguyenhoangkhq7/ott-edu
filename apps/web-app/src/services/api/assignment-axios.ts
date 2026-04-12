@@ -1,6 +1,5 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
-
-import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
+import { getAccessToken, setAccessToken, clearAccessToken } from "@/services/api/token-store";
 import { emitSessionExpired } from "@/services/auth/session-events";
 
 type RefreshResponse = {
@@ -20,20 +19,16 @@ declare module "axios" {
   }
 }
 
-const DEFAULT_API_BASE_URL = "/api/core";
 const DEFAULT_TIMEOUT_MS = 30000;
-
-function getApiBaseUrl() { return DEFAULT_API_BASE_URL; }
 
 function getApiTimeout(): number {
   const raw = process.env.NEXT_PUBLIC_API_TIMEOUT;
   const parsed = Number(raw);
-
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
 }
 
+// Assignment service uses /api/assignment/ base (NO baseURL = use absolute paths)
 const baseConfig = {
-  baseURL: getApiBaseUrl(),
   timeout: getApiTimeout(),
   withCredentials: true,
   headers: {
@@ -41,7 +36,7 @@ const baseConfig = {
   },
 };
 
-const apiClient = axios.create(baseConfig);
+const assignmentClient = axios.create(baseConfig);
 const refreshClient = axios.create(baseConfig);
 
 function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<unknown> {
@@ -50,8 +45,6 @@ function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<u
   }
 
   const candidate = payload as Record<string, unknown>;
-
-  // Nới lỏng kiểm tra: Chỉ cần có data và status (không bắt bẻ timestamp/message)
   return (
     typeof candidate.status === "number" &&
     "data" in candidate
@@ -69,9 +62,7 @@ function unwrapApiSuccessEnvelope<T>(response: AxiosResponse<T>): AxiosResponse<
   };
 }
 
-// ==========================================
-// THÊM LOGIC QUEUE (HÀNG ĐỢI) XỬ LÝ REFRESH
-// ==========================================
+// Queue for refresh handling
 let isRefreshing = false;
 let failedQueue: Array<{ resolve: (value?: unknown) => void; reject: (reason?: unknown) => void }> = [];
 
@@ -86,7 +77,8 @@ const processQueue = (error: AxiosError | null, token: string | null = null) => 
   failedQueue = [];
 };
 
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+// Request interceptor - add auth token
+assignmentClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -96,71 +88,61 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 refreshClient.interceptors.response.use((response) => unwrapApiSuccessEnvelope(response));
 
-apiClient.interceptors.response.use(
+// Response interceptor - handle 401 and refresh
+assignmentClient.interceptors.response.use(
   (response) => unwrapApiSuccessEnvelope(response),
   async (error: AxiosError) => {
     const originalRequest = error.config;
     const statusCode = error.response?.status;
 
-    // Nếu không phải lỗi 401 hoặc request này đã được retry rồi thì bỏ qua
     if (!originalRequest || statusCode !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
 
     const requestUrl = originalRequest.url ?? "";
-    if (requestUrl.includes("/auth/login") || requestUrl.includes("/auth/refresh") || 
-        requestUrl.includes("auth/login") || requestUrl.includes("auth/refresh")) {
+    if (requestUrl.includes("/auth/")) {
       return Promise.reject(error);
     }
 
-    // NẾU ĐANG TRONG QUÁ TRÌNH REFRESH -> CHO CÁC REQUEST KHÁC XẾP HÀNG
     if (isRefreshing) {
       return new Promise(function (resolve, reject) {
         failedQueue.push({ resolve, reject });
       })
         .then((token) => {
           originalRequest.headers.Authorization = `Bearer ${token}`;
-          return apiClient(originalRequest);
+          return assignmentClient(originalRequest);
         })
         .catch((err) => {
           return Promise.reject(err);
         });
     }
 
-    // ĐÁNH DẤU BẮT ĐẦU REFRESH
     originalRequest._retry = true;
     isRefreshing = true;
 
     try {
-      const refreshResponse = await refreshClient.post<RefreshResponse>("/auth/refresh", {});
+      const refreshResponse = await refreshClient.post<RefreshResponse>("/api/core/auth/refresh", {});
       const nextAccessToken = refreshResponse.data.accessToken;
 
       if (!nextAccessToken) {
         throw new Error("Missing access token after refresh.");
       }
 
-      // Lưu Token mới
       setAccessToken(nextAccessToken);
-      
-      // Gắn token mới vào request đang bị lỗi
       originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`;
 
-      // BÁO CHO CÁC REQUEST ĐANG XẾP HÀNG BIẾT LÀ ĐÃ CÓ TOKEN MỚI
       processQueue(null, nextAccessToken);
 
-      // Chạy lại request hiện tại
-      return apiClient(originalRequest);
+      return assignmentClient(originalRequest);
     } catch (refreshError) {
-      // NẾU REFRESH LỖI -> HỦY TOÀN BỘ HÀNG ĐỢI VÀ ĐĂNG XUẤT
       processQueue(refreshError as AxiosError, null);
       clearAccessToken();
       emitSessionExpired();
       return Promise.reject(refreshError);
     } finally {
-      // KẾT THÚC QUÁ TRÌNH REFRESH
       isRefreshing = false;
     }
   }
 );
 
-export default apiClient;
+export default assignmentClient;
