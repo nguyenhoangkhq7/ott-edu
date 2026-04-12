@@ -18,7 +18,7 @@ export default function AddTeamMemberModal({
   onClose,
   onSuccess,
 }: AddTeamMemberModalProps) {
-  const [accountId, setAccountId] = useState("");
+  const [email, setEmail] = useState("");
   const [role, setRole] = useState<"MEMBER" | "LEADER">("MEMBER");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +27,8 @@ export default function AddTeamMemberModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!accountId.trim()) {
-      setError("Vui lòng nhập Account ID");
+    if (!email.trim()) {
+      setError("Vui lòng nhập email");
       return;
     }
 
@@ -37,7 +37,7 @@ export default function AddTeamMemberModal({
       setError(null);
       
       const response = await teamApi.addMember(teamId, {
-        accountId: parseInt(accountId),
+        email: email.trim(),
         role,
       });
 
@@ -45,7 +45,7 @@ export default function AddTeamMemberModal({
       console.log("Thêm thành viên thành công:", response);
       
       // Reset form
-      setAccountId("");
+      setEmail("");
       setRole("MEMBER");
       
       // Sau 1.5s đóng modal
@@ -98,18 +98,18 @@ export default function AddTeamMemberModal({
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Account ID <span className="text-red-500">*</span>
+                Email <span className="text-red-500">*</span>
               </label>
               <input
-                type="number"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                placeholder="VD: 1"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="VD: student@example.com"
                 className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
               />
               <p className="text-xs text-slate-500 mt-1">
-                Nhập ID của tài khoản muốn thêm vào lớp
+                Nhập email của tài khoản muốn thêm vào lớp
               </p>
             </div>
 

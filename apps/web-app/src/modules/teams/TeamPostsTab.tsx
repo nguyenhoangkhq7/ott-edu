@@ -528,7 +528,11 @@ const MessageItem = ({
 );
 
 // ================= COMPONENT CHÍNH =================
-export default function TeamPostsTab() {
+interface TeamPostsTabProps {
+  teamId?: number;
+}
+
+export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [expandedPostIds, setExpandedPostIds] = useState<string[]>([]);
   const [activeInputPostId, setActiveInputPostId] = useState<string | null>(null);
@@ -554,27 +558,13 @@ export default function TeamPostsTab() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // 1. Chỉ lấy userEmail và isLoaded từ AppContext (Bỏ classId)
-  const { userEmail, isLoaded } = useAppContext();
-  
-  // 2. Tạo một state tên y hệt (classId) để lưu giá trị đọc từ Cookie 
-  // Việc giữ nguyên tên biến sẽ giúp toàn bộ code bên dưới không cần sửa đổi.
+  const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
   const [classId, setClassId] = useState<string | null>(null);
 
-  // 3. Đọc dữ liệu từ Cookie ngay khi khởi chạy
   useEffect(() => {
-    // Bọc trong hàm async để fix lỗi "cascading renders" của Next.js
-    const initClassId = async () => {
-      const savedClassId = Cookies.get('classId'); 
-      if (savedClassId) {
-        setClassId(savedClassId);
-      } else {
-        console.warn("Lưu ý: Không tìm thấy classId trong Cookie!");
-      }
-    };
-
-    initClassId();
-  }, []);
+    const resolvedTeamId = routeTeamId?.toString() ?? contextClassId ?? null;
+    setClassId(resolvedTeamId);
+  }, [contextClassId, routeTeamId]);
 
   const fetchPosts = useCallback(async () => {
     if (!isLoaded || !classId) return;

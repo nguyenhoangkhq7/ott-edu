@@ -28,7 +28,8 @@ export interface TeamMember {
 }
 
 export interface AddTeamMemberRequest {
-  accountId: number;
+  accountId?: number;
+  email?: string;
   role: "MEMBER" | "LEADER";
 }
 

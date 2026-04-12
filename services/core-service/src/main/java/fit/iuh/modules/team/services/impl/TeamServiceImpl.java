@@ -21,10 +21,14 @@ import fit.iuh.modules.team.services.TeamService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -72,25 +76,44 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
-    public TeamResponse getTeamById(Long teamId) {
+    public TeamResponse getTeamById(Long teamId, String requesterEmail) {
+        Account account = getAccountByEmail(requesterEmail);
+        requireTeamMembership(teamId, account.getId());
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
         return teamMapper.toResponse(team);
     }
 
     @Override
-    public List<TeamResponse> getAllTeams() {
-        return teamMapper.toResponseList(teamRepository.findAll());
+    public List<TeamResponse> getAllTeams(String requesterEmail) {
+        Account account = getAccountByEmail(requesterEmail);
+        return teamMemberRepository.findByAccountId(account.getId()).stream()
+                .map(TeamMember::getTeam)
+                .filter(team -> team != null)
+                .collect(Collectors.toMap(Team::getId, team -> team, (left, right) -> left, LinkedHashMap::new))
+                .values()
+                .stream()
+                .map(teamMapper::toResponse)
+                .toList();
     }
 
     @Override
-    public List<TeamResponse> getTeamsByDepartmentId(Long departmentId) {
-        return teamMapper.toResponseList(teamRepository.findByDepartmentId(departmentId));
+    public List<TeamResponse> getTeamsByDepartmentId(Long departmentId, String requesterEmail) {
+        Account account = getAccountByEmail(requesterEmail);
+        Set<Long> accessibleTeamIds = teamMemberRepository.findByAccountId(account.getId()).stream()
+                .map(member -> member.getTeam().getId())
+                .collect(Collectors.toSet());
+
+        return teamRepository.findByDepartmentId(departmentId).stream()
+                .filter(team -> accessibleTeamIds.contains(team.getId()))
+                .map(teamMapper::toResponse)
+                .toList();
     }
 
     @Override
     @Transactional
-    public TeamResponse updateTeam(Long teamId, TeamRequest request) {
+    public TeamResponse updateTeam(Long teamId, TeamRequest request, String requesterEmail) {
+        requireLeaderMembership(teamId, requesterEmail);
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
@@ -111,7 +134,8 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     @Transactional
-    public void deleteTeam(Long teamId) {
+    public void deleteTeam(Long teamId, String requesterEmail) {
+        requireLeaderMembership(teamId, requesterEmail);
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
@@ -134,7 +158,10 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
-    public List<TeamMemberResponse> getTeamMembers(Long teamId) {
+    public List<TeamMemberResponse> getTeamMembers(Long teamId, String requesterEmail) {
+        Account account = getAccountByEmail(requesterEmail);
+        requireTeamMembership(teamId, account.getId());
+
         // Verify team exists
         teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
@@ -162,12 +189,12 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     @Transactional
-    public TeamMemberResponse addTeamMember(Long teamId, AddTeamMemberRequest request) {
+    public TeamMemberResponse addTeamMember(Long teamId, AddTeamMemberRequest request, String requesterEmail) {
+        requireLeaderMembership(teamId, requesterEmail);
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
-        Account account = accountRepository.findById(request.getAccountId())
-                .orElseThrow(() -> new RuntimeException("Account not found with id: " + request.getAccountId()));
+        Account account = resolveAccountForMemberRequest(request);
 
         if (teamMemberRepository.findByTeamIdAndAccountId(teamId, account.getId()).isPresent()) {
             throw new RuntimeException("Account already exists in team: " + teamId);
@@ -206,7 +233,8 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     @Transactional
-    public void deleteTeamMember(Long teamId, Long memberId) {
+    public void deleteTeamMember(Long teamId, Long memberId, String requesterEmail) {
+        requireLeaderMembership(teamId, requesterEmail);
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
@@ -229,7 +257,8 @@ public class TeamServiceImpl implements TeamService {
 
     @Override
     @Transactional
-    public TeamResponse updateTeamStatus(Long teamId, UpdateTeamStatusRequest request) {
+    public TeamResponse updateTeamStatus(Long teamId, UpdateTeamStatusRequest request, String requesterEmail) {
+        requireLeaderMembership(teamId, requesterEmail);
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
@@ -242,5 +271,47 @@ public class TeamServiceImpl implements TeamService {
                 !syncedTeam.isActive(),
                 teamMemberRepository.findAllByTeamId(updatedTeam.getId()));
         return teamMapper.toResponse(syncedTeam);
+    }
+
+    private Account getAccountByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new AccessDeniedException("Bạn không có quyền truy cập tài nguyên này.");
+        }
+
+        return accountRepository.findByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new AccessDeniedException("Bạn không có quyền truy cập tài nguyên này."));
+    }
+
+    private Account resolveAccountForMemberRequest(AddTeamMemberRequest request) {
+        if (request.getAccountId() != null) {
+            return accountRepository.findById(request.getAccountId())
+                    .orElseThrow(() -> new RuntimeException("Account not found with id: " + request.getAccountId()));
+        }
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String normalizedEmail = normalizeEmail(request.getEmail());
+            return accountRepository.findByEmail(normalizedEmail)
+                    .orElseThrow(() -> new RuntimeException("Account not found with email: " + request.getEmail()));
+        }
+
+        throw new RuntimeException("Account ID hoặc email là bắt buộc.");
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private TeamMember requireTeamMembership(Long teamId, Long accountId) {
+        return teamMemberRepository.findByTeamIdAndAccountId(teamId, accountId)
+                .orElseThrow(() -> new AccessDeniedException("Bạn chưa tham gia lớp học này."));
+    }
+
+    private TeamMember requireLeaderMembership(Long teamId, String requesterEmail) {
+        Account account = getAccountByEmail(requesterEmail);
+        TeamMember member = requireTeamMembership(teamId, account.getId());
+        if (member.getRole() != TeamMemberRole.LEADER) {
+            throw new AccessDeniedException("Chỉ trưởng lớp mới có quyền thực hiện thao tác này.");
+        }
+        return member;
     }
 }
