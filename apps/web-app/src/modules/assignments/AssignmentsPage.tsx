@@ -47,8 +47,8 @@ export default function AssignmentsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Bài Tập</h1>
           <p className="text-slate-600">
-            {isTeacher 
-              ? "Quản lý và chấm điểm bài tập của lớp" 
+            {isTeacher
+              ? "Quản lý và chấm điểm bài tập của lớp"
               : "Xem và nộp bài tập của lớp học"}
           </p>
         </div>
@@ -108,11 +108,10 @@ export default function AssignmentsPage() {
                       <p className="text-sm text-slate-600 mt-1">{assignment.instructions}</p>
                     </div>
                     <span
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ml-4 ${
-                        assignment.type === 'QUIZ'
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap ml-4 ${assignment.type === 'QUIZ'
                           ? 'bg-purple-100 text-purple-700'
                           : 'bg-amber-100 text-amber-700'
-                      }`}
+                        }`}
                     >
                       {assignment.type === 'QUIZ' ? '📝 Trắc nghiệm' : '✍️ Tự luận'}
                     </span>
@@ -148,13 +147,13 @@ export default function AssignmentsPage() {
                           href={`/assignments/${assignment.id}/submissions`}
                           className="px-4 py-2 bg-blue-100 text-blue-600 font-medium rounded-lg hover:bg-blue-200 transition-colors text-sm"
                         >
-                          📋 Chấm điểm
+                          Chấm điểm
                         </Link>
                         <Link
                           href={`/assignments/${assignment.id}/manage`}
                           className="px-4 py-2 bg-yellow-100 text-yellow-600 font-medium rounded-lg hover:bg-yellow-200 transition-colors text-sm"
                         >
-                          ⚙️ Quản lý
+                          Quản lý
                         </Link>
                       </>
                     )}
@@ -162,22 +161,22 @@ export default function AssignmentsPage() {
                     {isStudent && (
                       <>
                         <Link
-                          href={`/assignments/${assignment.id}`}
+                          href={`/assignment/${assignment.id}`}
                           className="px-4 py-2 bg-purple-100 text-purple-600 font-medium rounded-lg hover:bg-purple-200 transition-colors text-sm"
                         >
-                          👁️ Xem chi tiết
+                          Xem chi tiết
                         </Link>
                         <Link
-                          href={`/assignments/${assignment.id}/submit`}
+                          href={`/assignment/${assignment.id}/submit`}
                           className="px-4 py-2 bg-green-100 text-green-600 font-medium rounded-lg hover:bg-green-200 transition-colors text-sm"
                         >
-                          📤 Nộp bài
+                          Nộp bài
                         </Link>
                         <Link
-                          href={`/assignments/${assignment.id}/result`}
+                          href={`/assignment/${assignment.id}/result`}
                           className="px-4 py-2 bg-indigo-100 text-indigo-600 font-medium rounded-lg hover:bg-indigo-200 transition-colors text-sm"
                         >
-                          📊 Xem kết quả
+                          Xem kết quả
                         </Link>
                       </>
                     )}
