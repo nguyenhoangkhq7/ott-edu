@@ -20,16 +20,10 @@ declare module "axios" {
   }
 }
 
-const DEFAULT_API_BASE_URL = "http://localhost:8000";
+const DEFAULT_API_BASE_URL = "/api/core";
 const DEFAULT_TIMEOUT_MS = 30000;
 
-function getApiBaseUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
-  const value = raw && raw.length > 0 ? raw : DEFAULT_API_BASE_URL;
-  const normalized = value.replace(/\/$/, "");
-
-  return normalized.endsWith("/api/core") ? normalized : `${normalized}/api/core`;
-}
+function getApiBaseUrl() { return DEFAULT_API_BASE_URL; }
 
 function getApiTimeout(): number {
   const raw = process.env.NEXT_PUBLIC_API_TIMEOUT;
@@ -55,12 +49,11 @@ function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<u
     return false;
   }
 
-  const candidate = payload as Partial<ApiSuccessEnvelope<unknown>>;
+  const candidate = payload as Record<string, unknown>;
 
+  // Nới lỏng kiểm tra: Chỉ cần có data và status (không bắt bẻ timestamp/message)
   return (
-    typeof candidate.timestamp === "string" &&
     typeof candidate.status === "number" &&
-    typeof candidate.message === "string" &&
     "data" in candidate
   );
 }
@@ -115,7 +108,8 @@ apiClient.interceptors.response.use(
     }
 
     const requestUrl = originalRequest.url ?? "";
-    if (requestUrl.includes("/auth/login") || requestUrl.includes("/auth/refresh")) {
+    if (requestUrl.includes("/auth/login") || requestUrl.includes("/auth/refresh") || 
+        requestUrl.includes("auth/login") || requestUrl.includes("auth/refresh")) {
       return Promise.reject(error);
     }
 

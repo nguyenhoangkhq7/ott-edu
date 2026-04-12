@@ -1,5 +1,5 @@
 import ChatPage from "@/modules/chat/ChatPage";
 
-export default function Chat() {
+export default function Page() {
   return <ChatPage />;
 }

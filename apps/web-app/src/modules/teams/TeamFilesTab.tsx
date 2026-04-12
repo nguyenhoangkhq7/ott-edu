@@ -96,7 +96,7 @@ const downloadFile = async (url: string, fileName: string) => {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
-  } catch (_err) {
+  } catch {
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName || 'download';
@@ -188,7 +188,7 @@ export default function TeamFilesTab() {
         };
       });
       setFiles(mappedFiles);
-    } catch (_err) {
+    } catch {
       console.error("Error loading files");
     } finally {
       setIsLoading(false);
@@ -228,7 +228,7 @@ export default function TeamFilesTab() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       await fetchFiles();
-    } catch (_err) {
+    } catch {
       alert("Failed to upload file.");
     } finally {
       setIsUploading(false);
@@ -251,7 +251,7 @@ export default function TeamFilesTab() {
       }
       alert(`Uploaded ${selectedFiles.length} files successfully!`);
       await fetchFiles();
-    } catch (_err) {
+    } catch {
       console.error("Folder upload error");
     } finally {
       setIsUploading(false);
@@ -264,7 +264,7 @@ export default function TeamFilesTab() {
     try {
       await apiClient.delete(`/attachments/${fileId}`);
       setFiles(prev => prev.filter(f => f.id !== fileId));
-    } catch (_err) {
+    } catch {
       alert("Delete failed.");
     } finally {
       setActiveMenuId(null);

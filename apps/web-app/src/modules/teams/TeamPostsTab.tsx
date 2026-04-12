@@ -4,6 +4,7 @@ import Image from 'next/image';
 import apiClient from '@/services/api/axios';
 import { useAppContext } from '@/shared/providers/AppContext';
 import Cookies from 'js-cookie';
+import LockTeamDialog from '@/modules/teams/LockTeamDialog'; // Thêm Dialog khóa
 
 // ================= API INTERFACES (Fix no-explicit-any) =================
 interface ApiAttachment {
@@ -541,6 +542,9 @@ export default function TeamPostsTab() {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editInputValue, setEditInputValue] = useState('');
 
+  // Lock team dialog state
+  const [isLockDialogOpen, setIsLockDialogOpen] = useState(false);
+
   // --- Search & Filter State ---
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL'); 
@@ -871,6 +875,15 @@ const handleSendMessage = async () => {
               <p className="text-xs text-slate-500">Class ID: {classId}</p>
             </div>
           </div>
+
+          {/* Nút Khóa lớp mới thêm vào */}
+          <button 
+            onClick={() => setIsLockDialogOpen(true)}
+            className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors shadow-sm font-medium"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+            Khóa lớp học
+          </button>
         </div>
 
         
@@ -1078,6 +1091,17 @@ const handleSendMessage = async () => {
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
+      )}
+      {classId && (
+        <LockTeamDialog
+          isOpen={isLockDialogOpen}
+          teamId={Number(classId)}
+          teamName="Lớp học này"
+          onClose={() => setIsLockDialogOpen(false)}
+          onSuccess={() => {
+            window.location.reload();
+          }}
+        />
       )}
     </>
   );

@@ -1,14 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import SectionTitle from "@/shared/components/ui/SectionTitle";
 import TeamCard from "@/shared/components/ui/TeamCard";
 import SearchInput from "@/shared/components/ui/SearchInput";
+import AddTeamMemberModal from "./AddTeamMemberModal";
+import LockTeamDialog from "./LockTeamDialog";
 import type { TeamSection } from "@/shared/types/teams";
+import { teamApi, Team } from "@/services/api/teamApi";
 
 export default function TeamsMainPage() {
   const [searchValue, setSearchValue] = useState("");
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // State cho modal thêm thành viên
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [selectedTeamName, setSelectedTeamName] = useState("");
+  
+  // State cho LockTeamDialog
+  const [showLockDialog, setShowLockDialog] = useState(false);
+  const [lockingTeamId, setLockingTeamId] = useState<number | null>(null);
+  const [lockingTeamName, setLockingTeamName] = useState("");
   
   // 1. State để quản lý việc đóng/mở các Section
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -19,6 +35,36 @@ export default function TeamsMainPage() {
   // 2. State để quản lý dropdown "Join or create team"
   const [showTeamDropdown, setShowTeamDropdown] = useState(false);
 
+  // Fetch danh sách lớp học từ backend
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        setLoading(true);
+        const response = await teamApi.getAll();
+        console.log("Team API Raw Response:", response);
+        
+        // Safety check: Nếu interceptor chưa unwrap, hoặc data nằm trong object
+        let finalTeams: Team[] = [];
+        if (Array.isArray(response)) {
+          finalTeams = response;
+        } else if (response && typeof response === 'object' && 'data' in response) {
+          finalTeams = (response as { data: Team[] }).data || [];
+        }
+
+        setTeams(finalTeams);
+        setError(null);
+      } catch (err) {
+        console.error("Fetch teams error:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch teams");
+        setTeams([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTeams();
+  }, []);
+
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => ({
       ...prev,
@@ -26,59 +72,36 @@ export default function TeamsMainPage() {
     }));
   };
 
-  const handleCreateTeam = () => {
-    console.log("Create team clicked");
-    setShowTeamDropdown(false);
-  };
-
+  // Chuyển đổi Team từ backend thành TeamSection format
   const teamSections: TeamSection[] = useMemo(
-    () => [
-      {
-        id: "classes",
-        title: "Classes",
-        items: [
+    () => {
+      if (teams.length === 0) {
+        return [
           {
-            id: "web-programming",
-            name: "CNM - Công nghệ Mạng",
-            subtitle: "Học về công nghệ mạng hiện đại",
-            initials: "CNM",
-            accentColor: "#8269db",
-            meta: "28 members · Private class",
+            id: "classes",
+            title: "Classes",
+            items: [],
           },
-          {
-            id: "database",
-            name: "CSDL - Cơ sở dữ liệu",
-            subtitle: "Thiết kế và quản trị CSDL",
-            initials: "CSDL",
-            accentColor: "#ff6b6b",
-            meta: "32 members · Private class",
-          },
-        ],
-      },
-      {
-        id: "teams",
-        title: "Personal Teams",
-        items: [
-          {
-            id: "research-team",
-            name: "AI Research Team",
-            subtitle: "Nhóm nghiên cứu trí tuệ nhân tạo",
-            initials: "AI",
-            accentColor: "#2ecc71",
-            meta: "15 members · Public team",
-          },
-          {
-            id: "dev-team",
-            name: "Development Team",
-            subtitle: "Team phát triển sản phẩm",
-            initials: "DEV",
-            accentColor: "#3498db",
-            meta: "8 members · Private team",
-          },
-        ],
-      },
-    ],
-    []
+        ];
+      }
+
+      return [
+        {
+          id: "classes",
+          title: "Classes",
+          items: teams.map((team, index) => ({
+            id: team.id.toString(),
+            name: team.name,
+            subtitle: team.description || "Lớp học",
+            initials: team.name.substring(0, 2).toUpperCase(),
+            accentColor: ["#8269db", "#ff6b6b", "#2ecc71", "#3498db"][index % 4],
+            meta: `${team.joinCode} · ${team.isActive === false ? 'Bị khóa' : 'Lớp đang hoạt động'}`,
+            isActive: team.isActive !== false, 
+          })),
+        },
+      ];
+    },
+    [teams]
   );
 
   const filteredTeamSections = useMemo(() => {
@@ -177,7 +200,87 @@ export default function TeamsMainPage() {
       </div>
 
       <div className="grid gap-8">
-        {filteredTeamSections.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4">
+              <div className="inline-block">
+                <div className="animate-spin">
+                  <svg
+                    className="h-12 w-12 text-slate-400"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900">
+              Loading teams...
+            </h3>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="mb-4 rounded-full bg-red-100 p-6">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-12 w-12 text-red-600"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">
+              Failed to load teams
+            </h3>
+            <p className="text-slate-500 max-w-md mb-4">
+              {error}
+            </p>
+            <button
+              onClick={() => {
+                setError(null);
+                setLoading(true);
+                const fetchTeams = async () => {
+                  try {
+                    setLoading(true);
+                    const response = await teamApi.getAll();
+                    setTeams(response || []);
+                    setError(null);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Failed to fetch teams");
+                    setTeams([]);
+                  } finally {
+                    setLoading(false);
+                  }
+                };
+                fetchTeams();
+              }}
+              className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-md hover:bg-slate-800 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              Try again
+            </button>
+          </div>
+        ) : filteredTeamSections.length > 0 ? (
           filteredTeamSections.map((section) => (
             <div key={section.id}>
               <SectionTitle
@@ -191,11 +294,68 @@ export default function TeamsMainPage() {
                 <div 
                   className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 animate-in fade-in slide-in-from-top-2 duration-200"
                 >
-                  {section.items.map((item) => (
-                    <Link href={`/teams/${item.id}`} key={item.id} className="block hover:opacity-95 transition-opacity">
-                      <TeamCard item={item} />
-                    </Link>
-                  ))}
+                  {section.items.map((item) => {
+                    // Find the team object to get ID
+                    const teamObj = teams.find(t => t.id.toString() === item.id);
+                    const teamId = teamObj?.id || 0;
+                    const isLocked = item.isActive === false;
+                    
+                    return (
+                      <div key={item.id} className="relative group">
+                        {isLocked ? (
+                          <div className="block opacity-50 cursor-not-allowed filter grayscale pointer-events-none select-none">
+                            <TeamCard item={item} />
+                          </div>
+                        ) : (
+                          <Link href={`/teams/${item.id}`} className="block hover:opacity-95 transition-opacity">
+                            <TeamCard item={item} />
+                          </Link>
+                        )}
+                        
+                        {/* Nút Khóa/Mở Khóa nhanh */}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setLockingTeamId(teamId);
+                            setLockingTeamName(item.name);
+                            setShowLockDialog(true);
+                          }}
+                          className={`absolute top-2 right-12 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full shadow-lg ${isLocked ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white`}
+                          title={isLocked ? "Unlock class" : "Lock class"}
+                        >
+                          {isLocked ? (
+                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Add Member Button - Only show if not locked or for teachers */}
+                        {!isLocked && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSelectedTeamId(teamId);
+                              setSelectedTeamName(item.name);
+                              setShowAddMemberModal(true);
+                            }}
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 shadow-lg"
+                            title="Add member"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 5v14M5 12h14" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -222,6 +382,46 @@ export default function TeamsMainPage() {
           </div>
         )}
       </div>
+
+      {/* Add Team Member Modal */}
+      {selectedTeamId && (
+        <AddTeamMemberModal
+          teamId={selectedTeamId}
+          teamName={selectedTeamName}
+          isOpen={showAddMemberModal}
+          onClose={() => {
+            setShowAddMemberModal(false);
+            setSelectedTeamId(null);
+            setSelectedTeamName("");
+          }}
+          onSuccess={() => {
+            // Refresh teams list
+            const fetchTeams = async () => {
+              try {
+                const response = await teamApi.getAll();
+                setTeams(response || []);
+              } catch (err) {
+                console.error("Failed to refresh teams:", err);
+              }
+            };
+            fetchTeams();
+          }}
+        />
+      )}
+
+      {/* Dialog xác nhận khóa lớp */}
+      {lockingTeamId && (
+        <LockTeamDialog
+          isOpen={showLockDialog}
+          teamId={lockingTeamId}
+          teamName={lockingTeamName}
+          onClose={() => setShowLockDialog(false)}
+          onSuccess={() => {
+            // Re-fetch để cập nhật trạng thái
+            window.location.reload(); 
+          }}
+        />
+      )}
     </div>
   );
 }
