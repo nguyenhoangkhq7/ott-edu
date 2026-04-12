@@ -924,6 +924,8 @@ const handleSendMessage = async () => {
               <p className="text-xs text-slate-500">Class ID: {classId}</p>
             </div>
           </div>
+
+          {/* Nút Khóa lớp mới thêm vào */}
         </div>
 
         
