@@ -47,8 +47,8 @@ export default function TeamsMainPage() {
         let finalTeams: Team[] = [];
         if (Array.isArray(response)) {
           finalTeams = response;
-        } else if (response && typeof response === 'object' && 'data' in (response as any)) {
-          finalTeams = (response as any).data || [];
+        } else if (response && typeof response === 'object' && 'data' in response) {
+          finalTeams = (response as { data: Team[] }).data || [];
         }
 
         setTeams(finalTeams);

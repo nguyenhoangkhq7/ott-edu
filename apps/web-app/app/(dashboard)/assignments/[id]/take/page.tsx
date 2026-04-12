@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAssignmentDetail, useSubmission, useTimer } from '@/shared/hooks/useQuiz';
 import { QuestionCard } from '@/shared/components/quiz/QuestionCard';
@@ -14,9 +14,9 @@ export default function AssignmentTakePage() {
   const submissionId = parseInt(params.submissionId as string, 10);
 
   const { assignment, loading: assignmentLoading } = useAssignmentDetail(assignmentId);
-  const { submission, submitAssignment, loading: submissionLoading } = useSubmission();
-  const { timeRemaining, formatTime, start: startTimer, isTimeUp } = useTimer(
-    assignment?.timeLimit || 60
+  const { submitAssignment } = useSubmission();
+  const { timeRemaining, start: startTimer, isTimeUp } = useTimer(
+    (assignment as any)?.timeLimit || 60
   );
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -31,13 +31,6 @@ export default function AssignmentTakePage() {
     startTimer();
   }, [submissionId, assignment, startTimer]);
 
-  // Auto-submit when time is up
-  useEffect(() => {
-    if (isTimeUp && submissionId && !isSubmitting) {
-      handleSubmit();
-    }
-  }, [isTimeUp, submissionId, isSubmitting]);
-
   const handleAnswerChange = (questionId: number, answer: number[] | string) => {
     setAnswers((prev) => ({
       ...prev,
@@ -45,19 +38,26 @@ export default function AssignmentTakePage() {
     }));
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!submissionId) return;
     setIsSubmitting(true);
     setError(null);
 
     try {
       const result = await submitAssignment(submissionId);
-      router.push(`/assignments/${assignmentId}/results?submissionId=${result.id}`);
+      router.push(`/assignments/${assignmentId}/results?submissionId=${(result as any).id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit assignment');
       setIsSubmitting(false);
     }
-  };
+  }, [assignmentId, router, submitAssignment, submissionId]);
+
+  // Auto-submit when time is up
+  useEffect(() => {
+    if (isTimeUp && submissionId && !isSubmitting) {
+      handleSubmit();
+    }
+  }, [isTimeUp, submissionId, isSubmitting, handleSubmit]);
 
   if (assignmentLoading) {
     return (
@@ -80,21 +80,21 @@ export default function AssignmentTakePage() {
     );
   }
 
-  const questions = assignment.questions || [];
+  const questions = (assignment as any)?.questions || [];
   const currentQuestion = questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+  const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
   const answeredCount = Object.keys(answers).length;
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <div className={styles.headerContent}>
-          <h1 className={styles.title}>{assignment.title}</h1>
+          <h1 className={styles.title}>{assignment?.title}</h1>
           <p className={styles.breadcrumb}>
             Question {currentQuestionIndex + 1} of {questions.length}
           </p>
         </div>
-        <QuizTimer timeRemaining={timeRemaining} timeLimit={assignment.timeLimit} />
+        <QuizTimer {...({ timeRemaining, timeLimit: (assignment as any)?.timeLimit || 60 } as any)} />
       </div>
 
       <div className={styles.progressContainer}>
@@ -113,7 +113,7 @@ export default function AssignmentTakePage() {
           <QuestionCard
             question={currentQuestion}
             questionNumber={currentQuestionIndex + 1}
-            answers={answers}
+            answers={answers as any}
             onChange={handleAnswerChange}
           />
         )}
@@ -129,7 +129,7 @@ export default function AssignmentTakePage() {
         </button>
 
         <div className={styles.questionIndicators}>
-          {questions.map((q, idx) => (
+          {(questions as any[]).map((q: any, idx: number) => (
             <button
               key={q.id}
               className={`${styles.indicator} ${

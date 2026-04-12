@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { AssignmentDetail, Submission } from '@/shared/types/quiz';
 import { quizService } from '@/services/api/quiz.service';
@@ -20,16 +20,7 @@ export default function QuizPage() {
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  useEffect(() => {
-    if (!assignmentId || isNaN(assignmentId)) {
-      setErrorMsg('ID bài kiểm tra không hợp lệ.');
-      setPageState('error');
-      return;
-    }
-    loadAssignment();
-  }, [assignmentId]);
-
-  const loadAssignment = async () => {
+  const loadAssignment = useCallback(async () => {
     try {
       const detail = await quizService.getAssignmentDetail(assignmentId);
       setAssignment(detail);
@@ -48,7 +39,16 @@ export default function QuizPage() {
       setErrorMsg(err instanceof Error ? err.message : 'Không thể tải bài kiểm tra.');
       setPageState('error');
     }
-  };
+  }, [assignmentId]);
+
+  useEffect(() => {
+    if (!assignmentId || isNaN(assignmentId)) {
+      setErrorMsg('ID bài kiểm tra không hợp lệ.');
+      setPageState('error');
+      return;
+    }
+    loadAssignment();
+  }, [assignmentId, loadAssignment]);
 
   const handleStartQuiz = async () => {
     if (!assignment) return;

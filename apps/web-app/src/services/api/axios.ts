@@ -54,7 +54,7 @@ function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<u
     return false;
   }
 
-  const candidate = payload as any;
+  const candidate = payload as Record<string, unknown>;
 
   // Nới lỏng kiểm tra: Chỉ cần có data và status (không bắt bẻ timestamp/message)
   return (
