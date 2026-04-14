@@ -33,12 +33,30 @@ public class AssignmentController {
     public ResponseEntity<AssignmentResponseDTO> createAssignment(
             @RequestBody AssignmentRequestDTO dto,
             Authentication authentication) {
-        System.out.println(dto);
-        // Lấy teacherId từ Authentication
-        Long teacherId = extractUserIdFromAuthentication(authentication);
-        // Có thể lưu teacherId vào assignment nếu cần (tùy design)
-        AssignmentResponseDTO response = assignmentService.createAssignment(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        try {
+            System.out.println("📝 Received DTO: " + dto);
+            System.out.println("   - Title: " + dto.getTitle());
+            System.out.println("   - DueDate: " + dto.getDueDate() + " (type: "
+                    + (dto.getDueDate() != null ? dto.getDueDate().getClass().getName() : "null") + ")");
+            System.out.println("   - MaxScore: " + dto.getMaxScore() + " (type: "
+                    + (dto.getMaxScore() != null ? dto.getMaxScore().getClass().getSimpleName() : "null") + ")");
+            System.out.println("   - Type: " + dto.getType());
+            System.out.println("   - TeamId: " + dto.getTeamId());
+
+            // Lấy teacherId từ Authentication
+            Long teacherId = extractUserIdFromAuthentication(authentication);
+            System.out.println("   - TeacherId extracted: " + teacherId);
+
+            // Có thể lưu teacherId vào assignment nếu cần (tùy design)
+            AssignmentResponseDTO response = assignmentService.createAssignment(dto);
+            System.out.println("✅ Assignment created with ID: " + response.getId());
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            System.err.println("❌ Error in createAssignment: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
 
     /**

@@ -411,11 +411,63 @@ export function formatDate(isoDate: string): string {
 }
 
 /**
- * Convert HTML datetime-local to ISO 8601
- * Input: "2025-12-15T23:59" (from HTML input datetime-local)
- * Output: "2025-12-15T23:59:00"
+ * Convert HTML datetime-local to ISO 8601 UTC format
+ * This ensures timezone-aware conversion to UTC
+ * 
+ * Input: "2025-12-15T23:59" (from HTML input datetime-local - user's local browser time)
+ * Output: "2025-12-15T16:59:00" (converted to UTC - if user is in UTC+7 timezone)
+ * 
+ * Why this matters:
+ * - HTML datetime-local gives us the user's local time WITHOUT timezone info
+ * - We need to convert it to UTC so the backend interprets it correctly
+ * - This way, if user selects "tomorrow at 23:59 local time", it sends the UTC equivalent
+ * - Backend then compares this UTC time with its own UTC time for validation
+ * 
+ * Example with Vietnam timezone (UTC+7):
+ * - User selects: 2025-12-16T10:00 (local time)
+ * - Converted to UTC: 2025-12-16T03:00 (10:00 - 7 hours)
+ * - Backend validates: 2025-12-16T03:00 > now() in UTC ✓
  */
 export function convertToISO8601(dateTimeLocal: string): string {
   if (!dateTimeLocal) return "";
-  return `${dateTimeLocal}:00`;
+  
+  try {
+    // Parse the local time
+    // Create a date from the string: "2025-12-15T23:59"
+    // JavaScript interprets this as local browser time
+    const [datePart, timePart] = dateTimeLocal.split('T');
+    
+    if (!datePart || !timePart) {
+      console.error('Invalid datetime format:', dateTimeLocal);
+      return `${dateTimeLocal}:00`;
+    }
+    
+    // Create a Date object from the local datetime string
+    // new Date("2025-12-15T23:59:00") will be interpreted as local time
+    const localDate = new Date(`${datePart}T${timePart}:00`);
+    
+    if (isNaN(localDate.getTime())) {
+      console.error('Invalid date:', dateTimeLocal);
+      return `${dateTimeLocal}:00`;
+    }
+    
+    // Convert to UTC: get the ISO string (which is always in UTC)
+    const utcIsoString = localDate.toISOString();
+    
+    // Format as: "2025-12-15T23:59:00" (removing milliseconds and Z)
+    const utcFormatted = utcIsoString.replace('.000Z', '').replace('Z', '');
+    
+    console.log('✅ Datetime conversion:', {
+      input: dateTimeLocal,
+      localInterpreted: localDate.toString(),
+      utcConverted: utcFormatted,
+      userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+    
+    return utcFormatted;
+  } catch (error) {
+    console.error('Error converting datetime to UTC:', error);
+    // Fallback to basic format if parsing fails
+    return `${dateTimeLocal}:00`;
+  }
 }

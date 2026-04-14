@@ -63,45 +63,66 @@ public class AssignmentServiceImpl implements AssignmentService {
     @Override
     @Transactional
     public AssignmentResponseDTO createAssignment(AssignmentRequestDTO dto) {
-        // ---- Validation ----
-        validateRequest(dto);
-        System.out.println("validate xong");
-        // ---- Build Assignment entity ----
-        Assignment assignment = Assignment.builder()
-                .title(dto.getTitle().trim())
-                .instructions(dto.getInstructions())
-                .maxScore(dto.getMaxScore())
-                .dueDate(dto.getDueDate())
-                .type(dto.getType())
-                .teamId(dto.getTeamId())
-                .build();
-        System.out.println("Tạo assignment xong");
-        // ---- Link existing Materials ----
-        if (dto.getMaterialIds() != null && !dto.getMaterialIds().isEmpty()) {
-            List<Material> materials = materialRepository.findAllByIdIn(dto.getMaterialIds());
+        try {
+            // ---- Validation ----
+            log.info("🔍 Validating assignment request: title={}, teamId={}, dueDate={}",
+                    dto.getTitle(), dto.getTeamId(), dto.getDueDate());
+            validateRequest(dto);
+            log.info("✅ Validation passed");
 
-            if (materials.size() != dto.getMaterialIds().size()) {
-                throw new BadRequestException(
-                        "Một hoặc nhiều tài liệu (materialIds) không tồn tại trong hệ thống.");
+            // ---- Build Assignment entity ----
+            log.info("🔨 Building assignment entity with maxScore type: {}",
+                    dto.getMaxScore() != null ? dto.getMaxScore().getClass().getSimpleName() : "null");
+
+            Assignment assignment = Assignment.builder()
+                    .title(dto.getTitle().trim())
+                    .instructions(dto.getInstructions())
+                    .maxScore(dto.getMaxScore())
+                    .dueDate(dto.getDueDate())
+                    .type(dto.getType())
+                    .teamId(dto.getTeamId())
+                    .build();
+            log.info("✅ Assignment entity created successfully");
+
+            // ---- Link existing Materials ----
+            if (dto.getMaterialIds() != null && !dto.getMaterialIds().isEmpty()) {
+                log.info("🔗 Linking {} materials...", dto.getMaterialIds().size());
+                List<Material> materials = materialRepository.findAllByIdIn(dto.getMaterialIds());
+
+                if (materials.size() != dto.getMaterialIds().size()) {
+                    throw new BadRequestException(
+                            "Một hoặc nhiều tài liệu (materialIds) không tồn tại trong hệ thống.");
+                }
+
+                assignment.setMaterials(materials);
+                log.info("✅ Materials linked");
             }
 
-            assignment.setMaterials(materials);
-        }
-        System.out.println("Như 1");
-        // ---- Build Questions (chỉ khi type == QUIZ) ----
-        if (AssignmentType.QUIZ.equals(dto.getType())
-                && dto.getQuestions() != null
-                && !dto.getQuestions().isEmpty()) {
+            // ---- Build Questions (chỉ khi type == QUIZ) ----
+            if (AssignmentType.QUIZ.equals(dto.getType())
+                    && dto.getQuestions() != null
+                    && !dto.getQuestions().isEmpty()) {
+                log.info("❓ Building {} quiz questions...", dto.getQuestions().size());
+                List<Question> questions = buildQuestions(dto.getQuestions(), assignment);
+                assignment.setQuestions(questions);
+                log.info("✅ Questions built");
+            }
 
-            List<Question> questions = buildQuestions(dto.getQuestions(), assignment);
-            assignment.setQuestions(questions);
-        }
-        System.out.println("Như 2");
-        // ---- Persist ----
-        Assignment saved = assignmentRepository.save(assignment);
-        log.info("Assignment created successfully: id={}, title={}", saved.getId(), saved.getTitle());
+            // ---- Persist ----
+            log.info("💾 Saving assignment to database...");
+            Assignment saved = assignmentRepository.save(assignment);
+            log.info("✅ Assignment saved successfully: id={}, title={}", saved.getId(), saved.getTitle());
 
-        return assignmentMapper.toResponseDTO(saved);
+            return assignmentMapper.toResponseDTO(saved);
+        } catch (BadRequestException e) {
+            log.error("❌ Bad request: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("❌ Unexpected error in createAssignment:", e);
+            log.error("Exception type: {}", e.getClass().getName());
+            log.error("Exception message: {}", e.getMessage());
+            throw new RuntimeException("Lỗi tạo bài tập: " + e.getMessage(), e);
+        }
     }
 
     // ---- Private helpers ----
@@ -115,12 +136,17 @@ public class AssignmentServiceImpl implements AssignmentService {
             throw new BadRequestException("Hạn nộp bài (due_date) không được để trống.");
         }
 
-        if (!dto.getDueDate().isAfter(LocalDateTime.now())) {
-            throw new BadRequestException("Hạn nộp bài phải lớn hơn thời điểm hiện tại.");
+        LocalDateTime now = LocalDateTime.now();
+        log.debug("⏰ Date check - Now: {}, DueDate: {}", now, dto.getDueDate());
+
+        if (!dto.getDueDate().isAfter(now)) {
+            throw new BadRequestException(
+                    String.format("Hạn nộp bài phải lớn hơn thời điểm hiện tại. (Now: %s, Due: %s)", now,
+                            dto.getDueDate()));
         }
 
         if (dto.getMaxScore() == null || dto.getMaxScore() <= 0) {
-            throw new BadRequestException("Điểm tối đa phải lớn hơn 0.");
+            throw new BadRequestException("Điểm tối đa phải lớn hơn 0. Nhận được: " + dto.getMaxScore());
         }
 
         if (dto.getType() == null) {

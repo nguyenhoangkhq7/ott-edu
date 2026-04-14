@@ -247,7 +247,7 @@ export default function AssignmentDetailPage() {
 
             {/* Submission Section */}
             <div className="bg-white rounded-xl p-8 border border-slate-200">
-              <h2 className="text-xl font-bold text-slate-900 mb-6">Trang thái bài nộp</h2>
+              <h2 className="text-xl font-bold text-slate-900 mb-6">Trạng thái bài nộp</h2>
               
               {!isSubmitted ? (
                 // Not submitted - Show upload section

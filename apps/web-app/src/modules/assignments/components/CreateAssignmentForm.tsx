@@ -129,9 +129,38 @@ export default function CreateAssignmentForm({
     const loadingToastId = loadingToast('Đang tạo bài tập...');
 
     try {
-      // Convert datetime-local to ISO 8601
+      // Convert datetime-local to ISO 8601 UTC format
       const formattedDateTime = `${formData.dueDate}T${formData.dueTime}`;
       const dueDateIso = convertToISO8601(formattedDateTime);
+
+      // ⚠️  CLIENT-SIDE VALIDATION: Check if dueDate is in the future
+      // This mirrors the backend validation to catch timezone issues early
+      try {
+        const dueDateObj = new Date(dueDateIso);
+        const now = new Date();
+        
+        console.log('⏰ Date validation:', {
+          selectedLocalTime: formattedDateTime,
+          convertedToUtc: dueDateIso,
+          parsedAsDate: dueDateObj.toISOString(),
+          currentTime: now.toISOString(),
+          isFuture: dueDateObj > now,
+          differenceMs: dueDateObj.getTime() - now.getTime(),
+        });
+        
+        if (dueDateObj <= now) {
+          errorToast('Hạn nộp bài phải lớn hơn thời điểm hiện tại. Vui lòng chọn ngày/giờ trong tương lai.');
+          setIsSubmitting(false);
+          dismiss(loadingToastId);
+          return;
+        }
+      } catch (dateError) {
+        console.error('❌ Error parsing date:', dateError);
+        errorToast('Định dạng ngày/giờ không hợp lệ. Vui lòng kiểm tra lại.');
+        setIsSubmitting(false);
+        dismiss(loadingToastId);
+        return;
+      }
 
       // Create assignment
       const selectedTeamId = formData.teams.length > 0 ? formData.teams[0] : validTeamId;
@@ -200,8 +229,7 @@ export default function CreateAssignmentForm({
   const handleCancel = () => {
     if (
       formData.title.trim() ||
-      formData.description.trim() ||
-      uploadedFiles.length > 0
+      formData.description.trim()
     ) {
       if (window.confirm('Bạn có chắc muốn hủy? Dữ liệu sẽ không được lưu.')) {
         onClose?.();
