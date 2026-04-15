@@ -10,6 +10,18 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**', // Cho phép lấy tất cả ảnh từ bucket này
       },
+      {
+        protocol: 'https',
+        hostname: 'product-images-hau.s3.amazonaws.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'i.pravatar.cc',
+        port: '',
+        pathname: '/**', // Cho phép lấy avatar từ pravatar
+      },
     ],
   },
   
@@ -25,6 +37,10 @@ const nextConfig: NextConfig = {
       {
         source: '/api/chat/:path*',
         destination: 'http://gateway:80/api/chat/:path*',
+      },
+      {
+        source: '/api/assignment/:path*',
+        destination: 'http://gateway:80/api/assignment/:path*',
       }
     ];
   },

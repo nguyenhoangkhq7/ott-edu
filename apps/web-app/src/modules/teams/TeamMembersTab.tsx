@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { teamApi, TeamMember } from '@/services/api/teamApi';
+import AddTeamMemberModal from '@/modules/teams/AddTeamMemberModal';
 import DeleteMemberDialog from '@/modules/teams/DeleteMemberDialog';
 import LockTeamDialog from '@/modules/teams/LockTeamDialog'; // Thêm Dialog khóa
 
 interface TeamMembersTabProps {
   teamId: number;
+  teamName?: string;
 }
 
-export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
+export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: TeamMembersTabProps) {
   // Dữ liệu members từ API
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,7 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedMemberName, setSelectedMemberName] = useState<string>('');
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
 
   // Lock team dialog state
   const [isLockDialogOpen, setIsLockDialogOpen] = useState(false);
@@ -77,7 +80,10 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
               className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm"
             />
           </div>
-          <button className="bg-[#1868f0] hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap">
+          <button
+            onClick={() => setIsAddMemberModalOpen(true)}
+            className="bg-[#1868f0] hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap"
+          >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" /></svg>
             Add member
           </button>
@@ -266,6 +272,24 @@ export default function TeamMembersTab({ teamId }: TeamMembersTabProps) {
         }}
         onSuccess={() => {
           // Refetch members
+          const fetchMembers = async () => {
+            try {
+              const response = await teamApi.getMembers(teamId);
+              setMembers(response || []);
+            } catch (err) {
+              console.error('Error refetching members:', err);
+            }
+          };
+          fetchMembers();
+        }}
+      />
+
+      <AddTeamMemberModal
+        isOpen={isAddMemberModalOpen}
+        teamId={teamId}
+        teamName={teamName}
+        onClose={() => setIsAddMemberModalOpen(false)}
+        onSuccess={() => {
           const fetchMembers = async () => {
             try {
               const response = await teamApi.getMembers(teamId);

@@ -28,7 +28,8 @@ export interface TeamMember {
 }
 
 export interface AddTeamMemberRequest {
-  accountId: number;
+  accountId?: number;
+  email?: string;
   role: "MEMBER" | "LEADER";
 }
 
@@ -40,7 +41,7 @@ export interface ApiSuccessResponse<T> {
   data: T;
 }
 
-// axios baseURL already points to /api/core
+// Gateway route: /api/core/ -> core-service:8080/
 const BASE_PATH = "/teams";
 
 export const teamApi = {
@@ -85,6 +86,11 @@ export const teamApi = {
     data: AddTeamMemberRequest
   ): Promise<TeamMember> => {
     return httpService.post<TeamMember>(`${BASE_PATH}/${teamId}/members`, data);
+  },
+
+  // Xóa thành viên khỏi lớp học
+  deleteMember: async (teamId: number, memberId: number): Promise<null> => {
+    return httpService.delete<null>(`${BASE_PATH}/${teamId}/members/${memberId}`);
   },
 
   // Cập nhật trạng thái lớp học (khóa/mở khóa)

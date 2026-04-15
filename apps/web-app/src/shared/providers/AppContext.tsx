@@ -36,31 +36,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const token = getAccessToken();
         
         if (token) {
-          // BƯỚC 1: Lấy classId từ Cookie (Đây là Nguồn gốc chuẩn vì nó lưu lúc Login hoặc chọn lớp)
-         const savedClassId = Cookies.get("classId") || localStorage.getItem("classId");
-          if (savedClassId) {
-            setClassId(savedClassId);
-          }
-
-          // BƯỚC 2: Gọi API /auth/me để cập nhật Email
+          const savedClassId = Cookies.get("classId") || localStorage.getItem("classId");
           const latestUser = await getCurrentUser();
           
           if (latestUser) {
             setUserEmail(latestUser.email);
-            
-            // XÓA ĐOẠN DÙNG latestUser.code (Vì đó là Mã sinh viên)
-            
-            // Backup: Nếu Cookie classId bị mất, ta lấy ID của Team đầu tiên mà User này tham gia
+
             const userTeams = (latestUser as unknown as UserWithTeams)?.teams || [];
-            if (!savedClassId && userTeams.length > 0) {
-                const firstTeamId = userTeams[0].id.toString();
-                setClassId(firstTeamId);
-                Cookies.set("classId", firstTeamId, { expires: 7 });
+            const accessibleTeamIds = new Set(
+              userTeams.map((team) => team.id.toString())
+            );
+
+            if (savedClassId && accessibleTeamIds.has(savedClassId)) {
+              setClassId(savedClassId);
+            } else if (userTeams.length > 0) {
+              const firstTeamId = userTeams[0].id.toString();
+              setClassId(firstTeamId);
+              Cookies.set("classId", firstTeamId, { expires: 7 });
+              localStorage.setItem("classId", firstTeamId);
+            } else {
+              setClassId(null);
+              Cookies.remove("classId");
+              localStorage.removeItem("classId");
             }
           }
         }
       } catch (error) {
         console.error("Lỗi khởi tạo App Context hoặc Token hết hạn:", error);
+        clearAccessToken();
+        setUserEmail(null);
+        setClassId(null);
+        Cookies.remove("classId");
+        Cookies.remove("userEmail");
+        localStorage.removeItem("classId");
+        localStorage.removeItem("userEmail");
       } finally {
         setIsLoaded(true);
       }

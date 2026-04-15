@@ -331,7 +331,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, [conversations, currentUserId, searchQuery]);
 
   return (
-    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white font-sans shadow-sm">
+    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
       <Sidebar
         currentMode={currentMode}
         onModeChange={setCurrentMode}
