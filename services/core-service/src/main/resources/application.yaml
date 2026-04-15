@@ -77,3 +77,5 @@ app:
       public-base-url: ${AWS_S3_PUBLIC_BASE_URL:}
       avatar-folder: ${AWS_S3_AVATAR_FOLDER:avatars}
       max-file-size-bytes: ${AWS_S3_AVATAR_MAX_FILE_SIZE_BYTES:5242880}
+  chat-service:
+    base-url: ${CHAT_SERVICE_BASE_URL:http://localhost:3001/api}

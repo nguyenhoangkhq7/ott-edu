@@ -119,7 +119,11 @@ const getFileIcon = (fileName: string) => {
 };
 
 // ================= MAIN COMPONENT =================
-export default function TeamFilesTab() {
+interface TeamFilesTabProps {
+  teamId?: number;
+}
+
+export default function TeamFilesTab({ teamId: routeTeamId }: TeamFilesTabProps) {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [isUploadMenuOpen, setIsUploadMenuOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -141,14 +145,9 @@ export default function TeamFilesTab() {
   const [classId, setClassId] = useState<string | null>(null);
 
   useEffect(() => {
-    const initClassId = async () => {
-      const savedClassId = contextClassId || Cookies.get('classId'); 
-      if (savedClassId) {
-        setClassId(savedClassId);
-      }
-    };
-    initClassId();
-  }, [contextClassId]);
+    const resolvedTeamId = routeTeamId?.toString() ?? contextClassId ?? null;
+    setClassId(resolvedTeamId);
+  }, [contextClassId, routeTeamId]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

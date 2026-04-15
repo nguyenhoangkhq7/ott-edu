@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { teamApi } from '@/services/api/teamApi';
 
 interface DeleteMemberDialogProps {
   isOpen: boolean;
@@ -29,20 +30,7 @@ export default function DeleteMemberDialog({
     setError(null);
 
     try {
-      // Assuming we have a deleteMember method in teamApi
-      // For now, we'll make the API call manually
-      const response = await fetch(`http://localhost:8080/teams/${teamId}/members/${memberId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete member');
-      }
-
+      await teamApi.deleteMember(teamId, memberId);
       onSuccess();
       onClose();
     } catch (err) {

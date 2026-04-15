@@ -57,12 +57,25 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
       let user = await User.findOne({ email: rawUserEmail });
 
       if (!user) {
-        user = await User.create({
+        const newUser: {
+          email: string;
+          fullName: string;
+          avatarUrl?: string;
+          code?: string;
+        } = {
           email: rawUserEmail,
           fullName: rawUserName || fallbackFullNameFromEmail(rawUserEmail),
-          avatarUrl: rawAvatarUrl || undefined,
-          code: rawUserCode || undefined,
-        });
+        };
+
+        if (rawAvatarUrl) {
+          newUser.avatarUrl = rawAvatarUrl;
+        }
+
+        if (rawUserCode) {
+          newUser.code = rawUserCode;
+        }
+
+        user = await User.create(newUser);
       } else {
         const nextCode = rawUserCode || user.code || "";
         const nextName = rawUserName || user.fullName;
@@ -72,7 +85,7 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
           nextName !== user.fullName ||
           nextAvatar !== user.avatarUrl
         ) {
-          user.code = nextCode || undefined;
+          user.code = nextCode;
           user.fullName = nextName;
           user.avatarUrl = nextAvatar;
           await user.save();

@@ -4,9 +4,11 @@ export interface IConversation extends Document {
   participants: mongoose.Types.ObjectId[];
   lastMessage?: mongoose.Types.ObjectId;
   type: "private" | "class";
+  teamId?: number;
   name?: string;
   avatarUrl?: string;
   metadata?: any;
+  isArchived?: boolean;
 }
 
 const conversationSchema: Schema = new Schema(
@@ -15,6 +17,12 @@ const conversationSchema: Schema = new Schema(
       type: String,
       enum: ["private", "class"],
       default: "private",
+    },
+    teamId: {
+      type: Number,
+      index: true,
+      unique: true,
+      sparse: true,
     },
     name: {
       type: String,
@@ -27,6 +35,10 @@ const conversationSchema: Schema = new Schema(
     },
     metadata: {
       type: Schema.Types.Mixed,
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
     },
     participants: [
       {

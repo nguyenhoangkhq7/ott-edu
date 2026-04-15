@@ -151,57 +151,57 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   }, [showEmojiPicker]);
 
   return (
-    <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col gap-3">
-      {/* Reply preview */}
+    <div className="flex flex-col gap-3 border-t border-slate-200 bg-white p-4">
       {replyingTo && (
-        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded">
+        <div className="flex items-center gap-2 rounded-xl border-l-4 border-blue-500 bg-blue-50 p-3">
           <div className="flex-1 text-sm">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+            <p className="mb-1 text-xs text-slate-500">
               Đang trả lời cho một tin nhắn
             </p>
-            <p className="text-gray-700 dark:text-gray-300 truncate">
+            <p className="truncate text-slate-700">
               {replyingTo.isRevoked
                 ? "Tin nhắn đã bị thu hồi"
                 : replyingTo.content}
             </p>
           </div>
           <button
+            type="button"
             onClick={onCancelReply}
-            className="p-1 hover:bg-blue-200 dark:hover:bg-blue-800 rounded transition-colors"
+            className="rounded p-1 transition-colors hover:bg-blue-100"
           >
             <X size={16} />
           </button>
         </div>
       )}
 
-      {/* Error message */}
       {uploadError && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-400 text-sm">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertCircle size={16} className="flex-shrink-0" />
           <p>{uploadError}</p>
           <button
+            type="button"
             onClick={() => setUploadError(null)}
-            className="ml-auto text-red-700 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
+            className="ml-auto text-red-700 hover:text-red-900"
           >
             <X size={16} />
           </button>
         </div>
       )}
 
-      {/* Attachments preview */}
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2 px-2">
           {attachments.map((attachment, index) => (
             <div
               key={index}
-              className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded px-2 py-1 text-sm"
+              className="flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm"
             >
-              <span className="truncate max-w-xs text-gray-700 dark:text-gray-300">
+              <span className="max-w-xs truncate text-slate-700">
                 📎 {attachment.fileName}
               </span>
               <button
+                type="button"
                 onClick={() => removeAttachment(index)}
-                className="ml-1 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
+                className="ml-1 rounded p-0.5 hover:bg-slate-200"
               >
                 <X size={14} />
               </button>
@@ -210,12 +210,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      {/* Input area */}
       <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={handleAttachmentClick}
           disabled={isUploading}
-          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+          className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
         >
           {isUploading ? (
             <svg
@@ -244,7 +244,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
         <div
           ref={inputToolsRef}
-          className="flex-1 relative flex items-center bg-gray-100 dark:bg-gray-800 border border-transparent rounded-full px-4 py-2 focus-within:border-blue-500 transition-colors"
+          className="relative flex flex-1 items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 transition-colors focus-within:border-blue-400 focus-within:bg-white"
         >
           <input
             ref={textInputRef}
@@ -254,25 +254,25 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onKeyDown={handleKeyDown}
             placeholder="Nhập tin nhắn..."
             disabled={isSending || isUploading}
-            className="flex-1 bg-transparent border-none outline-none text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 disabled:opacity-50"
+            className="flex-1 border-none bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:opacity-50"
           />
           <button
-            onClick={() => setShowEmojiPicker((prev) => !prev)}
-            className="p-1 ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
             type="button"
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            className="ml-2 p-1 text-slate-500 hover:text-slate-700"
           >
             <Smile size={20} />
           </button>
 
           {showEmojiPicker && (
-            <div className="absolute bottom-12 right-0 z-20 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+            <div className="absolute bottom-12 right-0 z-20 w-64 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
               <div className="grid grid-cols-6 gap-1">
                 {EMOJIS.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
                     onClick={() => insertEmoji(emoji)}
-                    className="rounded-lg p-2 text-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="rounded-lg p-2 text-lg hover:bg-slate-100"
                   >
                     {emoji}
                   </button>
@@ -283,18 +283,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
 
         <button
+          type="button"
           onClick={handleSend}
           disabled={
             (!text.trim() && attachments.length === 0) ||
             isSending ||
             isUploading
           }
-          className={`p-2.5 rounded-full flex items-center justify-center transition-colors ${
+          className={`flex items-center justify-center rounded-full p-2.5 transition-colors ${
             (text.trim() || attachments.length > 0) &&
             !isSending &&
             !isUploading
               ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600"
+              : "bg-slate-100 text-slate-400"
           }`}
         >
           {isSending || isUploading ? (
@@ -323,7 +324,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </button>
       </div>
 
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"

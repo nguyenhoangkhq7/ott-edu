@@ -1,11 +1,32 @@
+import mongoose from "mongoose";
 import Conversation from "../model/Conversation.ts";
 import Message from "../model/Message.ts";
 import User from "../model/User.ts";
 
+type SyncParticipant = {
+  accountId?: number;
+  email: string;
+  fullName: string;
+  code?: string;
+  avatarUrl?: string;
+};
+
+type SyncClassConversationRequest = {
+  teamId: number;
+  name: string;
+  description?: string | null;
+  departmentId?: number | null;
+  archived?: boolean;
+  participants: SyncParticipant[];
+};
+
 export class ChatService {
   // Lấy danh sách hộp thoại của user hiện tại, có thể lọc theo type
   static async getConversations(userId: string, type?: string) {
-    const query: any = { participants: { $in: [userId] } };
+    const query: any = {
+      participants: { $in: [userId] },
+      isArchived: { $ne: true },
+    };
     if (type) {
       query.type = type;
     }
@@ -110,6 +131,10 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
+    if (conversation.isArchived) {
+      throw new Error("Conversation is archived");
+    }
+
     const messagePayload: any = {
       conversationId: conversation._id,
       senderId,
@@ -160,5 +185,96 @@ export class ChatService {
     const conversation = await Conversation.create(payload);
 
     return conversation;
+  }
+
+  static async syncClassConversation(payload: SyncClassConversationRequest) {
+    const participantIds = await this.resolveParticipantIds(payload.participants);
+    const metadata = {
+      teamId: payload.teamId,
+      description: payload.description ?? null,
+      departmentId: payload.departmentId ?? null,
+    };
+
+    let conversation = await Conversation.findOne({
+      teamId: payload.teamId,
+      type: "class",
+    });
+
+    if (!conversation) {
+      conversation = await Conversation.create({
+        type: "class",
+        teamId: payload.teamId,
+        name: payload.name,
+        participants: participantIds,
+        metadata,
+        isArchived: payload.archived ?? false,
+      });
+      return conversation;
+    }
+
+    conversation.name = payload.name;
+    conversation.participants = participantIds as any;
+    conversation.metadata = metadata;
+    conversation.isArchived = payload.archived ?? false;
+
+    await conversation.save();
+    return conversation;
+  }
+
+  private static async resolveParticipantIds(participants: SyncParticipant[]) {
+    const uniqueParticipants = new Map(
+      participants
+        .filter((participant) => Boolean(participant.email))
+        .map((participant) => [participant.email.toLowerCase(), participant] as const),
+    );
+
+    const resolvedUserIds: mongoose.Types.ObjectId[] = [];
+
+    for (const participant of uniqueParticipants.values()) {
+      let user = await User.findOne({ email: participant.email.toLowerCase() });
+      if (!user) {
+        const newUser: {
+          email: string;
+          fullName: string;
+          code?: string;
+          avatarUrl?: string;
+        } = {
+          email: participant.email.toLowerCase(),
+          fullName: participant.fullName || participant.email.split("@")[0] || "User",
+        };
+
+        if (participant.code !== undefined) {
+          newUser.code = participant.code;
+        }
+
+        if (participant.avatarUrl !== undefined) {
+          newUser.avatarUrl = participant.avatarUrl;
+        }
+
+        user = await User.create(newUser);
+      } else {
+        let hasChanges = false;
+        if (participant.fullName && user.fullName !== participant.fullName) {
+          user.fullName = participant.fullName;
+          hasChanges = true;
+        }
+        if (participant.code !== undefined && user.code !== participant.code) {
+          user.code = participant.code;
+          hasChanges = true;
+        }
+        if (participant.avatarUrl !== undefined && user.avatarUrl !== participant.avatarUrl) {
+          user.avatarUrl = participant.avatarUrl;
+          hasChanges = true;
+        }
+
+        if (hasChanges) {
+          await user.save();
+        }
+      }
+
+      resolvedUserIds.push(user._id);
+    }
+
+    return resolvedUserIds;
   }
 }
