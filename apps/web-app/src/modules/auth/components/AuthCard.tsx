@@ -6,7 +6,7 @@ type AuthCardProps = {
 
 export default function AuthCard({ children }: AuthCardProps) {
   return (
-    <section className="w-full max-w-md rounded-3xl border border-slate-100 bg-white p-8 shadow-xl shadow-black/20 sm:p-10">
+    <section className="w-full rounded-3xl border border-slate-200/80 bg-white p-8 shadow-xl shadow-slate-900/10 sm:p-10">
       {children}
     </section>
   );

@@ -204,7 +204,7 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={!isValid || newPassword !== confirmPassword || isSubmitting}
-              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
             >
               {isSubmitting ? "Resetting..." : "Reset Password"}
             </button>
@@ -213,7 +213,7 @@ export default function ResetPasswordPage() {
           <div className="mt-6 text-center">
             <button
               onClick={handleBackToSignIn}
-              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors hover:text-blue-700"
+              className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-700"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="19" y1="12" x2="5" y2="12" />

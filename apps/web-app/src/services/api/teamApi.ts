@@ -40,8 +40,8 @@ export interface ApiSuccessResponse<T> {
   data: T;
 }
 
-// Gateway route: /api/core/ -> core-service:8080/
-const BASE_PATH = "/api/core/teams";
+// axios baseURL already points to /api/core
+const BASE_PATH = "/teams";
 
 export const teamApi = {
   // Lấy tất cả lớp học
