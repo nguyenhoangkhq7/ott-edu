@@ -4,6 +4,8 @@ import Message from "../model/Message.ts";
 import User from "../model/User.ts";
 import socketManager from "../socketManager.ts";
 
+export type GroupRole = "owner" | "member";
+
 type SyncParticipant = {
   accountId?: number;
   email: string;
@@ -18,10 +20,42 @@ type SyncClassConversationRequest = {
   description?: string | null;
   departmentId?: number | null;
   archived?: boolean;
+  ownerId?: string;
   participants: SyncParticipant[];
 };
 
+type ConversationWithRole = any & {
+  ownerId?: mongoose.Types.ObjectId | string;
+  myRole?: GroupRole;
+  canManageGroup?: boolean;
+};
+
 export class ChatService {
+  private static resolveConversationRole(
+    conversation: ConversationWithRole,
+    userId: string,
+  ): GroupRole | null {
+    if (conversation.type !== "class") return null;
+    return conversation.ownerId?.toString() === userId.toString()
+      ? "owner"
+      : "member";
+  }
+
+  private static ensureConversationOwner(
+    conversation: ConversationWithRole,
+    requesterId: string,
+  ) {
+    if (conversation.type !== "class") {
+      throw new Error("Only group conversations support this action");
+    }
+
+    if (conversation.ownerId?.toString() !== requesterId.toString()) {
+      const error = new Error("You do not have permission to manage this group");
+      (error as any).statusCode = 403;
+      throw error;
+    }
+  }
+
   // Lấy danh sách hộp thoại của user hiện tại, có thể lọc theo type
   static async getConversations(userId: string, type?: string) {
     const query: any = {
@@ -81,6 +115,10 @@ export class ChatService {
 
       return {
         ...conv,
+        ownerId: conv.ownerId?.toString() || null,
+        myRole: this.resolveConversationRole(conv, userId),
+        canManageGroup:
+          this.resolveConversationRole(conv, userId) === "owner",
         participants,
         otherParticipant,
       };
@@ -193,6 +231,12 @@ export class ChatService {
       throw new Error("Conversation is archived");
     }
 
+    if (!conversation.participants.some((participantId) => participantId.toString() === senderId.toString())) {
+      const error = new Error("You are not a member of this conversation");
+      (error as any).statusCode = 403;
+      throw error;
+    }
+
     const messagePayload: any = {
       conversationId: conversation._id,
       senderId,
@@ -239,6 +283,7 @@ export class ChatService {
       type: "class",
       name,
       participants: allParticipants,
+      ownerId: creatorId,
     };
 
     if (avatarUrl) payload.avatarUrl = avatarUrl;
@@ -268,6 +313,9 @@ export class ChatService {
         teamId: payload.teamId,
         name: payload.name,
         participants: participantIds,
+        ownerId: payload.ownerId
+          ? new mongoose.Types.ObjectId(payload.ownerId)
+          : participantIds[0],
         metadata,
         isArchived: payload.archived ?? false,
       });
@@ -279,6 +327,71 @@ export class ChatService {
     conversation.metadata = metadata;
     conversation.isArchived = payload.archived ?? false;
 
+    if (!conversation.ownerId) {
+      conversation.ownerId = payload.ownerId
+        ? new mongoose.Types.ObjectId(payload.ownerId)
+        : participantIds[0];
+    }
+
+    await conversation.save();
+    return conversation;
+  }
+
+  static async getConversationRole(userId: string, conversationId: string) {
+    const conversation = await Conversation.findById(conversationId).lean();
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
+    return {
+      conversationId: conversation._id.toString(),
+      ownerId: conversation.ownerId?.toString() || null,
+      myRole: this.resolveConversationRole(conversation as ConversationWithRole, userId),
+      canManageGroup: this.resolveConversationRole(conversation as ConversationWithRole, userId) === "owner",
+    };
+  }
+
+  static async removeGroupMember(
+    requesterId: string,
+    conversationId: string,
+    memberId: string,
+  ) {
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
+    this.ensureConversationOwner(conversation as ConversationWithRole, requesterId);
+
+    if (conversation.ownerId?.toString() === memberId.toString()) {
+      const error = new Error("Cannot remove the owner from the group");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    if (!conversation.participants.some((participantId) => participantId.toString() === memberId.toString())) {
+      const error = new Error("Member is not part of this conversation");
+      (error as any).statusCode = 404;
+      throw error;
+    }
+
+    conversation.participants = conversation.participants.filter(
+      (participantId) => participantId.toString() !== memberId.toString(),
+    ) as any;
+
+    await conversation.save();
+    return conversation;
+  }
+
+  static async dissolveGroup(requesterId: string, conversationId: string) {
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
+    this.ensureConversationOwner(conversation as ConversationWithRole, requesterId);
+
+    conversation.isArchived = true;
     await conversation.save();
     return conversation;
   }

@@ -6,10 +6,13 @@ import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
 import { ForwardMessageModal } from "./ForwardMessageModal";
 import { ChatUserProfileModal } from "./ChatUserProfileModal";
+import { ChatGroupManageModal } from "./ChatGroupManageModal";
 import { ChatMode, Conversation, Message, User } from "../types";
 import {
   fetchConversations,
   fetchMessages,
+  dissolveGroup,
+  removeGroupMember,
   sendMessage,
   mapApiMessageToMessage,
 } from "../chatApi";
@@ -37,6 +40,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [forwardMessageTarget, setForwardMessageTarget] =
     useState<Message | null>(null);
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
+  const [showGroupManageModal, setShowGroupManageModal] = useState(false);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -186,6 +190,36 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setActiveConversationId(null);
     setMessages([]);
   }, []);
+
+  const refreshAfterGroupChange = useCallback(async () => {
+    const refreshed = await fetchConversations(currentUserId);
+    setConversations(refreshed);
+
+    if (activeConversationId) {
+      const stillExists = refreshed.some((conv) => conv.id === activeConversationId);
+      if (!stillExists) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    }
+  }, [activeConversationId, currentUserId]);
+
+  const handleRemoveGroupMember = useCallback(
+    async (memberId: string) => {
+      if (!activeConversationId) return;
+      await removeGroupMember(activeConversationId, memberId);
+      await refreshAfterGroupChange();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange],
+  );
+
+  const handleDissolveGroup = useCallback(async () => {
+    if (!activeConversationId) return;
+    await dissolveGroup(activeConversationId);
+    await refreshAfterGroupChange();
+    setShowGroupManageModal(false);
+  }, [activeConversationId, refreshAfterGroupChange]);
 
   // ── Fetch Conversations ──────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
@@ -422,6 +456,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         socket={socketRef.current}
         onForwardMessage={setForwardMessageTarget}
         onOpenProfile={setProfileTarget}
+        onOpenGroupManage={() => setShowGroupManageModal(true)}
       />
       {forwardMessageTarget && (
         <ForwardMessageModal
@@ -438,6 +473,15 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         <ChatUserProfileModal
           user={profileTarget}
           onClose={() => setProfileTarget(null)}
+        />
+      )}
+      {showGroupManageModal && activeConversation && currentUser && (
+        <ChatGroupManageModal
+          conversation={activeConversation}
+          currentUser={currentUser}
+          onClose={() => setShowGroupManageModal(false)}
+          onRemoveMember={handleRemoveGroupMember}
+          onDissolveGroup={handleDissolveGroup}
         />
       )}
     </div>

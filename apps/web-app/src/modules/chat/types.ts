@@ -51,6 +51,9 @@ export interface Conversation {
   lastMessage: Message | null;
   unreadCount: number;
   avatarUrl: string | null;
+  ownerId?: string | null;
+  myRole?: "owner" | "member" | null;
+  canManageGroup?: boolean;
 }
 
 // ─── Raw API Response Types (từ backend MongoDB) ────────────────────────────
@@ -98,6 +101,9 @@ export interface ApiConversation {
   type: "private" | "class";
   name?: string;
   avatarUrl?: string;
+  ownerId?: string | null;
+  myRole?: "owner" | "member" | null;
+  canManageGroup?: boolean;
   metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;

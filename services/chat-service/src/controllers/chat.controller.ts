@@ -54,6 +54,26 @@ export class ChatController {
     }
   }
 
+  // API: GET /api/conversations/:conversationId/role
+  static async getConversationRole(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const conversationId = req.params.conversationId as string;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      const data = await ChatService.getConversationRole(userId, conversationId);
+      return res.status(200).json({ data });
+    } catch (error: any) {
+      console.error("[ChatController] getConversationRole error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
   // API: GET /api/messages/:conversationId
   static async getMessagesInConversation(req: Request, res: Response) {
     try {
@@ -289,6 +309,52 @@ export class ChatController {
       return res
         .status(500)
         .json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/members/:memberId/remove
+  static async removeGroupMember(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const { conversationId, memberId } = req.params;
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      const conversation = await ChatService.removeGroupMember(
+        requesterId,
+        conversationId,
+        memberId,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] removeGroupMember error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/dissolve
+  static async dissolveGroup(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const { conversationId } = req.params;
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      const conversation = await ChatService.dissolveGroup(requesterId, conversationId);
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] dissolveGroup error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
     }
   }
 

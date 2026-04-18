@@ -75,6 +75,9 @@ export function mapApiConversationToConversation(
     avatarUrl:
       apiConv.avatarUrl ||
       (type === "class" ? `https://i.pravatar.cc/150?img=30` : null),
+    ownerId: apiConv.ownerId || null,
+    myRole: apiConv.myRole || null,
+    canManageGroup: apiConv.canManageGroup ?? apiConv.myRole === "owner",
   };
 }
 
@@ -218,4 +221,67 @@ export async function sendMessage(
     isForwarded,
   });
   return mapApiMessageToMessage(data.data);
+}
+
+/**
+ * POST /api/conversations/group
+ * Tạo group chat mới, người tạo sẽ là owner.
+ */
+export async function createGroupConversation(payload: {
+  name: string;
+  participants: string[];
+  avatarUrl?: string;
+  metadata?: unknown;
+}): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    "/conversations/group",
+    payload,
+  );
+
+  return mapApiConversationToConversation(data.data, payload.participants[0] || "");
+}
+
+/**
+ * GET /api/conversations/:conversationId/role
+ * Lấy role của user hiện tại trong group chat.
+ */
+export async function fetchConversationRole(conversationId: string): Promise<{
+  conversationId: string;
+  ownerId: string | null;
+  myRole: "owner" | "member" | null;
+  canManageGroup: boolean;
+}> {
+  const data = await chatHttpService.get<{
+    data: {
+      conversationId: string;
+      ownerId: string | null;
+      myRole: "owner" | "member" | null;
+      canManageGroup: boolean;
+    };
+  }>(`/conversations/${conversationId}/role`);
+
+  return data.data;
+}
+
+/**
+ * POST /api/conversations/:conversationId/members/:memberId/remove
+ * Owner xóa member khỏi nhóm.
+ */
+export async function removeGroupMember(
+  conversationId: string,
+  memberId: string,
+): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/members/${memberId}/remove`,
+  );
+
+  return mapApiConversationToConversation(data.data, memberId);
+}
+
+/**
+ * POST /api/conversations/:conversationId/dissolve
+ * Owner giải tán nhóm.
+ */
+export async function dissolveGroup(conversationId: string): Promise<void> {
+  await chatHttpService.post(`/conversations/${conversationId}/dissolve`, {});
 }

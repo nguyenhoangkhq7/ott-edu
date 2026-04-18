@@ -22,6 +22,7 @@ interface ChatWindowProps {
   socket?: Socket | null;
   onForwardMessage?: (message: Message) => void;
   onOpenProfile?: (user: User) => void;
+  onOpenGroupManage?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -34,6 +35,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   socket,
   onForwardMessage,
   onOpenProfile,
+  onOpenGroupManage,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
@@ -242,13 +244,37 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </button>
 
         <div className="flex items-center gap-2 text-slate-400">
-          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
+          <button
+            type="button"
+            onClick={() => {
+              if (conversation.type === "class") {
+                onOpenGroupManage?.();
+              }
+            }}
+            className={`rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 ${conversation.type === "class" ? "cursor-pointer" : "cursor-default"}`}
+          >
             <Phone size={20} />
           </button>
-          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
+          <button
+            type="button"
+            onClick={() => {
+              if (conversation.type === "class") {
+                onOpenGroupManage?.();
+              }
+            }}
+            className={`rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 ${conversation.type === "class" ? "cursor-pointer" : "cursor-default"}`}
+          >
             <Video size={20} />
           </button>
-          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
+          <button
+            type="button"
+            onClick={() => {
+              if (conversation.type === "class") {
+                onOpenGroupManage?.();
+              }
+            }}
+            className={`rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 ${conversation.type === "class" ? "cursor-pointer" : "cursor-default"}`}
+          >
             <Info size={20} />
           </button>
         </div>
