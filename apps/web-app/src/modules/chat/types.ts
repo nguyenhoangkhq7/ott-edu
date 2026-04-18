@@ -47,6 +47,23 @@ export interface Conversation {
   avatarUrl: string | null;
 }
 
+export type VideoCallStatus = "idle" | "calling" | "receiving" | "connected";
+
+export interface IncomingVideoCall {
+  callId: string;
+  conversationId: string;
+  fromUserId: string;
+  toUserId: string;
+  initiatedAt?: string;
+}
+
+export interface ActiveVideoCall {
+  callId: string;
+  conversationId: string;
+  peerUserId: string;
+  direction: "incoming" | "outgoing";
+}
+
 // ─── Raw API Response Types (từ backend MongoDB) ────────────────────────────
 
 export interface ApiUser {

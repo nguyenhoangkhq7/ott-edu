@@ -5,6 +5,7 @@ import { io, Socket } from "socket.io-client";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
 import { ChatMode, Conversation, Message, User } from "../types";
+import { useWebRTC } from "../hooks/useWebRTC";
 import {
   fetchConversations,
   fetchMessages,
@@ -32,6 +33,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -52,6 +54,23 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const socketRef = useRef<Socket | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
 
+  const {
+    localStream,
+    remoteStream,
+    callStatus,
+    incomingCall,
+    activeCall,
+    callError,
+    startVideoCall,
+    acceptIncomingCall,
+    declineIncomingCall,
+    endVideoCall,
+    clearCallError,
+  } = useWebRTC({
+    socket,
+    currentUserId,
+  });
+
   // Giữ ref luôn cập nhật để xài trong socket handler (tránh dependency bắt reconnect socket)
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -61,12 +80,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   useEffect(() => {
     if (!currentUserId) return;
 
-    const socket = io(CHAT_SERVICE_URL, {
+    const nextSocket = io(CHAT_SERVICE_URL, {
       auth: { userId: currentUserId },
       query: { userId: currentUserId },
     });
 
-    socketRef.current = socket;
+    socketRef.current = nextSocket;
+    setSocket(nextSocket);
 
     // Nhận tin nhắn mới từ server real-time
     const handleNewMessage = (rawMessage: unknown) => {
@@ -102,14 +122,36 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       );
     };
 
-    socket.on("newMessage", handleNewMessage);
+    nextSocket.on("newMessage", handleNewMessage);
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
-      socket.off("newMessage", handleNewMessage);
-      socket.disconnect();
+      nextSocket.off("newMessage", handleNewMessage);
+      nextSocket.disconnect();
+      socketRef.current = null;
+      setSocket(null);
     };
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (!incomingCall) {
+      return;
+    }
+
+    const privateConversation = conversations.find(
+      (conversation) =>
+        conversation.type === "private" &&
+        conversation.participants.some(
+          (participant) => participant.id === incomingCall.fromUserId,
+        ),
+    );
+
+    if (privateConversation && activeConversationId !== privateConversation.id) {
+      setCurrentMode("private");
+      setDraftReceiver(null);
+      setActiveConversationId(privateConversation.id);
+    }
+  }, [activeConversationId, conversations, incomingCall]);
 
   // Handle khi click đổi cuộc trò chuyện: Reset số đếm unread về 0
   const handleSelectConversation = useCallback((id: string) => {
@@ -294,6 +336,59 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         }
       : null);
 
+  const activePrivatePeer =
+    activeConversation?.type === "private"
+      ? activeConversation.participants.find((participant) => participant.id !== currentUserId) || null
+      : null;
+
+  const isCallablePrivateConversation =
+    activeConversation !== null && !activeConversation.id.startsWith("draft_");
+
+  const canStartVideoCall =
+    Boolean(activePrivatePeer) &&
+    isCallablePrivateConversation &&
+    callStatus === "idle";
+
+  const handleStartVideoCall = useCallback(async () => {
+    if (!activeConversation || activeConversation.type !== "private") {
+      return;
+    }
+
+    if (activeConversation.id.startsWith("draft_")) {
+      return;
+    }
+
+    const targetPeer = activeConversation.participants.find(
+      (participant) => participant.id !== currentUserId,
+    );
+
+    if (!targetPeer) {
+      return;
+    }
+
+    await startVideoCall({
+      toUserId: targetPeer.id,
+      conversationId: activeConversation.id,
+    });
+  }, [activeConversation, currentUserId, startVideoCall]);
+
+  const incomingCaller = React.useMemo(() => {
+    if (!incomingCall) {
+      return null;
+    }
+
+    for (const conversation of conversations) {
+      const matched = conversation.participants.find(
+        (participant) => participant.id === incomingCall.fromUserId,
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return null;
+  }, [conversations, incomingCall]);
+
   const suggestedUsers = React.useMemo(() => {
     const privatePeerIds = new Set<string>();
     conversations
@@ -353,7 +448,20 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onSendMessage={handleSendMessage}
         isLoadingMessages={isLoadingMessages}
         isSending={isSending}
-        socket={socketRef.current}
+        socket={socket}
+        canStartVideoCall={canStartVideoCall}
+        onStartVideoCall={handleStartVideoCall}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        callStatus={callStatus}
+        incomingCall={incomingCall}
+        incomingCaller={incomingCaller}
+        activeCall={activeCall}
+        callError={callError}
+        onClearCallError={clearCallError}
+        onAcceptIncomingCall={acceptIncomingCall}
+        onDeclineIncomingCall={declineIncomingCall}
+        onEndVideoCall={endVideoCall}
       />
     </div>
   );
