@@ -33,6 +33,7 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     attachments: apiMsg.attachments || [],
     replyTo: apiMsg.replyTo ? mapApiMessageToMessage(apiMsg.replyTo) : null,
     isRevoked: apiMsg.isRevoked || false,
+    revokedFor: apiMsg._hiddenForMe ? ['__self__'] : (apiMsg.revokedFor || []),
     reactions: apiMsg.reactions || [],
   };
 }

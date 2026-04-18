@@ -25,7 +25,7 @@ export interface Reaction {
 }
 
 export interface Message {
-  id: string; // mapped từ _id của MongoDB
+  id: string;
   conversationId: string;
   senderId: string;
   content: string;
@@ -33,7 +33,10 @@ export interface Message {
   status: "sent" | "delivered" | "read";
   attachments?: Attachment[];
   replyTo?: Message | null;
+  /** Thu hồi với tất cả */
   isRevoked: boolean;
+  /** Danh sách userId đã tự thu hồi về phía mình */
+  revokedFor: string[];
   reactions: Reaction[];
 }
 
@@ -78,6 +81,8 @@ export interface ApiMessage {
   attachments?: ApiAttachment[];
   replyTo?: ApiMessage | null;
   isRevoked: boolean;
+  revokedFor?: string[];
+  _hiddenForMe?: boolean;
   reactions: ApiReaction[];
 }
 

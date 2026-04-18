@@ -102,11 +102,36 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       );
     };
 
+    const handleMessageRevoked = (data: { messageId: string; revokeType?: string; isRevoked?: boolean }) => {
+      setConversations((prev) =>
+        prev.map((c) => {
+          if (c.lastMessage?.id === data.messageId) {
+            if (data.revokeType === "self") {
+              return {
+                ...c,
+                lastMessage: {
+                  ...c.lastMessage,
+                  revokedFor: [...(c.lastMessage.revokedFor || []), "__self__"],
+                },
+              };
+            }
+            return {
+              ...c,
+              lastMessage: { ...c.lastMessage, isRevoked: true },
+            };
+          }
+          return c;
+        })
+      );
+    };
+
     socket.on("newMessage", handleNewMessage);
+    socket.on("messageRevoked", handleMessageRevoked);
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
       socket.off("newMessage", handleNewMessage);
+      socket.off("messageRevoked", handleMessageRevoked);
       socket.disconnect();
     };
   }, [currentUserId]);

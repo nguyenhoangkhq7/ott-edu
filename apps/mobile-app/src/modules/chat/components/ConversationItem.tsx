@@ -43,9 +43,11 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     ? 'Chưa có tin nhắn'
     : lastMsg.isRevoked
       ? '🚫 Tin nhắn đã thu hồi'
-      : lastMsg.attachments?.length
-        ? '📎 Tệp đính kèm'
-        : isMe ? `Bạn: ${lastMsg.content}` : lastMsg.content;
+      : lastMsg.revokedFor?.includes('__self__') || (lastMsg.revokedFor && currentUser?.id && lastMsg.revokedFor.includes(currentUser.id))
+        ? (isMe ? 'Bạn: ' : '') + 'Tin nhắn đã ẩn'
+        : lastMsg.attachments?.length
+          ? '📎 Tệp đính kèm'
+          : isMe ? `Bạn: ${lastMsg.content}` : lastMsg.content;
 
   const hasUnread = conversation.unreadCount > 0;
 

@@ -53,12 +53,13 @@ export class ChatController {
   static async getMessagesInConversation(req: Request, res: Response) {
     try {
       const conversationId = req.params.conversationId as string;
+      const requestingUserId = (req as any).user?._id?.toString();
 
       if (!conversationId) {
         return res.status(400).json({ error: "Missing conversationId param" });
       }
 
-      const messages = await ChatService.getMessages(conversationId);
+      const messages = await ChatService.getMessages(conversationId, requestingUserId);
       return res.status(200).json({ data: messages });
     } catch (error: any) {
       console.error("[ChatController] getMessagesInConversation error:", error);

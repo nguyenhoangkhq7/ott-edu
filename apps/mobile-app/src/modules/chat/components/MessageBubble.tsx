@@ -8,6 +8,7 @@ import { Message, User } from '../types';
 import { format } from 'date-fns';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+const REVOKE_FOR_ALL_LIMIT_MS = 15 * 60 * 1000;
 
 const getFileIcon = (fileName: string) => {
   if (fileName.endsWith('.pdf')) return '📄';
@@ -20,18 +21,29 @@ const getFileIcon = (fileName: string) => {
 interface MessageBubbleProps {
   message: Message;
   isSelf: boolean;
+  currentUserId?: string;
   sender?: User;
   onReply?: (message: Message) => void;
   onReact?: (messageId: string, emoji: string) => void;
-  onRevoke?: (messageId: string) => void;
+  onRevokeForAll?: (messageId: string) => void;
+  onRevokeForMe?: (messageId: string) => void;
   showAvatar?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
-  message, isSelf, sender, onReply, onReact, onRevoke, showAvatar = true,
+  message, isSelf, currentUserId, sender, onReply, onReact,
+  onRevokeForAll, onRevokeForMe, showAvatar = true,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const isRevoked = message.isRevoked;
+  const isSelfRevoked =
+    message.revokedFor?.includes('__self__') ||
+    (currentUserId != null && message.revokedFor?.includes(currentUserId));
+
+  // Time limit check
+  const ageMs = Date.now() - new Date(message.createdAt).getTime();
+  const canRevokeForAll = isSelf && ageMs <= REVOKE_FOR_ALL_LIMIT_MS;
+  const remainingMinutes = Math.max(0, Math.ceil((REVOKE_FOR_ALL_LIMIT_MS - ageMs) / 60000));
 
   const grouped = React.useMemo(() => {
     if (!message.reactions?.length) return [];
@@ -40,12 +52,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return Array.from(map.entries()).map(([emoji, count]) => ({ emoji, count }));
   }, [message.reactions]);
 
+  // Mất hoàn toàn khỏi giao diện nếu user chọn "Ẩn với chỉ mình tôi" 
+  // (Messenger/Zalo -> Xóa ở phía tôi là biến mất hoàn toàn)
+  if (isSelfRevoked) {
+    return null;
+  }
+
+  // Thu hồi chung với mọi người (Unsend for everyone) -> Hiện "Tin nhắn đã bị thu hồi"
   if (isRevoked) {
     return (
       <View style={[styles.row, isSelf ? styles.rowSelf : styles.rowOther]}>
         {!isSelf && <View style={styles.avatarSpace} />}
         <View style={[styles.revokedChip, isSelf ? styles.revokedSelf : styles.revokedOther]}>
-          <Ionicons name="ban-outline" size={11} color="#94A3B8" />
+          <Ionicons name="trash-outline" size={11} color="#94A3B8" />
           <Text style={styles.revokedTxt}> Tin nhắn đã bị thu hồi</Text>
         </View>
       </View>
@@ -167,7 +186,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
             <View style={styles.hr} />
 
-            {/* Reply */}
+            {/* Divider + Reply */}
+            <View style={styles.hr} />
             <TouchableOpacity
               style={styles.menuRow}
               onPress={() => { onReply?.(message); setShowMenu(false); }}
@@ -178,21 +198,45 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <Text style={styles.menuTxt}>Trả lời</Text>
             </TouchableOpacity>
 
-            {/* Revoke (self only) */}
+            {/* Thu hồi với tất cả - chỉ trong 15 phút */}
             {isSelf && (
               <>
                 <View style={styles.hr} />
                 <TouchableOpacity
-                  style={styles.menuRow}
-                  onPress={() => { onRevoke?.(message.id); setShowMenu(false); }}
+                  style={[styles.menuRow, !canRevokeForAll && styles.menuRowDisabled]}
+                  onPress={() => {
+                    if (!canRevokeForAll) return;
+                    onRevokeForAll?.(message.id);
+                    setShowMenu(false);
+                  }}
+                  disabled={!canRevokeForAll}
                 >
-                  <View style={[styles.menuIcon, { backgroundColor: '#FFF1F2' }]}>
-                    <Ionicons name="trash" size={16} color="#EF4444" />
+                  <View style={[styles.menuIcon, { backgroundColor: canRevokeForAll ? '#FFF1F2' : '#F8FAFC' }]}>
+                    <Ionicons name="trash" size={16} color={canRevokeForAll ? '#EF4444' : '#94A3B8'} />
                   </View>
-                  <Text style={[styles.menuTxt, { color: '#EF4444' }]}>Thu hồi tin nhắn</Text>
+                  <View>
+                    <Text style={[styles.menuTxt, { color: canRevokeForAll ? '#EF4444' : '#94A3B8' }]}>
+                      Thu hồi với mọi người
+                    </Text>
+                    <Text style={styles.menuSubTxt}>
+                      {canRevokeForAll ? `Còn ${remainingMinutes} phút` : 'Đã quá 15 phút'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               </>
             )}
+
+            {/* Thu hồi về phía mình - không giới hạn */}
+            <View style={styles.hr} />
+            <TouchableOpacity
+              style={styles.menuRow}
+              onPress={() => { onRevokeForMe?.(message.id); setShowMenu(false); }}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: '#F8FAFC' }]}>
+                <Ionicons name="eye-off-outline" size={16} color="#64748B" />
+              </View>
+              <Text style={styles.menuTxt}>Ẩn với chỉ mình tôi</Text>
+            </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
@@ -334,11 +378,13 @@ const styles = StyleSheet.create({
   hr: { height: StyleSheet.hairlineWidth, backgroundColor: '#F1F5F9' },
   menuRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 14,
+    paddingHorizontal: 16, paddingVertical: 13,
   },
+  menuRowDisabled: { opacity: 0.7 },
   menuIcon: {
     width: 34, height: 34, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center', marginRight: 12,
   },
   menuTxt: { fontSize: 15, fontWeight: '500', color: '#1E293B' },
+  menuSubTxt: { fontSize: 11, color: '#94A3B8', marginTop: 1 },
 });

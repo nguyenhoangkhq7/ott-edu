@@ -3,14 +3,21 @@
 import React, { useState } from "react";
 import { Message, User } from "../types";
 import Image from "next/image";
-import { MoreVertical, Reply, Trash2, Smile } from "lucide-react";
+import { MoreVertical, Reply, Trash2, EyeOff, Smile, Clock } from "lucide-react";
+
+/** Giới hạn thời gian cho phép thu hồi với tất cả - 15 phút */
+const REVOKE_FOR_ALL_LIMIT_MS = 15 * 60 * 1000;
 
 interface MessageBubbleProps {
   message: Message;
   isOwnMessage: boolean;
+  currentUserId?: string;
   sender?: User;
   onReply?: (message: Message) => void;
   onReact?: (messageId: string, emoji: string) => void;
+  onRevokeForAll?: (messageId: string) => void;
+  onRevokeForMe?: (messageId: string) => void;
+  /** @deprecated Dùng onRevokeForAll thay thế */
   onRevoke?: (messageId: string) => void;
 }
 
@@ -19,9 +26,12 @@ const EMOJI_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isOwnMessage,
+  currentUserId,
   sender,
   onReply,
   onReact,
+  onRevokeForAll,
+  onRevokeForMe,
   onRevoke,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
@@ -47,10 +57,28 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     setShowEmojiPicker(false);
   };
 
+  // Thời gian còn lại để thu hồi với tất cả (ms)
+  const ageMs = Date.now() - new Date(message.createdAt).getTime();
+  const canRevokeForAll = isOwnMessage && ageMs <= REVOKE_FOR_ALL_LIMIT_MS;
+  const remainingMinutes = Math.max(0, Math.ceil((REVOKE_FOR_ALL_LIMIT_MS - ageMs) / 60000));
+
+  // Thu hồi cho bản thân: kiểm tra userId trong revokedFor HOẶC marker __self__ từ API
+  const isSelfRevoked =
+    message.revokedFor?.includes("__self__") ||
+    (currentUserId != null && message.revokedFor?.includes(currentUserId));
+
+  // Mất hoàn toàn khỏi giao diện nếu user chọn "Ẩn với chỉ mình tôi"
+  if (isSelfRevoked) {
+    return null;
+  }
+
+  // Thu hồi chung với mọi người (Unsend for everyone) -> Hiện "Tin nhắn đã bị thu hồi"
   if (message.isRevoked) {
     return (
       <div
-        className={`mb-4 flex w-full ${isOwnMessage ? "justify-end" : "justify-start"}`}
+        className={`mb-4 flex w-full ${
+          isOwnMessage ? "justify-end" : "justify-start"
+        }`}
       >
         {!isOwnMessage && sender && (
           <Image
@@ -62,7 +90,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           />
         )}
         <div
-          className={`flex max-w-[70%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}
+          className={`flex max-w-[70%] flex-col ${
+            isOwnMessage ? "items-end" : "items-start"
+          }`}
         >
           {!isOwnMessage && sender && (
             <span className="mb-1 ml-1 text-xs text-slate-500">
@@ -70,12 +100,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </span>
           )}
           <div
-            className={`rounded-2xl px-4 py-2 italic text-slate-400 ${
-              isOwnMessage
-                ? "rounded-br-sm bg-slate-200"
-                : "rounded-bl-sm bg-slate-100"
+            className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 italic text-slate-400 ${
+              isOwnMessage ? "rounded-br-sm bg-slate-200" : "rounded-bl-sm bg-slate-100"
             }`}
           >
+            <Trash2 size={12} />
             <p className="text-sm">Tin nhắn đã bị thu hồi</p>
           </div>
         </div>
@@ -205,7 +234,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </button>
 
         {showMenu && (
-          <div className="absolute right-0 top-full z-20 mt-1 rounded-xl border border-slate-200 bg-white shadow-lg">
+          <div className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-xl border border-slate-200 bg-white shadow-lg">
+            {/* Emoji reactions */}
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -230,33 +260,51 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
 
-            {!isOwnMessage && (
-              <button
-                type="button"
-                onClick={() => {
-                  onReply?.(message);
-                  setShowMenu(false);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-100"
-              >
-                <Reply size={16} />
-                Trả lời
-              </button>
-            )}
+            {/* Reply (tất cả) */}
+            <button
+              type="button"
+              onClick={() => { onReply?.(message); setShowMenu(false); }}
+              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-100"
+            >
+              <Reply size={16} />
+              Trả lời
+            </button>
 
+            {/* Thu hồi với tất cả - chỉ trong 15 phút */}
             {isOwnMessage && (
               <button
                 type="button"
+                disabled={!canRevokeForAll}
                 onClick={() => {
-                  onRevoke?.(message.id);
+                  if (!canRevokeForAll) return;
+                  (onRevokeForAll || onRevoke)?.(message.id);
                   setShowMenu(false);
                 }}
-                className="flex w-full items-center gap-2 rounded-b-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                className={`flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm ${
+                  canRevokeForAll
+                    ? "text-red-600 hover:bg-red-50"
+                    : "cursor-not-allowed text-slate-400"
+                }`}
               >
                 <Trash2 size={16} />
-                Thu hồi
+                <span className="flex flex-col">
+                  <span>Thu hồi với mọi người</span>
+                  {canRevokeForAll
+                    ? <span className="text-xs text-slate-400 flex items-center gap-1"><Clock size={10} /> Còn {remainingMinutes} phút</span>
+                    : <span className="text-xs">Đã quá 15 phút</span>}
+                </span>
               </button>
             )}
+
+            {/* Thu hồi về phía mình - không giới hạn thời gian */}
+            <button
+              type="button"
+              onClick={() => { onRevokeForMe?.(message.id); setShowMenu(false); }}
+              className="flex w-full items-center gap-2 rounded-b-xl border-t border-slate-100 px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100"
+            >
+              <EyeOff size={16} />
+              Ẩn với chỉ mình tôi
+            </button>
           </div>
         )}
       </div>

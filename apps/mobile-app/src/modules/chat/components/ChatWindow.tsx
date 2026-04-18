@@ -48,9 +48,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       );
     };
 
-    const handleRevoked = (data: { messageId: string; isRevoked: boolean }) => {
+    const handleRevoked = (data: { messageId: string; revokeType?: string; isRevoked?: boolean }) => {
       setLocalMessages((prev) =>
-        prev.map((m) => (m.id === data.messageId ? { ...m, isRevoked: data.isRevoked } : m))
+        prev.map((m) => {
+          if (m.id !== data.messageId) return m;
+          if (data.revokeType === 'self') return m; // handleRevokeForMe already optimistically updated this
+          return { ...m, isRevoked: true };
+        })
       );
     };
 
@@ -64,12 +68,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }, [socket, conversation]);
 
   const handleReact = (messageId: string, emoji: string) => {
-    // Optimistic update ngay lập tức không chờ socket
+    // Optimistic update
     setLocalMessages((prev) =>
       prev.map((m) => {
         if (m.id !== messageId) return m;
         const existing = m.reactions || [];
-        // Toggle: nếu đã có emoji này của mình thì bỏ, chưa có thì thêm
         const hasMyReaction = existing.some(
           (r) => r.emoji === emoji && r.userId === (currentUser?.id || '')
         );
@@ -79,16 +82,43 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         return { ...m, reactions: updated };
       })
     );
-    // Emit socket (server sẽ broadcast cho các client khác)
     if (socket && conversation) {
       socket.emit('reactMessage', { messageId, conversationId: conversation.id, emoji });
     }
   };
 
-  const handleRevoke = (messageId: string) => {
-    if (socket && conversation) {
-      socket.emit('revokeMessage', { messageId, conversationId: conversation.id });
+  const handleRevokeForAll = (messageId: string) => {
+    if (!socket || !conversation) return;
+    // Optimistic update
+    setLocalMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, isRevoked: true } : m))
+    );
+    socket.emit('revokeForAll', { messageId, conversationId: conversation.id });
+    // Listen for error
+    socket.once('revokeError', (err: { messageId: string; error: string }) => {
+      if (err.messageId === messageId) {
+        console.warn('[Revoke]', err.error);
+        // Rollback on error
+        setLocalMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, isRevoked: false } : m))
+        );
+      }
+    });
+  };
+
+  const handleRevokeForMe = (messageId: string) => {
+    if (!socket || !conversation) return;
+    // Optimistic: ẩn ngay cho mình
+    if (currentUser?.id) {
+      setLocalMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? { ...m, revokedFor: [...(m.revokedFor || []), currentUser.id] }
+            : m
+        )
+      );
     }
+    socket.emit('revokeForMe', { messageId, conversationId: conversation.id });
   };
 
   if (!conversation) {
@@ -178,10 +208,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   <MessageBubble
                     message={item}
                     isSelf={isSelf}
+                    currentUserId={currentUser?.id}
                     sender={sender}
                     onReply={setReplyingTo}
                     onReact={handleReact}
-                    onRevoke={handleRevoke}
+                    onRevokeForAll={handleRevokeForAll}
+                    onRevokeForMe={handleRevokeForMe}
                     showAvatar={!isSelf && !isConsecutive}
                   />
                   {!isConsecutive && <View style={{ height: 6 }} />}

@@ -64,7 +64,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, [activeConversationId]);
 
   useEffect(() => {
-    if (!currentUserId) return;
+    // Chỉ connect socket khi đã có chatMongoId (MongoDB _id) thay vì Postgres accountId
+    if (!chatMongoId) return;
 
     let socket: Socket | null = null;
 
@@ -75,8 +76,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         extraHeaders: {
           Authorization: `Bearer ${token}`,
         },
-        auth: { userId: currentUserId, token },
-        query: { userId: currentUserId },
+        auth: { userId: chatMongoId, token },
+        query: { userId: chatMongoId },
       });
 
       socketRef.current = socket;
@@ -84,41 +85,66 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       socket.on('newMessage', (rawMessage: unknown) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const incoming = mapApiMessageToMessage(rawMessage as any);
-      const isActive = activeConversationIdRef.current === incoming.conversationId;
-      const isSelf = incoming.senderId === currentUserId;
+        const isActive = activeConversationIdRef.current === incoming.conversationId;
+        const isSelf = incoming.senderId === chatMongoId;
 
-      if (isActive) {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === incoming.id)) return prev;
-          return [...prev, incoming];
-        });
-      }
+        if (isActive) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === incoming.id)) return prev;
+            return [...prev, incoming];
+          });
+        }
 
-      setConversations((prev) =>
-        prev.map((c) => {
-          if (c.id === incoming.conversationId) {
-            const shouldIncrement = !isActive && !isSelf;
-            return {
-              ...c,
-              lastMessage: incoming,
-              unreadCount: shouldIncrement ? c.unreadCount + 1 : c.unreadCount,
-            };
-          }
-          return c;
-        })
-      );
-    });
-  };
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (c.id === incoming.conversationId) {
+              const shouldIncrement = !isActive && !isSelf;
+              return {
+                ...c,
+                lastMessage: incoming,
+                unreadCount: shouldIncrement ? c.unreadCount + 1 : c.unreadCount,
+              };
+            }
+            return c;
+          })
+        );
+      });
+
+      // Update sidebar khi có tin nhắn bị thu hồi
+      socket.on('messageRevoked', (data: { messageId: string; revokeType?: string; isRevoked?: boolean }) => {
+        setConversations((prev) =>
+          prev.map((c) => {
+            if (c.lastMessage?.id === data.messageId) {
+              if (data.revokeType === 'self') {
+                return {
+                  ...c,
+                  lastMessage: {
+                    ...c.lastMessage,
+                    revokedFor: [...(c.lastMessage.revokedFor || []), '__self__'],
+                  },
+                };
+              }
+              return {
+                ...c,
+                lastMessage: { ...c.lastMessage, isRevoked: true },
+              };
+            }
+            return c;
+          })
+        );
+      });
+    };
 
     setupSocket();
 
     return () => {
       if (socket) {
         socket.off('newMessage');
+        socket.off('messageRevoked');
         socket.disconnect();
       }
     };
-  }, [currentUserId]);
+  }, [chatMongoId]);
 
   const loadConversations = useCallback(async () => {
     if (!currentUserId) return;
