@@ -8,7 +8,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, Bell, Pin, UserPlus, Settings, Image, File, Link as LinkIcon, Lock, Trash2 } from 'lucide-react';
+import Image from 'next/image';
+import { ChevronDown, Bell, Pin, UserPlus, Settings, Image as ImageIcon, File, Link as LinkIcon, Lock, Trash2 } from 'lucide-react';
 import { chatApiClient } from '@/services/api';
 
 interface Participant {
@@ -116,7 +117,6 @@ const Accordion: React.FC<AccordionProps> = ({ title, icon, isOpen, onToggle, co
 const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   conversationId,
   isOpen,
-  onClose,
 }) => {
   const [conversationInfo, setConversationInfo] = useState<ConversationInfoDTO | null>(null);
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -143,9 +143,10 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
     try {
       const response = await chatApiClient.get(`/chat/info/${conversationId}`);
       setConversationInfo(response.data.data);
-    } catch (err: any) {
-      console.error('[ConversationInfoSidebar] fetchConversationInfo error:', err);
-      setError(err.message || 'Failed to load conversation info');
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      console.error('[ConversationInfoSidebar] fetchConversationInfo error:', error);
+      setError(error.message || 'Failed to load conversation info');
     }
   }, [conversationId]);
 
@@ -155,8 +156,9 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
         params: { limit: 20 },
       });
       setMediaItems(response.data.data || []);
-    } catch (err: any) {
-      console.error('[ConversationInfoSidebar] fetchMediaItems error:', err);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      console.error('[ConversationInfoSidebar] fetchMediaItems error:', error);
     }
   }, [conversationId]);
 
@@ -166,8 +168,9 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
         params: { limit: 20 },
       });
       setFileItems(response.data.data || []);
-    } catch (err: any) {
-      console.error('[ConversationInfoSidebar] fetchFileItems error:', err);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      console.error('[ConversationInfoSidebar] fetchFileItems error:', error);
     }
   }, [conversationId]);
 
@@ -177,8 +180,9 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
         params: { limit: 20 },
       });
       setLinkItems(response.data.data || []);
-    } catch (err: any) {
-      console.error('[ConversationInfoSidebar] fetchLinkItems error:', err);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Unknown error');
+      console.error('[ConversationInfoSidebar] fetchLinkItems error:', error);
     }
   }, [conversationId]);
 
@@ -197,8 +201,9 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
           fetchFileItems(),
           fetchLinkItems(),
         ]);
-      } catch (err: any) {
-        console.error('[ConversationInfoSidebar] loadAllData error:', err);
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Unknown error');
+        console.error('[ConversationInfoSidebar] loadAllData error:', error);
         setError('Failed to load sidebar data');
       } finally {
         setLoading(false);
@@ -217,9 +222,11 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
       {/* Header */}
       <div className="flex flex-col items-center gap-3 px-4 py-4 border-b border-gray-200">
         {conversationInfo?.avatarUrl ? (
-          <img
+          <Image
             src={conversationInfo.avatarUrl}
-            alt={conversationInfo.name}
+            alt={conversationInfo.name || 'Conversation'}
+            width={64}
+            height={64}
             className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
           />
         ) : (
@@ -313,9 +320,11 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                   key={participant._id}
                   className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
                 >
-                  <img
+                  <Image
                     src={participant.avatarUrl}
                     alt={participant.fullName}
+                    width={32}
+                    height={32}
                     className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                   />
                   <div className="flex-1 min-w-0">
@@ -331,7 +340,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
           {/* Media Accordion */}
           <Accordion
             title="Ảnh & Video"
-            icon={<Image size={14} />}
+            icon={<ImageIcon size={14} />}
             isOpen={openAccordions.media}
             onToggle={() => toggleAccordion('media')}
             count={mediaItems.length}
@@ -347,14 +356,12 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                     className="aspect-square rounded-lg overflow-hidden bg-gray-200 hover:opacity-80 transition"
                     title={item.fileName}
                   >
-                    <img
+                    <Image
                       src={item.url}
                       alt={item.fileName}
+                      width={100}
+                      height={100}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ccc" width="100" height="100"/%3E%3C/svg%3E';
-                      }}
                     />
                   </a>
                 ))}

@@ -8,11 +8,15 @@ export class ConversationInfoController {
    */
   static async getConversationInfo(req: Request, res: Response) {
     try {
-      const { conversationId } = req.params;
+      const { conversationId } = req.params as { conversationId: string };
       const userId = (req as any).user?._id;
 
       if (!userId) {
         return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "Invalid conversation ID" });
       }
 
       // Kiểm tra xem user có phải thành viên không
@@ -45,7 +49,7 @@ export class ConversationInfoController {
    */
   static async getMediaItems(req: Request, res: Response) {
     try {
-      const { conversationId } = req.params;
+      const { conversationId } = req.params as { conversationId: string };
       const limit = Math.min(
         parseInt(req.query.limit as string) || 50,
         100
@@ -54,6 +58,10 @@ export class ConversationInfoController {
 
       if (!userId) {
         return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "Invalid conversation ID" });
       }
 
       // Kiểm tra xem user có phải thành viên không
@@ -84,7 +92,7 @@ export class ConversationInfoController {
    */
   static async getFileItems(req: Request, res: Response) {
     try {
-      const { conversationId } = req.params;
+      const { conversationId } = req.params as { conversationId: string };
       const limit = Math.min(
         parseInt(req.query.limit as string) || 50,
         100
@@ -93,6 +101,10 @@ export class ConversationInfoController {
 
       if (!userId) {
         return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "Invalid conversation ID" });
       }
 
       // Kiểm tra xem user có phải thành viên không
@@ -123,7 +135,7 @@ export class ConversationInfoController {
    */
   static async getLinkItems(req: Request, res: Response) {
     try {
-      const { conversationId } = req.params;
+      const { conversationId } = req.params as { conversationId: string };
       const limit = Math.min(
         parseInt(req.query.limit as string) || 50,
         100
@@ -132,6 +144,10 @@ export class ConversationInfoController {
 
       if (!userId) {
         return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "Invalid conversation ID" });
       }
 
       // Kiểm tra xem user có phải thành viên không
