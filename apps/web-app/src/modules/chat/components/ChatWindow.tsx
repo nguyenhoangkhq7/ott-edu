@@ -206,7 +206,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <div className="flex items-center gap-3">
             <Image
               src={
-                displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
+                displayAvatar?.trim() || `https://i.pravatar.cc/150?u=${conversation.id}`
               }
               alt="Avatar"
               width={40}
@@ -255,10 +255,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 key={msg.id}
                 message={msg}
                 isOwnMessage={msg.senderId === currentUser?.id}
+                currentUserId={currentUser?.id}
                 sender={getSender(msg.senderId)}
                 onReply={setReplyingTo}
                 onReact={handleReact}
-                onRevoke={handleRevoke}
+                onRevokeForAll={handleRevokeForAll}
+                onRevokeForMe={handleRevokeForMe}
               />
             ))
           )}
@@ -271,33 +273,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           replyingTo={replyingTo}
           onCancelReply={() => setReplyingTo(null)}
         />
-      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4">
-        {isLoadingMessages ? (
-          <div className="flex h-full items-center justify-center gap-2 text-slate-400">
-            <RefreshCw size={16} className="animate-spin" />
-            <span className="text-sm">Đang tải tin nhắn...</span>
-          </div>
-        ) : localMessages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
-            Hãy là người đầu tiên gửi tin nhắn! 👋
-          </div>
-        ) : (
-          localMessages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isOwnMessage={msg.senderId === currentUser?.id}
-              currentUserId={currentUser?.id}
-              sender={getSender(msg.senderId)}
-              onReply={setReplyingTo}
-              onReact={handleReact}
-              onRevokeForAll={handleRevokeForAll}
-              onRevokeForMe={handleRevokeForMe}
-              onForward={onForwardMessage}
-            />
-          ))
-        )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Info Sidebar - Right Side */}

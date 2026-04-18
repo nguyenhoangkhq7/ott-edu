@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import { LinkPreview } from "../types";
 import { ExternalLink } from "lucide-react";
 
@@ -43,7 +42,7 @@ export const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({
       href={linkPreview.url}
       target="_blank"
       rel="noopener noreferrer"
-      className={`group mt-3 flex overflow-hidden rounded-xl border transition-all duration-200 hover:shadow-md ${
+      className={`group mt-3 min-w-0 w-full flex overflow-hidden rounded-xl border transition-all duration-200 hover:shadow-md ${
         isOwnMessage
           ? "border-blue-400/30 bg-blue-50/50 hover:bg-blue-100/50"
           : "border-slate-200 bg-slate-50 hover:bg-slate-100"
@@ -52,13 +51,11 @@ export const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({
       {/* Thumbnail Image - Bên trái */}
       {linkPreview.image && !imageError ? (
         <div className="relative h-28 w-28 flex-shrink-0 overflow-hidden bg-slate-200">
-          <Image
+          <img
             src={linkPreview.image}
             alt="Link preview"
-            fill
-            sizes="112px"
-            className="object-cover group-hover:scale-105 transition-transform duration-200"
-            unoptimized
+            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+            onError={handleImageError}
           />
         </div>
       ) : (

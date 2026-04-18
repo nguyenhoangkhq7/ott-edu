@@ -112,22 +112,12 @@ class SocketManager {
             const { messageId, conversationId } = data;
             if (!messageId || !conversationId || !userId) return;
 
-            const message = await Message.findById(messageId);
+            let message = await Message.findById(messageId);
             if (!message) {
               socket.emit("revokeError", { messageId, error: "Tin nhắn không tồn tại." });
               return;
             }
 
-            // Update message as revoked + clear attachments & linkPreview
-            const message = await Message.findByIdAndUpdate(
-              messageId,
-              {
-                isRevoked: true,
-                attachments: [], // 👈 Clear attachments khi revoke
-                linkPreview: null, // 👈 Clear linkPreview khi revoke
-              },
-              { new: true },
-            );
             // Chỉ người gửi mới được thu hồi
             if (message.senderId.toString() !== userId.toString()) {
               socket.emit("revokeError", { messageId, error: "Bạn không có quyền thu hồi tin nhắn này." });

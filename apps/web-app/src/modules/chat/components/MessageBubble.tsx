@@ -111,7 +111,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           isOwnMessage ? "justify-end" : "justify-start"
         }`}
       >
-        {!isOwnMessage && sender && (
+        {!isOwnMessage && sender && sender.avatarUrl && (
           <Image
             src={sender.avatarUrl}
             alt={sender.name}
@@ -149,7 +149,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     <div
       className={`group mb-4 flex w-full ${isOwnMessage ? "justify-end" : "justify-start"}`}
     >
-      {!isOwnMessage && sender && (
+      {!isOwnMessage && sender && sender.avatarUrl && (
         <Image
           src={sender.avatarUrl}
           alt={sender.name}
@@ -202,7 +202,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         <div
-          className={`rounded-2xl px-4 py-2 ${
+          className={`w-full max-w-full rounded-2xl px-4 py-2 ${
             isOwnMessage
               ? "rounded-br-sm bg-blue-600 text-white"
               : "rounded-bl-sm bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
