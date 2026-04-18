@@ -20,6 +20,7 @@ interface ChatWindowProps {
   isLoadingMessages?: boolean;
   isSending?: boolean;
   socket?: Socket | null;
+  onForwardMessage?: (message: Message) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -30,6 +31,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isLoadingMessages = false,
   isSending = false,
   socket,
+  onForwardMessage,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
@@ -250,6 +252,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onReact={handleReact}
               onRevokeForAll={handleRevokeForAll}
               onRevokeForMe={handleRevokeForMe}
+              onForward={onForwardMessage}
             />
           ))
         )}

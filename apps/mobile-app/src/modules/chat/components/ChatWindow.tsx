@@ -18,6 +18,7 @@ interface ChatWindowProps {
   isSending: boolean;
   onBack: () => void;
   socket: Socket | null;
+  onForwardMessage?: (message: Message) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -26,8 +27,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   currentUser,
   onSendMessage,
   isLoadingMessages,
+  isSending,
   onBack,
   socket,
+  onForwardMessage,
 }) => {
   const flatListRef = useRef<FlatList>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -214,6 +217,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     onReact={handleReact}
                     onRevokeForAll={handleRevokeForAll}
                     onRevokeForMe={handleRevokeForMe}
+                    onForward={onForwardMessage}
                     showAvatar={!isSelf && !isConsecutive}
                   />
                   {!isConsecutive && <View style={{ height: 6 }} />}

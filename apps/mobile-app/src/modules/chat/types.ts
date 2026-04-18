@@ -37,6 +37,8 @@ export interface Message {
   isRevoked: boolean;
   /** Danh sách userId đã tự thu hồi về phía mình */
   revokedFor: string[];
+  /** Đánh dấu tin nhắn chuyển tiếp */
+  isForwarded?: boolean;
   reactions: Reaction[];
 }
 
@@ -83,6 +85,7 @@ export interface ApiMessage {
   isRevoked: boolean;
   revokedFor?: string[];
   _hiddenForMe?: boolean;
+  isForwarded?: boolean;
   reactions: ApiReaction[];
 }
 

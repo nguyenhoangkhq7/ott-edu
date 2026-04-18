@@ -27,12 +27,13 @@ interface MessageBubbleProps {
   onReact?: (messageId: string, emoji: string) => void;
   onRevokeForAll?: (messageId: string) => void;
   onRevokeForMe?: (messageId: string) => void;
+  onForward?: (message: Message) => void;
   showAvatar?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message, isSelf, currentUserId, sender, onReply, onReact,
-  onRevokeForAll, onRevokeForMe, showAvatar = true,
+  onRevokeForAll, onRevokeForMe, onForward, showAvatar = true,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const isRevoked = message.isRevoked;
@@ -102,6 +103,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               >
                 {message.replyTo.isRevoked ? '🚫 Tin nhắn đã thu hồi' : message.replyTo.content}
               </Text>
+            </View>
+          )}
+
+          {message.isForwarded && (
+            <View style={[styles.forwardWrapper, isSelf ? { alignItems: 'flex-end', paddingRight: 4 } : { alignItems: 'flex-start', paddingLeft: 4 }]}>
+              <Ionicons name="arrow-redo-outline" size={12} color="#64748B" style={{ marginRight: 4 }} />
+              <Text style={styles.forwardTxt}>Tin nhắn chuyển tiếp</Text>
             </View>
           )}
 
@@ -196,6 +204,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <Ionicons name="arrow-undo" size={16} color="#3B82F6" />
               </View>
               <Text style={styles.menuTxt}>Trả lời</Text>
+            </TouchableOpacity>
+
+            <View style={styles.hr} />
+            <TouchableOpacity
+              style={styles.menuRow}
+              onPress={() => { onForward?.(message); setShowMenu(false); }}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: '#F8FAFC' }]}>
+                <Ionicons name="arrow-redo" size={16} color="#64748B" />
+              </View>
+              <Text style={styles.menuTxt}>Chuyển tiếp</Text>
             </TouchableOpacity>
 
             {/* Thu hồi với tất cả - chỉ trong 15 phút */}
@@ -342,6 +361,18 @@ const styles = StyleSheet.create({
   ts: { fontSize: 10, color: '#94A3B8', marginTop: 3 },
   tsSelf: { marginRight: 2 },
   tsOther: { marginLeft: 2 },
+
+  // Forward indicator
+  forwardWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  forwardTxt: {
+    fontSize: 11,
+    color: '#64748B',
+    fontStyle: 'italic',
+  },
 
   // Revoked
   revokedChip: {

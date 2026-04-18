@@ -195,7 +195,7 @@ export class ChatController {
     try {
       const senderId = (req as any).user?._id;
       // Dựa vào việc body gửi lên receiverId (private) hay conversationId (group)
-      const { receiverId, conversationId, content, attachments, replyTo } =
+      const { receiverId, conversationId, content, attachments, replyTo, isForwarded } =
         req.body;
       const normalizedContent =
         typeof content === "string" ? content.trim() : "";
@@ -221,6 +221,7 @@ export class ChatController {
           normalizedContent,
           attachments,
           replyTo,
+          isForwarded,
         );
       }
       // Nếu gửi theo receiverId -> Gửi 1-1 (Private Chat)
@@ -231,6 +232,7 @@ export class ChatController {
           normalizedContent,
           attachments,
           replyTo,
+          isForwarded,
         );
       } else {
         return res

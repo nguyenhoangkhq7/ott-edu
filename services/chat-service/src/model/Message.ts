@@ -21,6 +21,8 @@ export interface IMessage extends Document {
   isRevoked: boolean;
   /** Thu hồi chỉ với BẢN THÂN (mảng userId đã tự thu hồi) */
   revokedFor: mongoose.Types.ObjectId[];
+  /** Đánh dấu tin nhắn chuyển tiếp */
+  isForwarded?: boolean;
   reactions: Reaction[];
   createdAt: Date;
   updatedAt: Date;
@@ -91,6 +93,11 @@ const messageSchema: Schema = new Schema(
         ref: "User",
       },
     ],
+    /** Đánh dấu tin nhắn chuyển tiếp */
+    isForwarded: {
+      type: Boolean,
+      default: false,
+    },
     reactions: [reactionSchema],
   },
   {

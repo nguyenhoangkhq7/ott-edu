@@ -111,6 +111,7 @@ export class ChatService {
     content: string,
     attachments?: any[],
     replyTo?: string,
+    isForwarded?: boolean,
   ) {
     // 1. Tìm xem giữa 2 người dã có phòng chat private chưa
     let conversation = await Conversation.findOne({
@@ -142,6 +143,10 @@ export class ChatService {
       messagePayload.replyTo = replyTo;
     }
 
+    if (isForwarded) {
+      messagePayload.isForwarded = isForwarded;
+    }
+
     const message = await Message.create(messagePayload);
 
     // Populate replyTo if it exists
@@ -163,6 +168,7 @@ export class ChatService {
     content: string,
     attachments?: any[],
     replyTo?: string,
+    isForwarded?: boolean,
   ) {
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {
@@ -186,6 +192,10 @@ export class ChatService {
 
     if (replyTo) {
       messagePayload.replyTo = replyTo;
+    }
+
+    if (isForwarded) {
+      messagePayload.isForwarded = isForwarded;
     }
 
     const message = await Message.create(messagePayload);

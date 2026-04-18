@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { Sidebar } from './Sidebar';
 import { ChatWindow } from './ChatWindow';
+import { ForwardMessageModal } from './ForwardMessageModal';
 import { ChatMode, Conversation, Message, User } from '../types';
 import {
   fetchConversations,
@@ -34,6 +35,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forwardMessageTarget, setForwardMessageTarget] = useState<Message | null>(null);
 
   // chatMongoId: MongoDB ObjectId của user hiện tại trong chat-service
   // (khác với currentUserId dạng số từ core-service)
@@ -95,19 +97,20 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           });
         }
 
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.id === incoming.conversationId) {
-              const shouldIncrement = !isActive && !isSelf;
-              return {
-                ...c,
-                lastMessage: incoming,
-                unreadCount: shouldIncrement ? c.unreadCount + 1 : c.unreadCount,
-              };
-            }
-            return c;
-          })
-        );
+        setConversations((prev) => {
+          const index = prev.findIndex((c) => c.id === incoming.conversationId);
+          if (index === -1) return prev;
+
+          const shouldIncrement = !isActive && !isSelf;
+          const updatedConv = {
+            ...prev[index],
+            lastMessage: incoming,
+            unreadCount: shouldIncrement ? prev[index].unreadCount + 1 : prev[index].unreadCount,
+          };
+
+          const otherConvs = prev.filter((_, i) => i !== index);
+          return [updatedConv, ...otherConvs];
+        });
       });
 
       // Update sidebar khi có tin nhắn bị thu hồi
@@ -279,11 +282,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       });
 
       if (activeConversationId) {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeConversationId ? { ...c, lastMessage: savedMessage } : c
-          )
-        );
+        setConversations((prev) => {
+          const index = prev.findIndex((c) => c.id === activeConversationId);
+          if (index === -1) return prev;
+          
+          const updatedConv = {
+            ...prev[index],
+            lastMessage: savedMessage,
+          };
+          
+          const otherConvs = prev.filter((_, i) => i !== index);
+          return [updatedConv, ...otherConvs];
+        });
       } else if (targetReceiver) {
         const refreshed = await fetchConversations(currentUserId);
         setConversations(refreshed);
@@ -379,6 +389,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           isSending={isSending}
           onBack={handleBackToSidebar}
           socket={socketRef.current}
+          onForwardMessage={setForwardMessageTarget}
+        />
+      )}
+
+      {forwardMessageTarget && (
+        <ForwardMessageModal
+          visible={!!forwardMessageTarget}
+          message={forwardMessageTarget}
+          conversations={conversations}
+          currentUserId={chatMongoId}
+          onClose={() => setForwardMessageTarget(null)}
+          onSuccess={() => setForwardMessageTarget(null)}
         />
       )}
     </View>

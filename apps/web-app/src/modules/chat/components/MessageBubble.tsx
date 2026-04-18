@@ -17,6 +17,7 @@ interface MessageBubbleProps {
   onReact?: (messageId: string, emoji: string) => void;
   onRevokeForAll?: (messageId: string) => void;
   onRevokeForMe?: (messageId: string) => void;
+  onForward?: (message: Message) => void;
   /** @deprecated Dùng onRevokeForAll thay thế */
   onRevoke?: (messageId: string) => void;
 }
@@ -32,6 +33,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onReact,
   onRevokeForAll,
   onRevokeForMe,
+  onForward,
   onRevoke,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
@@ -144,6 +146,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     100,
                   )}
             </p>
+          </div>
+        )}
+
+        {message.isForwarded && (
+          <div className="mb-1 flex items-center gap-1 text-[11px] text-slate-500 italic">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 17 20 12 15 7"></polyline><path d="M4 18v-2a4 4 0 0 1 4-4h12"></path></svg>
+            Tin nhắn chuyển tiếp
           </div>
         )}
 
@@ -268,6 +277,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             >
               <Reply size={16} />
               Trả lời
+            </button>
+
+            {/* Cập nhật Forward (Chuyển tiếp) */}
+            <button
+              type="button"
+              onClick={() => { onForward?.(message); setShowMenu(false); }}
+              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-100"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600"><polyline points="15 17 20 12 15 7"></polyline><path d="M4 18v-2a4 4 0 0 1 4-4h12"></path></svg>
+              Chuyển tiếp
             </button>
 
             {/* Thu hồi với tất cả - chỉ trong 15 phút */}

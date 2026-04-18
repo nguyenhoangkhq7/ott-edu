@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
+import { ForwardMessageModal } from "./ForwardMessageModal";
 import { ChatMode, Conversation, Message, User } from "../types";
 import {
   fetchConversations,
@@ -32,6 +33,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forwardMessageTarget, setForwardMessageTarget] = useState<Message | null>(null);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -85,21 +87,23 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         });
       }
 
-      // Cập nhật lastMessage ở sidebar
-      setConversations((prev) =>
-        prev.map((c) => {
-          if (c.id === incoming.conversationId) {
-            // Không tăng biến đếm nếu đang mở khung chat đó hoặc tự mình gửi
-            const shouldIncrement = !isActive && !isSelf;
-            return {
-              ...c,
-              lastMessage: incoming,
-              unreadCount: shouldIncrement ? c.unreadCount + 1 : c.unreadCount,
-            };
-          }
-          return c;
-        }),
-      );
+      // Cập nhật lastMessage ở sidebar và đưa lên đầu danh sách
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.id === incoming.conversationId);
+        if (index === -1) return prev;
+
+        const shouldIncrement = !isActive && !isSelf;
+        const updatedConv = {
+          ...prev[index],
+          lastMessage: incoming,
+          unreadCount: shouldIncrement
+            ? prev[index].unreadCount + 1
+            : prev[index].unreadCount,
+        };
+
+        const otherConvs = prev.filter((_, i) => i !== index);
+        return [updatedConv, ...otherConvs];
+      });
     };
 
     const handleMessageRevoked = (data: { messageId: string; revokeType?: string; isRevoked?: boolean }) => {
@@ -272,15 +276,20 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         }
       });
 
-      // Cập nhật lastMessage của conversation trong danh sách
+      // Cập nhật lastMessage của conversation trong danh sách và đưa lên đầu
       if (activeConversationId) {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeConversationId
-              ? { ...c, lastMessage: savedMessage }
-              : c,
-          ),
-        );
+        setConversations((prev) => {
+          const index = prev.findIndex((c) => c.id === activeConversationId);
+          if (index === -1) return prev;
+
+          const updatedConv = {
+            ...prev[index],
+            lastMessage: savedMessage,
+          };
+
+          const otherConvs = prev.filter((_, i) => i !== index);
+          return [updatedConv, ...otherConvs];
+        });
       } else if (targetReceiver) {
         const refreshed = await fetchConversations(currentUserId);
         setConversations(refreshed);
@@ -379,7 +388,19 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         isLoadingMessages={isLoadingMessages}
         isSending={isSending}
         socket={socketRef.current}
+        onForwardMessage={setForwardMessageTarget}
       />
+      {forwardMessageTarget && (
+        <ForwardMessageModal
+          message={forwardMessageTarget}
+          conversations={conversations}
+          currentUserId={currentUserId}
+          onClose={() => setForwardMessageTarget(null)}
+          onSuccess={() => {
+            // Có thể thêm Toast notification "Chuyển tiếp thành công" tại đây nếu muốn
+          }}
+        />
+      )}
     </div>
   );
 };
