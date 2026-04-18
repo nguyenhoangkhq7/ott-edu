@@ -451,19 +451,19 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
           >
             <div className="space-y-1">
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
-                <Lock size={12} className="text-gray-600 flex-shrink-0" />
+                <span className="text-gray-600 flex-shrink-0"><Lock size={12} /></span>
                 <span>Tin nhắn tự xóa</span>
               </button>
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
-                <Eye size={12} className="text-gray-600 flex-shrink-0" />
+                <span className="text-gray-600 flex-shrink-0"><Eye size={12} /></span>
                 <span>Ẩn trò chuyện</span>
               </button>
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
-                <AlertTriangle size={12} className="text-gray-600 flex-shrink-0" />
+                <span className="text-gray-600 flex-shrink-0"><AlertTriangle size={12} /></span>
                 <span>Báo xấu</span>
               </button>
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
-                <Trash2 size={12} className="text-gray-600 flex-shrink-0" />
+                <span className="text-gray-600 flex-shrink-0"><Trash2 size={12} /></span>
                 <span>Xóa lịch sử</span>
               </button>
               <button className="w-full flex items-center gap-2 p-2 hover:bg-red-50 rounded transition text-left text-xs text-red-600 font-medium border-t border-gray-200 mt-2 pt-2">
