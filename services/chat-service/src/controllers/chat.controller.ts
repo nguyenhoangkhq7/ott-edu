@@ -316,10 +316,15 @@ export class ChatController {
   static async removeGroupMember(req: Request, res: Response) {
     try {
       const requesterId = (req as any).user?._id;
-      const { conversationId, memberId } = req.params;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const memberId = typeof req.params.memberId === "string" ? req.params.memberId : "";
 
       if (!requesterId) {
         return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId || !memberId) {
+        return res.status(400).json({ error: "conversationId and memberId are required" });
       }
 
       const conversation = await ChatService.removeGroupMember(
@@ -341,10 +346,14 @@ export class ChatController {
   static async dissolveGroup(req: Request, res: Response) {
     try {
       const requesterId = (req as any).user?._id;
-      const { conversationId } = req.params;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
 
       if (!requesterId) {
         return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
       }
 
       const conversation = await ChatService.dissolveGroup(requesterId, conversationId);
@@ -362,17 +371,21 @@ export class ChatController {
   static async leaveGroup(req: Request, res: Response) {
     try {
       const requesterId = (req as any).user?._id;
-      const { conversationId } = req.params;
-      const { newOwnerId } = req.body;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const newOwnerId = typeof req.body?.newOwnerId === "string" ? req.body.newOwnerId : undefined;
 
       if (!requesterId) {
         return res.status(401).json({ error: "Unauthorized access" });
       }
 
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
       const conversation = await ChatService.leaveGroup(
         requesterId,
         conversationId,
-        typeof newOwnerId === "string" ? newOwnerId : undefined,
+        newOwnerId,
       );
 
       return res.status(200).json({ data: conversation });

@@ -305,6 +305,14 @@ export class ChatService {
 
   static async syncClassConversation(payload: SyncClassConversationRequest) {
     const participantIds = await this.resolveParticipantIds(payload.participants);
+    const firstParticipantId = participantIds[0];
+    if (!firstParticipantId) {
+      throw new Error("At least one participant is required for class conversation");
+    }
+
+    const ownerId = payload.ownerId
+      ? new mongoose.Types.ObjectId(payload.ownerId)
+      : firstParticipantId;
     const metadata = {
       teamId: payload.teamId,
       description: payload.description ?? null,
@@ -322,9 +330,7 @@ export class ChatService {
         teamId: payload.teamId,
         name: payload.name,
         participants: participantIds,
-        ownerId: payload.ownerId
-          ? new mongoose.Types.ObjectId(payload.ownerId)
-          : participantIds[0],
+        ownerId,
         metadata,
         isArchived: payload.archived ?? false,
       });
@@ -337,9 +343,7 @@ export class ChatService {
     conversation.isArchived = payload.archived ?? false;
 
     if (!conversation.ownerId) {
-      conversation.ownerId = payload.ownerId
-        ? new mongoose.Types.ObjectId(payload.ownerId)
-        : participantIds[0];
+      conversation.ownerId = ownerId;
     }
 
     await conversation.save();
@@ -352,12 +356,19 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
-    return {
+    const result: {
+      conversationId: string;
+      ownerId: string | null;
+      myRole: GroupRole | null;
+      canManageGroup: boolean;
+    } = {
       conversationId: conversation._id.toString(),
       ownerId: conversation.ownerId?.toString() || null,
       myRole: this.resolveConversationRole(conversation as ConversationWithRole, userId),
       canManageGroup: this.resolveConversationRole(conversation as ConversationWithRole, userId) === "owner",
     };
+
+    return result;
   }
 
   static async removeGroupMember(
