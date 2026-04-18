@@ -285,3 +285,19 @@ export async function removeGroupMember(
 export async function dissolveGroup(conversationId: string): Promise<void> {
   await chatHttpService.post(`/conversations/${conversationId}/dissolve`, {});
 }
+
+/**
+ * POST /api/conversations/:conversationId/leave
+ * Rời group chat. Nếu là owner thì truyền newOwnerId để chuyển quyền trước.
+ */
+export async function leaveGroup(
+  conversationId: string,
+  newOwnerId?: string,
+): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/leave`,
+    newOwnerId ? { newOwnerId } : {},
+  );
+
+  return mapApiConversationToConversation(data.data, "");
+}

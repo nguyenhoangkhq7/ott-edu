@@ -78,16 +78,6 @@ export function ChatUserProfileModal({ user, onClose }: ChatUserProfileModalProp
                 </p>
               </div>
             </div>
-
-            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3">
-              <BadgeInfo size={18} className="text-slate-500" />
-              <div className="min-w-0">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                  ID người dùng
-                </p>
-                <p className="truncate text-sm text-slate-800">{user.id}</p>
-              </div>
-            </div>
           </div>
 
           <div className="mt-6 flex justify-end">

@@ -22,6 +22,8 @@ export const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackType, setFeedbackType] = useState<"error" | "success" | null>(null);
 
   const filteredConversations = conversations.filter((c) => {
     if (!searchQuery) return true;
@@ -53,6 +55,8 @@ export const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({
   const handleForward = async () => {
     if (selectedIds.size === 0 || isSending) return;
     setIsSending(true);
+    setFeedback(null);
+    setFeedbackType(null);
 
     try {
       // Execute sequentially or Promise.all. Promise.all is faster.
@@ -72,18 +76,21 @@ export const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({
           );
         })
       );
+      setFeedback("Đã chuyển tiếp tin nhắn thành công.");
+      setFeedbackType("success");
       onSuccess();
+      onClose();
     } catch (error) {
       console.error("Error forwarding message:", error);
-      alert("Đã xảy ra lỗi khi chuyển tiếp tin nhắn.");
+      setFeedback("Đã xảy ra lỗi khi chuyển tiếp tin nhắn. Vui lòng thử lại.");
+      setFeedbackType("error");
     } finally {
       setIsSending(false);
-      onClose();
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
@@ -98,6 +105,17 @@ export const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({
 
         {/* Search */}
         <div className="border-b bg-slate-50 p-4">
+          {feedback && (
+            <div
+              className={`mb-3 rounded-xl px-3 py-2 text-sm ${
+                feedbackType === "error"
+                  ? "border border-red-200 bg-red-50 text-red-700"
+                  : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {feedback}
+            </div>
+          )}
           <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
             <Search size={16} className="text-slate-400" />
             <input

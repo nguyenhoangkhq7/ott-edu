@@ -30,6 +30,8 @@ type ConversationWithRole = any & {
   canManageGroup?: boolean;
 };
 
+type ConversationParticipantId = mongoose.Types.ObjectId | string;
+
 export class ChatService {
   private static resolveConversationRole(
     conversation: ConversationWithRole,
@@ -54,6 +56,13 @@ export class ChatService {
       (error as any).statusCode = 403;
       throw error;
     }
+  }
+
+  private static participantIdEquals(
+    participantId: ConversationParticipantId,
+    otherId: string,
+  ) {
+    return participantId.toString() === otherId.toString();
   }
 
   // Lấy danh sách hộp thoại của user hiện tại, có thể lọc theo type
@@ -231,7 +240,7 @@ export class ChatService {
       throw new Error("Conversation is archived");
     }
 
-    if (!conversation.participants.some((participantId) => participantId.toString() === senderId.toString())) {
+    if (!conversation.participants.some((participantId: ConversationParticipantId) => this.participantIdEquals(participantId, senderId))) {
       const error = new Error("You are not a member of this conversation");
       (error as any).statusCode = 403;
       throw error;
@@ -369,14 +378,14 @@ export class ChatService {
       throw error;
     }
 
-    if (!conversation.participants.some((participantId) => participantId.toString() === memberId.toString())) {
+    if (!conversation.participants.some((participantId: ConversationParticipantId) => this.participantIdEquals(participantId, memberId))) {
       const error = new Error("Member is not part of this conversation");
       (error as any).statusCode = 404;
       throw error;
     }
 
     conversation.participants = conversation.participants.filter(
-      (participantId) => participantId.toString() !== memberId.toString(),
+      (participantId: ConversationParticipantId) => !this.participantIdEquals(participantId, memberId),
     ) as any;
 
     await conversation.save();
@@ -392,6 +401,65 @@ export class ChatService {
     this.ensureConversationOwner(conversation as ConversationWithRole, requesterId);
 
     conversation.isArchived = true;
+    await conversation.save();
+    return conversation;
+  }
+
+  static async leaveGroup(
+    requesterId: string,
+    conversationId: string,
+    newOwnerId?: string,
+  ) {
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
+    if (conversation.type !== "class") {
+      const error = new Error("Only group conversations support this action");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    const requesterIsOwner = conversation.ownerId?.toString() === requesterId.toString();
+    const requesterIsMember = conversation.participants.some(
+      (participantId: ConversationParticipantId) => this.participantIdEquals(participantId, requesterId),
+    );
+
+    if (!requesterIsMember) {
+      const error = new Error("You are not a member of this conversation");
+      (error as any).statusCode = 403;
+      throw error;
+    }
+
+    if (requesterIsOwner) {
+      if (!newOwnerId) {
+        const error = new Error("You must select a new owner before leaving the group");
+        (error as any).statusCode = 400;
+        throw error;
+      }
+
+      const isValidNewOwner = conversation.participants.some(
+        (participantId: ConversationParticipantId) => this.participantIdEquals(participantId, newOwnerId),
+      );
+
+      if (!isValidNewOwner || newOwnerId.toString() === requesterId.toString()) {
+        const error = new Error("New owner must be another member of the group");
+        (error as any).statusCode = 400;
+        throw error;
+      }
+
+      conversation.ownerId = new mongoose.Types.ObjectId(newOwnerId);
+    }
+
+    conversation.participants = conversation.participants.filter(
+      (participantId: ConversationParticipantId) => !this.participantIdEquals(participantId, requesterId),
+    ) as any;
+
+    if (conversation.participants.length === 0) {
+      conversation.isArchived = true;
+    }
+
     await conversation.save();
     return conversation;
   }

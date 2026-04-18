@@ -358,6 +358,32 @@ export class ChatController {
     }
   }
 
+  // API: POST /api/conversations/:conversationId/leave
+  static async leaveGroup(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const { conversationId } = req.params;
+      const { newOwnerId } = req.body;
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      const conversation = await ChatService.leaveGroup(
+        requesterId,
+        conversationId,
+        typeof newOwnerId === "string" ? newOwnerId : undefined,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] leaveGroup error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
   // API: POST /api/conversations/class
   static async syncClassConversation(req: Request, res: Response) {
     try {

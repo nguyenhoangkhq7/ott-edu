@@ -11,7 +11,9 @@ import { ChatMode, Conversation, Message, User } from "../types";
 import {
   fetchConversations,
   fetchMessages,
+  fetchConversationRole,
   dissolveGroup,
+  leaveGroup,
   removeGroupMember,
   sendMessage,
   mapApiMessageToMessage,
@@ -41,6 +43,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     useState<Message | null>(null);
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
   const [showGroupManageModal, setShowGroupManageModal] = useState(false);
+  const [groupOwnerTarget, setGroupOwnerTarget] = useState<User | null>(null);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -220,6 +223,57 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     await refreshAfterGroupChange();
     setShowGroupManageModal(false);
   }, [activeConversationId, refreshAfterGroupChange]);
+
+  const handleLeaveGroup = useCallback(
+    async (newOwnerId?: string) => {
+      if (!activeConversationId) return;
+      await leaveGroup(activeConversationId, newOwnerId);
+      await refreshAfterGroupChange();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange],
+  );
+
+  const handleOpenGroupManage = useCallback(async () => {
+    const currentConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId,
+    );
+
+    if (!currentConversation) return;
+
+    setShowGroupManageModal(true);
+
+    if (currentConversation.type !== "class") return;
+
+    try {
+      const roleData = await fetchConversationRole(currentConversation.id);
+      const owner = currentConversation.participants.find(
+        (participant) => participant.id === roleData.ownerId,
+      );
+      setGroupOwnerTarget(owner || null);
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === currentConversation.id
+            ? {
+                ...conversation,
+                ownerId: roleData.ownerId,
+                myRole: roleData.myRole,
+                canManageGroup: roleData.canManageGroup,
+              }
+            : conversation,
+        ),
+      );
+    } catch (error) {
+      console.error("[ChatLayout] fetchConversationRole error:", error);
+      setGroupOwnerTarget(
+        currentConversation.ownerId
+          ? currentConversation.participants.find(
+              (participant) => participant.id === currentConversation.ownerId,
+            ) || null
+          : null,
+      );
+    }
+  }, [activeConversationId, conversations]);
 
   // ── Fetch Conversations ──────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
@@ -456,7 +510,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         socket={socketRef.current}
         onForwardMessage={setForwardMessageTarget}
         onOpenProfile={setProfileTarget}
-        onOpenGroupManage={() => setShowGroupManageModal(true)}
+        onOpenGroupManage={() => void handleOpenGroupManage()}
       />
       {forwardMessageTarget && (
         <ForwardMessageModal
@@ -480,8 +534,11 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           conversation={activeConversation}
           currentUser={currentUser}
           onClose={() => setShowGroupManageModal(false)}
+          onOpenProfile={setProfileTarget}
+          ownerUser={groupOwnerTarget}
           onRemoveMember={handleRemoveGroupMember}
           onDissolveGroup={handleDissolveGroup}
+          onLeaveGroup={handleLeaveGroup}
         />
       )}
     </div>
