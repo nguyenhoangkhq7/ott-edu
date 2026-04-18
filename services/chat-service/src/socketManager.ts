@@ -116,10 +116,14 @@ class SocketManager {
               return;
             }
 
-            // Update message as revoked
+            // Update message as revoked + clear attachments & linkPreview
             const message = await Message.findByIdAndUpdate(
               messageId,
-              { isRevoked: true },
+              {
+                isRevoked: true,
+                attachments: [], // 👈 Clear attachments khi revoke
+                linkPreview: null, // 👈 Clear linkPreview khi revoke
+              },
               { new: true },
             );
 
