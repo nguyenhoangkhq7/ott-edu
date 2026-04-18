@@ -37,6 +37,7 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     createdAt: apiMsg.createdAt,
     status: "sent",
     attachments: apiMsg.attachments || [],
+    linkPreview: apiMsg.linkPreview || undefined, // 👈 Thêm linkPreview mapping
     replyTo: apiMsg.replyTo ? mapApiMessageToMessage(apiMsg.replyTo) : null,
     isRevoked: apiMsg.isRevoked || false,
     reactions: apiMsg.reactions || [],

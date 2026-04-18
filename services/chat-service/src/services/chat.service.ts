@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Conversation from "../model/Conversation.ts";
 import Message from "../model/Message.ts";
 import User from "../model/User.ts";
+import { LinkPreviewService } from "./link-preview.service.ts";
 
 type SyncParticipant = {
   accountId?: number;
@@ -104,6 +105,22 @@ export class ChatService {
       messagePayload.replyTo = replyTo;
     }
 
+    // 3. Phát hiện và crawl link preview nếu có URL trong tin nhắn
+    // Nếu lỗi xảy ra, vẫn lưu message bình thường (linkPreview sẽ là null)
+    try {
+      const linkPreview =
+        await LinkPreviewService.processMessageForLinkPreview(content);
+      if (linkPreview) {
+        messagePayload.linkPreview = linkPreview;
+      }
+    } catch (error) {
+      console.error(
+        "Error processing link preview for private message:",
+        error,
+      );
+      // Bỏ qua lỗi link preview, vẫn lưu message
+    }
+
     const message = await Message.create(messagePayload);
 
     // Populate replyTo if it exists
@@ -111,7 +128,7 @@ export class ChatService {
       await message.populate("replyTo");
     }
 
-    // 3. Cập nhật lastMessage cho parent là conversation
+    // 4. Cập nhật lastMessage cho parent là conversation
     conversation.lastMessage = message._id as any;
     await conversation.save();
 
@@ -148,6 +165,22 @@ export class ChatService {
 
     if (replyTo) {
       messagePayload.replyTo = replyTo;
+    }
+
+    // Phát hiện và crawl link preview nếu có URL trong tin nhắn
+    // Nếu lỗi xảy ra, vẫn lưu message bình thường (linkPreview sẽ là null)
+    try {
+      const linkPreview =
+        await LinkPreviewService.processMessageForLinkPreview(content);
+      if (linkPreview) {
+        messagePayload.linkPreview = linkPreview;
+      }
+    } catch (error) {
+      console.error(
+        "Error processing link preview for group message:",
+        error,
+      );
+      // Bỏ qua lỗi link preview, vẫn lưu message
     }
 
     const message = await Message.create(messagePayload);

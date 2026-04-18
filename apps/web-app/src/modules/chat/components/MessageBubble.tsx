@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Message, User } from "../types";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 import Image from "next/image";
 import { MoreVertical, Reply, Trash2, Smile } from "lucide-react";
 
@@ -160,6 +161,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Render Link Preview Card nếu có linkPreview data */}
+          {message.linkPreview && (
+            <LinkPreviewCard
+              linkPreview={message.linkPreview}
+              isOwnMessage={isOwnMessage}
+            />
           )}
         </div>
 
