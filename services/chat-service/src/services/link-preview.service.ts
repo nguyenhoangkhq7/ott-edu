@@ -57,11 +57,16 @@ export class LinkPreviewService {
       ]);
 
       // Xử lý response từ library
+      // link-preview-js trả về: { url, title, description, images[], favicons[], ... }
       const preview: LinkPreview = {
         url: url,
         title: (previewData as any)?.title || null,
         description: (previewData as any)?.description || null,
-        image: (previewData as any)?.image || null,
+        // Lấy ảnh đầu tiên từ mảng images, hoặc fallback sang favicon
+        image:
+          (previewData as any)?.images?.[0] ||
+          (previewData as any)?.favicons?.[0] ||
+          null,
       };
 
       return preview;
