@@ -10,6 +10,7 @@ import {
   sendMessage,
   mapApiMessageToMessage,
 } from '../chatApi';
+import { Attachment } from '../types';
 
 import { API_URL, getAccessToken } from '../../api';
 
@@ -34,23 +35,29 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // chatMongoId: MongoDB ObjectId của user hiện tại trong chat-service
+  // (khác với currentUserId dạng số từ core-service)
+  const [chatMongoId, setChatMongoId] = useState<string>(currentUserId);
+
+  // currentUser được tìm từ participants dùng chatMongoId
   const currentUser: User | null =
     conversations.length > 0
-      ? conversations[0].participants.find((p) => p.id === currentUserId) || {
-          id: currentUserId,
+      ? conversations[0].participants.find((p) => p.id === chatMongoId) || {
+          id: chatMongoId,
           name: 'Bạn',
-          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+          avatarUrl: `https://i.pravatar.cc/150?u=${chatMongoId}`,
           isOnline: true,
         }
       : {
-          id: currentUserId,
+          id: chatMongoId,
           name: 'Bạn',
-          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+          avatarUrl: `https://i.pravatar.cc/150?u=${chatMongoId}`,
           isOnline: true,
         };
 
   const socketRef = useRef<Socket | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
+
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -118,8 +125,26 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setIsLoadingConversations(true);
     setError(null);
     try {
+      // Fetch /me từ chat-service để lấy MongoDB ObjectId thực của user
+      const { chatApiClient } = await import('../axiosClient');
+      try {
+        const { data: meRes } = await chatApiClient.get<{ data: { _id: string } }>('/me');
+        if (meRes?.data?._id) {
+          setChatMongoId(meRes.data._id);
+        }
+      } catch {
+        // Ignore - sẽ dùng fallback từ conversations
+      }
+
       const data = await fetchConversations(currentUserId);
       setConversations(data);
+
+      // Fallback: nếu chưa có MongoDB ID, tìm trong participants
+      // (những user không phải currentUserId đều là người khác - user của ta sẽ lộ diện ở conversations 2 chiều)
+      if (data.length > 0) {
+        // Tìm ID xuất hiện trong mọi conversation của mình (chính là mình)
+        // Cách đơn giản: chat /me đã fetch ở trên, nếu fail thì để nguyên chatMongoId
+      }
     } catch (err) {
       console.error('[ChatLayout] fetch conversations error:', err);
       setError('Không thể tải danh sách. Kiểm tra lại kết nối.');
@@ -127,6 +152,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       setIsLoadingConversations(false);
     }
   }, [currentUserId]);
+
 
   useEffect(() => {
     loadConversations();
@@ -177,7 +203,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
   const handleSendMessage = async (
     text: string,
-    attachments?: any, 
+    attachments?: Attachment[],
     replyToId?: string
   ) => {
     if (!currentUserId || isSending) return;
@@ -212,9 +238,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     try {
       let savedMessage: Message;
       if (activeConversation?.type === 'class') {
-        savedMessage = await sendMessage(text, undefined, activeConversation.id, undefined, replyToId);
+        savedMessage = await sendMessage(text, undefined, activeConversation.id, attachments, replyToId);
       } else {
-        savedMessage = await sendMessage(text, targetReceiver?.id, undefined, undefined, replyToId);
+        savedMessage = await sendMessage(text, targetReceiver?.id, undefined, attachments, replyToId);
       }
 
       setMessages((prev) => {
@@ -326,6 +352,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           isLoadingMessages={isLoadingMessages}
           isSending={isSending}
           onBack={handleBackToSidebar}
+          socket={socketRef.current}
         />
       )}
     </View>

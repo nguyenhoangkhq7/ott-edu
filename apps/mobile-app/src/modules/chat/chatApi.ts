@@ -9,8 +9,6 @@ import {
   User,
 } from './types';
 
-// ─── Data Transformers (API → UI) ───────────────────────────────────────────
-
 export function mapApiUserToUser(apiUser: ApiUser): User {
   return {
     id: apiUser._id,
@@ -22,10 +20,7 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
   };
 }
 
-export type ChatAuthIdentity = {
-  email: string;
-  code?: string;
-};
+export type ChatAuthIdentity = { email: string; code?: string };
 
 export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
   return {
@@ -48,16 +43,12 @@ export function mapApiConversationToConversation(
 ): Conversation {
   const participants = apiConv.participants.map(mapApiUserToUser);
   const type = apiConv.type;
-
   let name: string | null = apiConv.name || null;
-
   if (type === 'private') {
     const other = participants.find((p) => p.id !== currentUserId);
     name = other?.name || null;
   }
-
   const lastMsg = apiConv.lastMessage ? mapApiMessageToMessage(apiConv.lastMessage) : null;
-
   return {
     id: apiConv._id,
     name,
@@ -69,56 +60,14 @@ export function mapApiConversationToConversation(
   };
 }
 
-// ─── API Functions ───────────────────────────────────────────────────────────
-
 export async function fetchConversations(currentUserId: string): Promise<Conversation[]> {
   const { data } = await chatApiClient.get<{ data: ApiConversation[] }>('/conversations');
   return data.data.map((conv) => mapApiConversationToConversation(conv, currentUserId));
 }
 
-export async function fetchCurrentChatUser(identity: ChatAuthIdentity): Promise<User> {
-  const { data } = await chatApiClient.get<{ data: ApiUser }>('/me', {
-    headers: {
-      'x-user-email': identity.email,
-      'x-user-code': identity.code || '',
-    },
-  });
-  return mapApiUserToUser(data.data);
-}
-
 export async function fetchMessages(conversationId: string): Promise<Message[]> {
   const { data } = await chatApiClient.get<{ data: ApiMessage[] }>(`/messages/${conversationId}`);
   return data.data.map(mapApiMessageToMessage);
-}
-
-// Upload file directly to S3 via presigned URL (skipped File usage as React Native uses uri and type differently for fetch, but keep logic if we use form data or blob)
-export async function getPresignedUrl(
-  fileName: string,
-  fileType: string
-): Promise<{ presignedUrl: string; fileUrl: string; s3Key: string; expiresIn: number }> {
-  const { data } = await chatApiClient.get<{
-    data: { presignedUrl: string; fileUrl: string; s3Key: string; expiresIn: number };
-  }>('/upload-url', {
-    params: { fileName, fileType },
-  });
-  return data.data;
-}
-
-export async function uploadToS3(presignedUrl: string, fileUri: string, fileType: string): Promise<void> {
-  try {
-    const response = await fetch(fileUri);
-    const blob = await response.blob();
-    await fetch(presignedUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': fileType,
-      },
-      body: blob,
-    });
-  } catch (error) {
-    console.error('S3 upload error:', error);
-    throw new Error('Failed to upload file to S3');
-  }
 }
 
 export async function sendMessage(
@@ -136,4 +85,29 @@ export async function sendMessage(
     replyTo: replyToMessageId,
   });
   return mapApiMessageToMessage(data.data);
+}
+
+/**
+ * Upload file qua chat-service backend (server đẩy lên S3).
+ * Dùng multipart/form-data với React Native fetch.
+ */
+export async function uploadFileToChatService(
+  fileUri: string,
+  fileName: string,
+  fileType: string
+): Promise<{ fileUrl: string; s3Key: string }> {
+  const formData = new FormData();
+  // React Native: append dạng object với uri, name, type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  formData.append('file', { uri: fileUri, name: fileName, type: fileType } as any);
+
+  const { data } = await chatApiClient.post<{ data: { fileUrl: string; s3Key: string } }>(
+    '/upload-file',
+    formData,
+    {
+      params: { fileName, fileType },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }
+  );
+  return data.data;
 }
