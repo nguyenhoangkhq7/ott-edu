@@ -5,6 +5,7 @@ import { io, Socket } from "socket.io-client";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
 import { ForwardMessageModal } from "./ForwardMessageModal";
+import { ChatUserProfileModal } from "./ChatUserProfileModal";
 import { ChatMode, Conversation, Message, User } from "../types";
 import {
   fetchConversations,
@@ -35,6 +36,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [error, setError] = useState<string | null>(null);
   const [forwardMessageTarget, setForwardMessageTarget] =
     useState<Message | null>(null);
+  const [profileTarget, setProfileTarget] = useState<User | null>(null);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -70,6 +72,28 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     });
 
     socketRef.current = socket;
+
+    const handleUserStatusChanged = (data: {
+      userId: string;
+      isOnline: boolean;
+    }) => {
+      setConversations((prev) =>
+        prev.map((conv) => ({
+          ...conv,
+          participants: conv.participants.map((participant) =>
+            participant.id === data.userId
+              ? { ...participant, isOnline: data.isOnline }
+              : participant,
+          ),
+        })),
+      );
+
+      setProfileTarget((prev) =>
+        prev && prev.id === data.userId
+          ? { ...prev, isOnline: data.isOnline }
+          : prev,
+      );
+    };
 
     // Nhận tin nhắn mới từ server real-time
     const handleNewMessage = (rawMessage: unknown) => {
@@ -136,11 +160,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
     socket.on("newMessage", handleNewMessage);
     socket.on("messageRevoked", handleMessageRevoked);
+    socket.on("userStatusChanged", handleUserStatusChanged);
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
       socket.off("newMessage", handleNewMessage);
       socket.off("messageRevoked", handleMessageRevoked);
+      socket.off("userStatusChanged", handleUserStatusChanged);
       socket.disconnect();
     };
   }, [currentUserId]);
@@ -371,7 +397,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, [conversations, currentUserId, searchQuery]);
 
   return (
-    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
+    <div className="flex h-[calc(100vh-220px)] min-h-155 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
       <Sidebar
         currentMode={currentMode}
         onModeChange={setCurrentMode}
@@ -395,6 +421,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         isSending={isSending}
         socket={socketRef.current}
         onForwardMessage={setForwardMessageTarget}
+        onOpenProfile={setProfileTarget}
       />
       {forwardMessageTarget && (
         <ForwardMessageModal
@@ -405,6 +432,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           onSuccess={() => {
             // Có thể thêm Toast notification "Chuyển tiếp thành công" tại đây nếu muốn
           }}
+        />
+      )}
+      {profileTarget && (
+        <ChatUserProfileModal
+          user={profileTarget}
+          onClose={() => setProfileTarget(null)}
         />
       )}
     </div>

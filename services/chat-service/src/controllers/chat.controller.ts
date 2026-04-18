@@ -14,13 +14,18 @@ export class ChatController {
       }
 
       const user = await User.findById(userId)
-        .select("fullName avatarUrl email code")
+        .select("fullName avatarUrl email code role")
         .lean();
       if (!user) {
         return res.status(404).json({ error: "Chat user not found" });
       }
 
-      return res.status(200).json({ data: user });
+      return res.status(200).json({
+        data: {
+          ...user,
+          isOnline: socketManager.isUserOnline(userId.toString()),
+        },
+      });
     } catch (error: any) {
       console.error("[ChatController] getCurrentChatUser error:", error);
       return res

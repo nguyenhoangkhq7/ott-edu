@@ -6,6 +6,10 @@ class SocketManager {
   private io: Server | null = null;
   private onlineUsers = new Map<string, string>();
 
+  public isUserOnline(userId: string) {
+    return this.onlineUsers.has(userId);
+  }
+
   public init(io: Server) {
     this.io = io;
 
@@ -16,6 +20,11 @@ class SocketManager {
       if (userId) {
         this.onlineUsers.set(userId as string, socket.id);
         console.log(`User ${userId} joined with socket ${socket.id}`);
+
+        this.io?.emit("userStatusChanged", {
+          userId: userId as string,
+          isOnline: true,
+        });
 
         // Tự động Join user vào tất cả các phòng (conversation) mà họ tham gia
         try {
@@ -42,6 +51,11 @@ class SocketManager {
         if (userId) {
           this.onlineUsers.delete(userId as string);
           console.log(`User ${userId} disconnected`);
+
+          this.io?.emit("userStatusChanged", {
+            userId: userId as string,
+            isOnline: false,
+          });
         }
       });
 

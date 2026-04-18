@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Conversation from "../model/Conversation.ts";
 import Message from "../model/Message.ts";
 import User from "../model/User.ts";
+import socketManager from "../socketManager.ts";
 
 type SyncParticipant = {
   accountId?: number;
@@ -35,7 +36,7 @@ export class ChatService {
       .sort({ updatedAt: -1 })
       .populate({
         path: "participants",
-        select: "fullName avatarUrl email code",
+        select: "fullName avatarUrl email code role",
       })
       .populate({
         path: "lastMessage",
@@ -50,6 +51,18 @@ export class ChatService {
         otherParticipant = conv.participants.find(
           (p: any) => p._id.toString() !== userId.toString(),
         );
+      }
+
+      const participants = conv.participants.map((participant: any) => ({
+        ...participant,
+        isOnline: socketManager.isUserOnline(participant._id.toString()),
+      }));
+
+      if (otherParticipant) {
+        otherParticipant = {
+          ...otherParticipant,
+          isOnline: socketManager.isUserOnline(otherParticipant._id.toString()),
+        };
       }
 
       if (conv.lastMessage) {
@@ -68,6 +81,7 @@ export class ChatService {
 
       return {
         ...conv,
+        participants,
         otherParticipant,
       };
     });

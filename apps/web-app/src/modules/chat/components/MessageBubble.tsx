@@ -25,6 +25,7 @@ interface MessageBubbleProps {
   onRevokeForAll?: (messageId: string) => void;
   onRevokeForMe?: (messageId: string) => void;
   onForward?: (message: Message) => void;
+  onOpenProfile?: (user: User) => void;
   /** @deprecated Dùng onRevokeForAll thay thế */
   onRevoke?: (messageId: string) => void;
 }
@@ -41,6 +42,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onRevokeForAll,
   onRevokeForMe,
   onForward,
+  onOpenProfile,
   onRevoke,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
@@ -99,6 +101,39 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return null;
   }
 
+  const profileButtonClass =
+    "text-left hover:text-blue-600 focus:outline-none focus-visible:text-blue-600";
+
+  const renderSenderAvatar = () => {
+    if (!sender) return null;
+
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenProfile?.(sender)}
+        className="mr-2 mt-auto shrink-0 cursor-pointer"
+      >
+        <Image
+          src={sender.avatarUrl}
+          alt={sender.name}
+          width={32}
+          height={32}
+          className="h-8 w-8 rounded-full ring-1 ring-slate-200"
+        />
+      </button>
+    );
+  };
+
+  const renderSenderName = () => {
+    if (!sender) return null;
+
+    return (
+      <span className="mb-1 ml-1 text-xs text-slate-500">
+        {sender.name}
+      </span>
+    );
+  };
+
   // Thu hồi chung với mọi người (Unsend for everyone) -> Hiện "Tin nhắn đã bị thu hồi"
   if (message.isRevoked) {
     return (
@@ -107,25 +142,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           isOwnMessage ? "justify-end" : "justify-start"
         }`}
       >
-        {!isOwnMessage && sender && (
-          <Image
-            src={sender.avatarUrl}
-            alt={sender.name}
-            width={32}
-            height={32}
-            className="mr-2 mt-auto h-8 w-8 rounded-full ring-1 ring-slate-200"
-          />
-        )}
+        {!isOwnMessage && renderSenderAvatar()}
         <div
           className={`flex max-w-[70%] flex-col ${
             isOwnMessage ? "items-end" : "items-start"
           }`}
         >
-          {!isOwnMessage && sender && (
-            <span className="mb-1 ml-1 text-xs text-slate-500">
-              {sender.name}
-            </span>
-          )}
+          {!isOwnMessage && renderSenderName()}
           <div
             className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 italic text-slate-400 ${
               isOwnMessage
@@ -145,24 +168,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     <div
       className={`group mb-4 flex w-full ${isOwnMessage ? "justify-end" : "justify-start"}`}
     >
-      {!isOwnMessage && sender && (
-        <Image
-          src={sender.avatarUrl}
-          alt={sender.name}
-          width={32}
-          height={32}
-          className="mr-2 mt-auto h-8 w-8 rounded-full ring-1 ring-slate-200"
-        />
-      )}
+      {!isOwnMessage && renderSenderAvatar()}
 
       <div
         className={`flex max-w-[70%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}
       >
-        {!isOwnMessage && sender && (
-          <span className="mb-1 ml-1 text-xs text-slate-500">
-            {sender.name}
-          </span>
-        )}
+        {!isOwnMessage && renderSenderName()}
 
         {message.replyTo && (
           <div className="mb-2 max-w-full rounded-xl border-l-2 border-blue-500 bg-slate-100 px-3 py-2 text-xs">
@@ -222,7 +233,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         alt={attachment.fileName}
                         width={200}
                         height={200}
-                        className="max-h-[200px] max-w-[200px] rounded-lg object-cover"
+                        className="max-h-50 max-w-50 rounded-lg object-cover"
                       />
                     </a>
                   ) : (
@@ -248,7 +259,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </span>
 
           {message.reactions && message.reactions.length > 0 && (
-            <div className="flex gap-1 flex-wrap">
+            <div className="flex flex-wrap gap-1">
               {Array.from(
                 new Map(message.reactions.map((r) => [r.emoji, r])).values(),
               ).map((reaction) => {
@@ -282,8 +293,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </button>
 
         {showMenu && (
-          <div className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-xl border border-slate-200 bg-white shadow-lg">
-            {/* Emoji reactions */}
+          <div className="absolute right-0 top-full z-20 mt-1 min-w-50 rounded-xl border border-slate-200 bg-white shadow-lg">
             <button
               type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -308,7 +318,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
 
-            {/* Reply (tất cả) */}
             <button
               type="button"
               onClick={() => {
@@ -321,7 +330,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               Trả lời
             </button>
 
-            {/* Cập nhật Forward (Chuyển tiếp) */}
             <button
               type="button"
               onClick={() => {
@@ -347,7 +355,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               Chuyển tiếp
             </button>
 
-            {/* Thu hồi với tất cả - chỉ trong 15 phút */}
             {isOwnMessage && (
               <button
                 type="button"
@@ -367,7 +374,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <span className="flex flex-col">
                   <span>Thu hồi với mọi người</span>
                   {canRevokeForAll ? (
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                    <span className="flex items-center gap-1 text-xs text-slate-400">
                       <Clock size={10} /> Còn {remainingMinutes} phút
                     </span>
                   ) : (
@@ -377,7 +384,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </button>
             )}
 
-            {/* Thu hồi về phía mình - không giới hạn thời gian */}
             <button
               type="button"
               onClick={() => {

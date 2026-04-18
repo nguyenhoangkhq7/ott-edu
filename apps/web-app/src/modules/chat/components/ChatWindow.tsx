@@ -21,6 +21,7 @@ interface ChatWindowProps {
   isSending?: boolean;
   socket?: Socket | null;
   onForwardMessage?: (message: Message) => void;
+  onOpenProfile?: (user: User) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -32,6 +33,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isSending = false,
   socket,
   onForwardMessage,
+  onOpenProfile,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
@@ -198,24 +200,46 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
-        <div className="flex items-center gap-3">
-          <Image
-            src={
-              displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
-            }
-            alt="Avatar"
-            width={40}
-            height={40}
-            className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
-          />
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (conversation.type !== "private" || !currentUser) return;
+            const headerUser = conversation.participants.find(
+              (p) => p.id !== currentUser.id,
+            );
+            if (headerUser) onOpenProfile?.(headerUser);
+          }}
+          className={`flex items-center gap-3 text-left ${conversation.type === "private" ? "cursor-pointer" : "cursor-default"}`}
+        >
+          {conversation.type === "private" && currentUser ? (
+            <Image
+              src={
+                displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
+              }
+              alt="Avatar"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+            />
+          ) : (
+            <Image
+              src={
+                displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
+              }
+              alt="Avatar"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+            />
+          )}
           <div>
             <h2 className="text-sm font-semibold text-slate-900">
               {displayName || "Unknown"}
             </h2>
             <p className="text-xs text-slate-500">{subStatus}</p>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2 text-slate-400">
           <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
@@ -230,7 +254,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4">
+      <div className="flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white p-4">
         {isLoadingMessages ? (
           <div className="flex h-full items-center justify-center gap-2 text-slate-400">
             <RefreshCw size={16} className="animate-spin" />
@@ -253,6 +277,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onRevokeForAll={handleRevokeForAll}
               onRevokeForMe={handleRevokeForMe}
               onForward={onForwardMessage}
+              onOpenProfile={onOpenProfile}
             />
           ))
         )}

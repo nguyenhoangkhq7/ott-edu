@@ -9,6 +9,7 @@ export interface User {
   name: string; // mapped từ fullName của MongoDB
   email?: string;
   code?: string; // MSSV / MSGV
+  role?: string;
   avatarUrl: string;
   isOnline: boolean;
 }
@@ -59,7 +60,9 @@ export interface ApiUser {
   fullName: string;
   email?: string;
   code?: string;
+  role?: string;
   avatarUrl?: string;
+  isOnline?: boolean;
 }
 
 export interface ApiAttachment {

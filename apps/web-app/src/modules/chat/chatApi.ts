@@ -17,9 +17,10 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
     name: apiUser.fullName,
     email: apiUser.email,
     code: apiUser.code,
+    role: apiUser.role,
     avatarUrl:
       apiUser.avatarUrl || `https://i.pravatar.cc/150?u=${apiUser._id}`,
-    isOnline: false, // Backend chưa cung cấp trạng thái online; có thể cập nhật qua Socket
+    isOnline: apiUser.isOnline ?? false,
   };
 }
 
