@@ -33,7 +33,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [forwardMessageTarget, setForwardMessageTarget] = useState<Message | null>(null);
+  const [forwardMessageTarget, setForwardMessageTarget] =
+    useState<Message | null>(null);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -106,7 +107,11 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       });
     };
 
-    const handleMessageRevoked = (data: { messageId: string; revokeType?: string; isRevoked?: boolean }) => {
+    const handleMessageRevoked = (data: {
+      messageId: string;
+      revokeType?: string;
+      isRevoked?: boolean;
+    }) => {
       setConversations((prev) =>
         prev.map((c) => {
           if (c.lastMessage?.id === data.messageId) {
@@ -125,7 +130,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
             };
           }
           return c;
-        })
+        }),
       );
     };
 
@@ -234,6 +239,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       attachments: attachments || [],
       replyTo: undefined,
       isRevoked: false,
+      revokedFor: [],
       reactions: [],
     };
     setMessages((prev) => [...prev, optimisticMessage]);

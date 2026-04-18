@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Message, User } from "../types";
 import Image from "next/image";
-import { MoreVertical, Reply, Trash2, EyeOff, Smile, Clock } from "lucide-react";
+import {
+  MoreVertical,
+  Reply,
+  Trash2,
+  EyeOff,
+  Smile,
+  Clock,
+} from "lucide-react";
 
 /** Giới hạn thời gian cho phép thu hồi với tất cả - 15 phút */
 const REVOKE_FOR_ALL_LIMIT_MS = 15 * 60 * 1000;
@@ -38,6 +45,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    setNow(Date.now());
+
+    const timerId = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(timerId);
+  }, []);
 
   const formatTime = (isoStr: string) => {
     const date = new Date(isoStr);
@@ -60,9 +78,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   // Thời gian còn lại để thu hồi với tất cả (ms)
-  const ageMs = Date.now() - new Date(message.createdAt).getTime();
+  const ageMs = now - new Date(message.createdAt).getTime();
   const canRevokeForAll = isOwnMessage && ageMs <= REVOKE_FOR_ALL_LIMIT_MS;
-  const remainingMinutes = Math.max(0, Math.ceil((REVOKE_FOR_ALL_LIMIT_MS - ageMs) / 60000));
+  const remainingMinutes = Math.max(
+    0,
+    Math.ceil((REVOKE_FOR_ALL_LIMIT_MS - ageMs) / 60000),
+  );
 
   // Thu hồi cho bản thân: kiểm tra userId trong revokedFor HOẶC marker __self__ từ API
   const isSelfRevoked =
@@ -103,7 +124,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
           <div
             className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 italic text-slate-400 ${
-              isOwnMessage ? "rounded-br-sm bg-slate-200" : "rounded-bl-sm bg-slate-100"
+              isOwnMessage
+                ? "rounded-br-sm bg-slate-200"
+                : "rounded-bl-sm bg-slate-100"
             }`}
           >
             <Trash2 size={12} />
@@ -132,7 +155,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         className={`flex max-w-[70%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}
       >
         {!isOwnMessage && sender && (
-          <span className="mb-1 ml-1 text-xs text-slate-500">{sender.name}</span>
+          <span className="mb-1 ml-1 text-xs text-slate-500">
+            {sender.name}
+          </span>
         )}
 
         {message.replyTo && (
@@ -151,7 +176,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {message.isForwarded && (
           <div className="mb-1 flex items-center gap-1 text-[11px] text-slate-500 italic">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 17 20 12 15 7"></polyline><path d="M4 18v-2a4 4 0 0 1 4-4h12"></path></svg>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="15 17 20 12 15 7"></polyline>
+              <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
+            </svg>
             Tin nhắn chuyển tiếp
           </div>
         )}
@@ -221,9 +258,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   >
                     <span>{reaction.emoji}</span>
                     {count > 1 && (
-                      <span className="text-slate-600">
-                        {count}
-                      </span>
+                      <span className="text-slate-600">{count}</span>
                     )}
                   </div>
                 );
@@ -272,7 +307,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {/* Reply (tất cả) */}
             <button
               type="button"
-              onClick={() => { onReply?.(message); setShowMenu(false); }}
+              onClick={() => {
+                onReply?.(message);
+                setShowMenu(false);
+              }}
               className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-100"
             >
               <Reply size={16} />
@@ -282,10 +320,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {/* Cập nhật Forward (Chuyển tiếp) */}
             <button
               type="button"
-              onClick={() => { onForward?.(message); setShowMenu(false); }}
+              onClick={() => {
+                onForward?.(message);
+                setShowMenu(false);
+              }}
               className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-100"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-600"><polyline points="15 17 20 12 15 7"></polyline><path d="M4 18v-2a4 4 0 0 1 4-4h12"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-slate-600"
+              >
+                <polyline points="15 17 20 12 15 7"></polyline>
+                <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
+              </svg>
               Chuyển tiếp
             </button>
 
@@ -308,9 +362,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 <Trash2 size={16} />
                 <span className="flex flex-col">
                   <span>Thu hồi với mọi người</span>
-                  {canRevokeForAll
-                    ? <span className="text-xs text-slate-400 flex items-center gap-1"><Clock size={10} /> Còn {remainingMinutes} phút</span>
-                    : <span className="text-xs">Đã quá 15 phút</span>}
+                  {canRevokeForAll ? (
+                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <Clock size={10} /> Còn {remainingMinutes} phút
+                    </span>
+                  ) : (
+                    <span className="text-xs">Đã quá 15 phút</span>
+                  )}
                 </span>
               </button>
             )}
@@ -318,7 +376,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {/* Thu hồi về phía mình - không giới hạn thời gian */}
             <button
               type="button"
-              onClick={() => { onRevokeForMe?.(message.id); setShowMenu(false); }}
+              onClick={() => {
+                onRevokeForMe?.(message.id);
+                setShowMenu(false);
+              }}
               className="flex w-full items-center gap-2 rounded-b-xl border-t border-slate-100 px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100"
             >
               <EyeOff size={16} />
