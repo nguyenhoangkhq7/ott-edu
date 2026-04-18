@@ -12,6 +12,11 @@ const { default: app } = await import("./app.ts");
 const { default: socketManager } = await import("./socketManager.ts");
 
 const PORT = process.env.CHAT_PORT || 3001;
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:8000",
+  process.env.WEB_APP_URL || "http://localhost:3000",
+].filter(Boolean);
 
 // Tạo HTTP Server từ Express app
 const httpServer = createServer(app);
@@ -19,10 +24,7 @@ const httpServer = createServer(app);
 // Khởi tạo Socket.IO và gắn vào HTTP server
 const io = new Server(httpServer, {
   cors: {
-    origin: [
-      "http://localhost:3000",
-      process.env.WEB_APP_URL || "http://localhost:3000",
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },

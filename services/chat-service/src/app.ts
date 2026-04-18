@@ -14,11 +14,14 @@ const app: Application = express();
 
 connectDB();
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:8000",
+  process.env.WEB_APP_URL || "http://localhost:3000",
+].filter(Boolean);
+
 app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    process.env.WEB_APP_URL || "http://localhost:3000",
-  ],
+  origin: allowedOrigins,
   credentials: true,
 }));
 app.use(express.json());

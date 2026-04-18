@@ -97,6 +97,8 @@ services:
     restart: on-failure
     command: npm run dev
     env_file: .env
+    environment:
+      MONGO_CHAT_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo-db:27017/${MONGO_DB_NAME}?authSource=admin
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
@@ -113,7 +115,7 @@ services:
       target: deps
     container_name: web-app
     restart: always
-    command: npm run dev
+    command: npm run dev -- --webpack
     env_file: .env
     environment:
       - WATCHPACK_POLLING=true
