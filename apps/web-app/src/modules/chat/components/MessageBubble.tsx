@@ -35,6 +35,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const isImage = (fileType: string) => fileType.startsWith("image/");
 
+  // 👈 Thêm hàm kiểm tra video
+  const isVideo = (fileType: string) => fileType.startsWith("video/");
+
   const getFileIcon = (fileName: string) => {
     if (fileName.endsWith(".pdf")) return "📄";
     if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) return "📃";
@@ -147,6 +150,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         className="max-h-[200px] max-w-[200px] rounded-lg object-cover"
                       />
                     </a>
+                  ) : isVideo(attachment.fileType) ? (
+                    // 👈 Render video player cho video attachments
+                    <video
+                      controls
+                      className="max-h-[300px] max-w-[300px] rounded-lg bg-black"
+                      poster={undefined}
+                    >
+                      <source src={attachment.url} type={attachment.fileType} />
+                      Your browser does not support the video tag.
+                    </video>
                   ) : (
                     <a
                       href={attachment.url}

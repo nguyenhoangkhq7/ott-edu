@@ -330,7 +330,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         multiple
         onChange={handleFileSelect}
         className="hidden"
-        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+        accept="image/*,video/mp4,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
       />
     </div>
   );
