@@ -32,24 +32,38 @@ export class ChatService {
     }
 
     const conversations = await Conversation.find(query)
-      .sort({ updatedAt: -1 }) // Sắp xếp theo thời gian hoạt động mới nhất
+      .sort({ updatedAt: -1 })
       .populate({
         path: "participants",
-        select: "fullName avatarUrl email code", // Dùng cho tìm kiếm name/email/MSSV
+        select: "fullName avatarUrl email code",
       })
       .populate({
         path: "lastMessage",
-        select: "content senderId createdAt", // Nội dung tin nhắn cuối hiển thị ngoài List
+        select: "content senderId createdAt isRevoked revokedFor",
       })
-      .lean(); // lean() giúp trả về JS Object thường để thao tác dễ hơn
+      .lean();
 
-    // Formatting: với chat private, trích xuất "người đang nói chuyện cùng" để frontend dễ dùng
+    // Formatting: trích xuất "người đang nói chuyện cùng" và xử lý trạng thái ẩn/thu hồi của lastMessage
     return conversations.map((conv: any) => {
       let otherParticipant = null;
       if (conv.type === "private") {
         otherParticipant = conv.participants.find(
           (p: any) => p._id.toString() !== userId.toString(),
         );
+      }
+
+      if (conv.lastMessage) {
+        const isHiddenForMe = Array.isArray(conv.lastMessage.revokedFor) &&
+          conv.lastMessage.revokedFor.some((id: any) => id.toString() === userId.toString());
+        
+        if (isHiddenForMe) {
+          conv.lastMessage = {
+            ...conv.lastMessage,
+            content: "",
+            isRevoked: false,
+            _hiddenForMe: true, // Marker Frontend
+          };
+        }
       }
 
       return {
@@ -60,10 +74,34 @@ export class ChatService {
   }
 
   // Lấy toàn bộ lịch sử tin nhắn của một cuộc trò chuyện
-  static async getMessages(conversationId: string) {
-    return await Message.find({ conversationId })
-      .sort({ createdAt: 1 }) // Cũ xếp trước, mới xếp sau để UI scroll xuống
+  // requestingUserId: để lọc tin nhắn đã bị ẩn bởi user đó (revokedFor)
+  static async getMessages(conversationId: string, requestingUserId?: string) {
+    const messages = await Message.find({ conversationId })
+      .sort({ createdAt: 1 })
+      .populate({
+        path: "replyTo",
+        select: "content senderId isRevoked revokedFor attachments",
+      })
       .lean();
+
+    if (!requestingUserId) return messages;
+
+    // Với mỗi tin nhắn, nếu requestingUserId có trong revokedFor thì đánh dấu ẩn
+    return messages.map((msg: any) => {
+      const isHiddenForMe = Array.isArray(msg.revokedFor) &&
+        msg.revokedFor.some((id: any) => id.toString() === requestingUserId.toString());
+      if (isHiddenForMe) {
+        // Trả về dạng "đã ẩn" chỉ cho user này
+        return {
+          ...msg,
+          content: "",
+          attachments: [],
+          isRevoked: false,
+          _hiddenForMe: true, // Frontend dùng field này để render "Bạn đã ẩn tin nhắn này"
+        };
+      }
+      return msg;
+    });
   }
 
   // Gửi tin nhắn mới 1-1 (Private)
@@ -73,6 +111,7 @@ export class ChatService {
     content: string,
     attachments?: any[],
     replyTo?: string,
+    isForwarded?: boolean,
   ) {
     // 1. Tìm xem giữa 2 người dã có phòng chat private chưa
     let conversation = await Conversation.findOne({
@@ -104,6 +143,10 @@ export class ChatService {
       messagePayload.replyTo = replyTo;
     }
 
+    if (isForwarded) {
+      messagePayload.isForwarded = isForwarded;
+    }
+
     const message = await Message.create(messagePayload);
 
     // Populate replyTo if it exists
@@ -125,6 +168,7 @@ export class ChatService {
     content: string,
     attachments?: any[],
     replyTo?: string,
+    isForwarded?: boolean,
   ) {
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {
@@ -148,6 +192,10 @@ export class ChatService {
 
     if (replyTo) {
       messagePayload.replyTo = replyTo;
+    }
+
+    if (isForwarded) {
+      messagePayload.isForwarded = isForwarded;
     }
 
     const message = await Message.create(messagePayload);

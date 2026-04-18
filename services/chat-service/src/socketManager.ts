@@ -104,33 +104,101 @@ class SocketManager {
         },
       );
 
-      // Handle message revocation
+      // ── Thu hồi với TẤT CẢ mọi người (giới hạn 15 phút) ──────────────
+      socket.on(
+        "revokeForAll",
+        async (data: { messageId: string; conversationId: string }) => {
+          try {
+            const { messageId, conversationId } = data;
+            if (!messageId || !conversationId || !userId) return;
+
+            const message = await Message.findById(messageId);
+            if (!message) {
+              socket.emit("revokeError", { messageId, error: "Tin nhắn không tồn tại." });
+              return;
+            }
+
+            // Chỉ người gửi mới được thu hồi
+            if (message.senderId.toString() !== userId.toString()) {
+              socket.emit("revokeError", { messageId, error: "Bạn không có quyền thu hồi tin nhắn này." });
+              return;
+            }
+
+            // Kiểm tra giới hạn thời gian 15 phút
+            const now = Date.now();
+            const sentAt = new Date(message.createdAt).getTime();
+            const { REVOKE_FOR_ALL_LIMIT_MS } = await import("./model/Message.ts");
+            if (now - sentAt > REVOKE_FOR_ALL_LIMIT_MS) {
+              socket.emit("revokeError", {
+                messageId,
+                error: "Không thể thu hồi tin nhắn đã gửi quá 15 phút.",
+              });
+              return;
+            }
+
+            await Message.findByIdAndUpdate(messageId, { isRevoked: true });
+
+            // Broadcast cho tất cả trong phòng
+            this.io?.to(conversationId).emit("messageRevoked", {
+              messageId,
+              revokeType: "all",
+              isRevoked: true,
+            });
+          } catch (err) {
+            console.error("Error in revokeForAll:", err);
+          }
+        },
+      );
+
+      // ── Thu hồi chỉ về phía BẢN THÂN (không giới hạn thời gian) ──────
+      socket.on(
+        "revokeForMe",
+        async (data: { messageId: string; conversationId: string }) => {
+          try {
+            const { messageId, conversationId } = data;
+            if (!messageId || !conversationId || !userId) return;
+
+            const message = await Message.findById(messageId);
+            if (!message) {
+              socket.emit("revokeError", { messageId, error: "Tin nhắn không tồn tại." });
+              return;
+            }
+
+            // Thêm userId vào mảng revokedFor (nếu chưa có)
+            if (!message.revokedFor.some((id: any) => id.toString() === userId.toString())) {
+              await Message.findByIdAndUpdate(messageId, {
+                $addToSet: { revokedFor: userId },
+              });
+            }
+
+            // Chỉ emit cho socket của người dùng này (private)
+            socket.emit("messageRevoked", {
+              messageId,
+              revokeType: "self",
+              isRevoked: false,
+            });
+          } catch (err) {
+            console.error("Error in revokeForMe:", err);
+          }
+        },
+      );
+
+      // Legacy handler – giữ tương thích ngược
       socket.on(
         "revokeMessage",
         async (data: { messageId: string; conversationId: string }) => {
           try {
             const { messageId, conversationId } = data;
-
-            if (!messageId || !conversationId || !userId) {
-              console.warn("Invalid revoke data:", data);
-              return;
-            }
-
-            // Update message as revoked
+            if (!messageId || !conversationId || !userId) return;
             const message = await Message.findByIdAndUpdate(
               messageId,
               { isRevoked: true },
               { new: true },
             );
-
-            if (!message) {
-              console.warn("Message not found:", messageId);
-              return;
-            }
-
-            // Emit revocation event to all clients in the room
+            if (!message) return;
             this.io?.to(conversationId).emit("messageRevoked", {
               messageId,
+              revokeType: "all",
               isRevoked: true,
             });
           } catch (error) {

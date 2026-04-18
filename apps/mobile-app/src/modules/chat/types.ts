@@ -1,6 +1,6 @@
 // ─── Frontend UI Types ──────────────────────────────────────────────────────
 // Đây là interface dùng cho component hiển thị.
-// Dữ liệu từ API sẽ được transform sang format này qua các helper ở chatApi.ts.
+// Dữ liệu từ API sẽ được transform sang format này.
 
 export type ChatMode = "private" | "class";
 
@@ -84,7 +84,6 @@ export interface ApiMessage {
   replyTo?: ApiMessage | null;
   isRevoked: boolean;
   revokedFor?: string[];
-  /** Backend set true khi message này user hiện tại đã ẩn với mình */
   _hiddenForMe?: boolean;
   isForwarded?: boolean;
   reactions: ApiReaction[];
@@ -98,7 +97,7 @@ export interface ApiConversation {
   metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;
-  otherParticipant?: ApiUser; // Được tính sẵn trong ChatService.getConversations()
+  otherParticipant?: ApiUser; 
   createdAt?: string;
   updatedAt?: string;
 }
