@@ -1,13 +1,7 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  Linking,
-  StyleSheet,
-  Modal,
-  Pressable,
+  View, Text, TouchableOpacity, Image, Linking,
+  StyleSheet, Modal, Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Message, User } from '../types';
@@ -17,9 +11,9 @@ const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
 const getFileIcon = (fileName: string) => {
   if (fileName.endsWith('.pdf')) return '📄';
-  if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) return '📃';
+  if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) return '📝';
   if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) return '📊';
-  if (fileName.endsWith('.zip')) return '🗜️';
+  if (fileName.endsWith('.zip') || fileName.endsWith('.rar')) return '🗜️';
   return '📎';
 };
 
@@ -34,42 +28,25 @@ interface MessageBubbleProps {
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
-  message,
-  isSelf,
-  sender,
-  onReply,
-  onReact,
-  onRevoke,
-  showAvatar = true,
+  message, isSelf, sender, onReply, onReact, onRevoke, showAvatar = true,
 }) => {
-  const [showActions, setShowActions] = useState(false);
-
+  const [showMenu, setShowMenu] = useState(false);
   const isRevoked = message.isRevoked;
 
-  const handleTap = () => {
-    if (!isRevoked) setShowActions(true);
-  };
-
-  const handleReact = (emoji: string) => {
-    onReact?.(message.id, emoji);
-    setShowActions(false);
-  };
-
-  const groupedReactions = React.useMemo(() => {
+  const grouped = React.useMemo(() => {
     if (!message.reactions?.length) return [];
     const map = new Map<string, number>();
     message.reactions.forEach((r) => map.set(r.emoji, (map.get(r.emoji) || 0) + 1));
     return Array.from(map.entries()).map(([emoji, count]) => ({ emoji, count }));
   }, [message.reactions]);
 
-  // Revoked message
   if (isRevoked) {
     return (
-      <View style={[styles.row, isSelf ? styles.rowRight : styles.rowLeft]}>
-        {!isSelf && <View style={styles.avatarSpacer} />}
-        <View style={styles.revokedBubble}>
-          <Ionicons name="ban-outline" size={12} color="#94a3b8" />
-          <Text style={styles.revokedText}> Tin nhắn đã bị thu hồi</Text>
+      <View style={[styles.row, isSelf ? styles.rowSelf : styles.rowOther]}>
+        {!isSelf && <View style={styles.avatarSpace} />}
+        <View style={[styles.revokedChip, isSelf ? styles.revokedSelf : styles.revokedOther]}>
+          <Ionicons name="ban-outline" size={11} color="#94A3B8" />
+          <Text style={styles.revokedTxt}> Tin nhắn đã bị thu hồi</Text>
         </View>
       </View>
     );
@@ -77,149 +54,146 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <>
-      <View style={[styles.row, isSelf ? styles.rowRight : styles.rowLeft]}>
-        {/* Avatar người khác */}
+      <View style={[styles.row, isSelf ? styles.rowSelf : styles.rowOther]}>
+        {/* Avatar */}
         {!isSelf && (
           showAvatar ? (
             <Image
               source={{ uri: sender?.avatarUrl || `https://i.pravatar.cc/150?u=${message.senderId}` }}
               style={styles.avatar}
             />
-          ) : (
-            <View style={styles.avatarSpacer} />
-          )
+          ) : <View style={styles.avatarSpace} />
         )}
 
-        <View style={[styles.bubble, isSelf ? styles.bubbleRight : styles.bubbleLeft]}>
-          {/* Sender name */}
-          {!isSelf && showAvatar && (
-            <Text style={styles.senderName}>{sender?.name || 'Người dùng'}</Text>
+        <View style={[styles.group, isSelf ? styles.groupSelf : styles.groupOther]}>
+          {/* Sender name (group chat) */}
+          {!isSelf && showAvatar && sender?.name && (
+            <Text style={styles.senderName}>{sender.name}</Text>
           )}
 
-          {/* Reply preview */}
+          {/* Reply quote */}
           {message.replyTo && (
-            <View style={[styles.replyBox, isSelf ? styles.replyBoxSelf : styles.replyBoxOther]}>
-              <Text style={styles.replyLabel}>↩ Đã trả lời</Text>
+            <View style={[styles.quote, isSelf ? styles.quoteSelf : styles.quoteOther]}>
+              <Text style={[styles.quoteLabel, isSelf ? styles.quoteLabelSelf : styles.quoteLabelOther]}>
+                ↩ Đã trả lời
+              </Text>
               <Text
-                style={[styles.replyContent, isSelf ? styles.replyContentSelf : styles.replyContentOther]}
+                style={[styles.quoteText, isSelf ? styles.quoteTextSelf : styles.quoteTextOther]}
                 numberOfLines={1}
               >
-                {message.replyTo.isRevoked ? 'Tin nhắn đã bị thu hồi' : message.replyTo.content}
+                {message.replyTo.isRevoked ? '🚫 Tin nhắn đã thu hồi' : message.replyTo.content}
               </Text>
             </View>
           )}
 
-          {/* Bubble content - nhấn để hiện emoji */}
+          {/* Bubble */}
           <TouchableOpacity
-            activeOpacity={0.78}
-            onPress={handleTap}
-            onLongPress={() => setShowActions(true)}
-            style={[styles.content, isSelf ? styles.contentSelf : styles.contentOther]}
+            activeOpacity={0.8}
+            onPress={() => setShowMenu(true)}
+            style={[styles.bubble, isSelf ? styles.bubbleSelf : styles.bubbleOther]}
           >
-            {message.content ? (
+            {/* Text */}
+            {!!message.content && (
               <Text style={[styles.text, isSelf ? styles.textSelf : styles.textOther]}>
                 {message.content}
               </Text>
-            ) : null}
+            )}
 
             {/* Attachments */}
-            {message.attachments && message.attachments.length > 0 && (
-              <View style={{ marginTop: message.content ? 8 : 0 }}>
-                {message.attachments.map((file, idx) => {
-                  const isImg = file.fileType?.startsWith('image/');
-                  return isImg ? (
-                    <TouchableOpacity key={idx} onPress={() => Linking.openURL(file.url)}>
-                      <Image source={{ uri: file.url }} style={styles.imageAttachment} resizeMode="cover" />
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      key={idx}
-                      style={[styles.fileAttachment, isSelf ? styles.fileAttachSelf : styles.fileAttachOther]}
-                      onPress={() => Linking.openURL(file.url)}
-                    >
-                      <Text style={styles.fileIcon}>{getFileIcon(file.fileName)}</Text>
-                      <Text style={[styles.fileName, isSelf ? styles.fileNameSelf : styles.fileNameOther]} numberOfLines={1}>
-                        {file.fileName}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+            {message.attachments?.map((file, i) => {
+              const isImg = file.fileType?.startsWith('image/');
+              return isImg ? (
+                <TouchableOpacity key={i} onPress={() => Linking.openURL(file.url)} style={{ marginTop: message.content ? 6 : 0 }}>
+                  <Image source={{ uri: file.url }} style={styles.imgAttachment} resizeMode="cover" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.fileRow, isSelf ? styles.fileRowSelf : styles.fileRowOther]}
+                  onPress={() => Linking.openURL(file.url)}
+                >
+                  <Text style={styles.fileIconTxt}>{getFileIcon(file.fileName)}</Text>
+                  <Text
+                    style={[styles.fileNameTxt, isSelf ? styles.fileNameSelf : styles.fileNameOther]}
+                    numberOfLines={1}
+                  >
+                    {file.fileName}
+                  </Text>
+                  <Ionicons name="download-outline" size={14} color={isSelf ? '#BFDBFE' : '#64748B'} />
+                </TouchableOpacity>
+              );
+            })}
           </TouchableOpacity>
 
-          {/* Reactions display */}
-          {groupedReactions.length > 0 && (
-            <View style={[styles.reactionsRow, isSelf ? styles.reactionsRowRight : styles.reactionsRowLeft]}>
-              {groupedReactions.map(({ emoji, count }) => (
-                <View key={emoji} style={styles.reactionChip}>
-                  <Text style={styles.reactionEmoji}>{emoji}</Text>
-                  {count > 1 && <Text style={styles.reactionCount}>{count}</Text>}
-                </View>
+          {/* Reactions chips */}
+          {grouped.length > 0 && (
+            <View style={[styles.reactRow, isSelf ? styles.reactRowSelf : styles.reactRowOther]}>
+              {grouped.map(({ emoji, count }) => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={styles.reactChip}
+                  onPress={() => onReact?.(message.id, emoji)}
+                >
+                  <Text style={styles.reactEmoji}>{emoji}</Text>
+                  {count > 1 && <Text style={styles.reactCount}>{count}</Text>}
+                </TouchableOpacity>
               ))}
             </View>
           )}
 
-          {/* Time */}
-          <Text style={[styles.time, isSelf ? styles.timeRight : styles.timeLeft]}>
+          {/* Timestamp */}
+          <Text style={[styles.ts, isSelf ? styles.tsSelf : styles.tsOther]}>
             {format(new Date(message.createdAt), 'HH:mm')}
           </Text>
         </View>
       </View>
 
-      {/* Actions overlay: quick emoji + reply + revoke */}
-      <Modal
-        transparent
-        visible={showActions}
-        animationType="fade"
-        onRequestClose={() => setShowActions(false)}
-      >
-        <Pressable style={styles.overlay} onPress={() => setShowActions(false)}>
-          <View style={styles.actionsCard}>
+      {/* Action menu */}
+      <Modal transparent visible={showMenu} animationType="fade" onRequestClose={() => setShowMenu(false)}>
+        <Pressable style={styles.overlay} onPress={() => setShowMenu(false)}>
+          <Pressable style={styles.menuCard}>
             {/* Quick emoji bar */}
-            <View style={styles.quickEmojiRow}>
-              {QUICK_EMOJIS.map((emoji) => (
+            <View style={styles.emojiBar}>
+              {QUICK_EMOJIS.map((e) => (
                 <TouchableOpacity
-                  key={emoji}
-                  style={styles.quickEmojiBtn}
-                  onPress={() => handleReact(emoji)}
+                  key={e}
+                  style={styles.emojiTile}
+                  onPress={() => { onReact?.(message.id, e); setShowMenu(false); }}
                 >
-                  <Text style={styles.quickEmojiText}>{emoji}</Text>
+                  <Text style={styles.emojiTxt}>{e}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <View style={styles.divider} />
+            <View style={styles.hr} />
 
-            {/* Reply (cả 2 chiều) */}
+            {/* Reply */}
             <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                onReply?.(message);
-                setShowActions(false);
-              }}
+              style={styles.menuRow}
+              onPress={() => { onReply?.(message); setShowMenu(false); }}
             >
-              <Ionicons name="arrow-undo-outline" size={18} color="#334155" />
-              <Text style={styles.menuText}>Trả lời</Text>
+              <View style={[styles.menuIcon, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="arrow-undo" size={16} color="#3B82F6" />
+              </View>
+              <Text style={styles.menuTxt}>Trả lời</Text>
             </TouchableOpacity>
 
-            {/* Revoke (chỉ tin của mình) */}
+            {/* Revoke (self only) */}
             {isSelf && (
               <>
-                <View style={styles.divider} />
+                <View style={styles.hr} />
                 <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    onRevoke?.(message.id);
-                    setShowActions(false);
-                  }}
+                  style={styles.menuRow}
+                  onPress={() => { onRevoke?.(message.id); setShowMenu(false); }}
                 >
-                  <Ionicons name="trash-outline" size={18} color="#dc2626" />
-                  <Text style={[styles.menuText, { color: '#dc2626' }]}>Thu hồi tin nhắn</Text>
+                  <View style={[styles.menuIcon, { backgroundColor: '#FFF1F2' }]}>
+                    <Ionicons name="trash" size={16} color="#EF4444" />
+                  </View>
+                  <Text style={[styles.menuTxt, { color: '#EF4444' }]}>Thu hồi tin nhắn</Text>
                 </TouchableOpacity>
               </>
             )}
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </>
@@ -229,119 +203,142 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    marginBottom: 6,
     alignItems: 'flex-end',
-    paddingHorizontal: 8,
+    marginBottom: 2,
+    paddingHorizontal: 12,
   },
-  rowLeft: { justifyContent: 'flex-start' },
-  rowRight: { justifyContent: 'flex-end' },
+  rowSelf: { justifyContent: 'flex-end' },
+  rowOther: { justifyContent: 'flex-start' },
 
-  avatar: { width: 30, height: 30, borderRadius: 15, marginRight: 6 },
-  avatarSpacer: { width: 30, marginRight: 6 },
+  avatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8, marginBottom: 4 },
+  avatarSpace: { width: 28, marginRight: 8 },
 
-  bubble: { maxWidth: '78%' },
-  bubbleLeft: { alignItems: 'flex-start' },
-  bubbleRight: { alignItems: 'flex-end' },
+  group: { maxWidth: '76%' },
+  groupSelf: { alignItems: 'flex-end' },
+  groupOther: { alignItems: 'flex-start' },
 
-  senderName: { fontSize: 11, color: '#64748b', marginBottom: 3, marginLeft: 4 },
-
-  replyBox: {
-    padding: 7, borderRadius: 8, borderLeftWidth: 3, marginBottom: 4,
-  },
-  replyBoxSelf: { backgroundColor: 'rgba(37,99,235,0.18)', borderLeftColor: '#93c5fd' },
-  replyBoxOther: { backgroundColor: 'rgba(148,163,184,0.15)', borderLeftColor: '#94a3b8' },
-  replyLabel: { fontSize: 10, fontWeight: '700', color: '#64748b', marginBottom: 1 },
-  replyContent: { fontSize: 12 },
-  replyContentSelf: { color: '#bfdbfe' },
-  replyContentOther: { color: '#475569' },
-
-  content: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  contentSelf: { backgroundColor: '#2563eb', borderBottomRightRadius: 4 },
-  contentOther: {
-    backgroundColor: '#ffffff',
-    borderBottomLeftRadius: 4,
-    borderWidth: 1, borderColor: '#e2e8f0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 1,
+  senderName: {
+    fontSize: 11, fontWeight: '600', color: '#64748B',
+    marginBottom: 2, marginLeft: 2,
   },
 
+  // Reply quote
+  quote: {
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 4,
+    maxWidth: '100%',
+  },
+  quoteSelf: { backgroundColor: 'rgba(37,99,235,0.12)', borderLeftColor: '#93C5FD' },
+  quoteOther: { backgroundColor: '#F1F5F9', borderLeftColor: '#CBD5E1' },
+  quoteLabel: { fontSize: 10, fontWeight: '700', marginBottom: 2 },
+  quoteLabelSelf: { color: '#93C5FD' },
+  quoteLabelOther: { color: '#64748B' },
+  quoteText: { fontSize: 12 },
+  quoteTextSelf: { color: '#DBEAFE' },
+  quoteTextOther: { color: '#475569' },
+
+  // Bubble
+  bubble: {
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: '100%',
+  },
+  bubbleSelf: {
+    backgroundColor: '#2563EB',
+    borderBottomRightRadius: 5,
+  },
+  bubbleOther: {
+    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 5,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
   text: { fontSize: 15, lineHeight: 22 },
-  textSelf: { color: '#ffffff' },
-  textOther: { color: '#0f172a' },
+  textSelf: { color: '#FFFFFF' },
+  textOther: { color: '#0F172A' },
 
-  imageAttachment: { width: 200, height: 150, borderRadius: 10, marginTop: 4 },
-  fileAttachment: {
-    flexDirection: 'row', alignItems: 'center', padding: 8, borderRadius: 8, marginTop: 4,
+  // Attachments
+  imgAttachment: { width: 200, height: 150, borderRadius: 10 },
+  fileRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    marginTop: 6,
   },
-  fileAttachSelf: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  fileAttachOther: { backgroundColor: '#f1f5f9' },
-  fileIcon: { fontSize: 16, marginRight: 6 },
-  fileName: { fontSize: 13, fontWeight: '500', flex: 1 },
-  fileNameSelf: { color: '#dbeafe' },
+  fileRowSelf: { backgroundColor: 'rgba(255,255,255,0.15)' },
+  fileRowOther: { backgroundColor: '#F8FAFC' },
+  fileIconTxt: { fontSize: 18, marginRight: 8 },
+  fileNameTxt: { fontSize: 13, fontWeight: '500', flex: 1, marginRight: 6 },
+  fileNameSelf: { color: '#DBEAFE' },
   fileNameOther: { color: '#334155' },
 
-  reactionsRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 },
-  reactionsRowLeft: { justifyContent: 'flex-start', marginLeft: 4 },
-  reactionsRowRight: { justifyContent: 'flex-end', marginRight: 4 },
-  reactionChip: {
+  // Reactions
+  reactRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 },
+  reactRowSelf: { justifyContent: 'flex-end' },
+  reactRowOther: { justifyContent: 'flex-start' },
+  reactChip: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#f1f5f9', borderRadius: 12,
-    paddingHorizontal: 7, paddingVertical: 2,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3,
     marginRight: 4, marginBottom: 2,
-    borderWidth: 1, borderColor: '#e2e8f0',
+    borderWidth: 1, borderColor: '#E2E8F0',
   },
-  reactionEmoji: { fontSize: 13 },
-  reactionCount: { fontSize: 11, color: '#475569', marginLeft: 2 },
+  reactEmoji: { fontSize: 13 },
+  reactCount: { fontSize: 11, color: '#64748B', marginLeft: 3, fontWeight: '600' },
 
-  time: { fontSize: 10, color: '#94a3b8', marginTop: 4 },
-  timeLeft: { marginLeft: 4 },
-  timeRight: { marginRight: 4 },
+  // Timestamp
+  ts: { fontSize: 10, color: '#94A3B8', marginTop: 3 },
+  tsSelf: { marginRight: 2 },
+  tsOther: { marginLeft: 2 },
 
-  revokedBubble: {
+  // Revoked
+  revokedChip: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 14, backgroundColor: '#f1f5f9',
-    borderWidth: 1, borderColor: '#e2e8f0',
+    borderRadius: 14,
   },
-  revokedText: { fontSize: 13, color: '#94a3b8', fontStyle: 'italic' },
+  revokedSelf: { backgroundColor: '#F1F5F9', alignSelf: 'flex-end' },
+  revokedOther: { backgroundColor: '#F1F5F9' },
+  revokedTxt: { fontSize: 13, color: '#94A3B8', fontStyle: 'italic' },
 
-  // Modal
+  // Menu modal
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.38)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center', alignItems: 'center',
   },
-  actionsCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    width: 260,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 16,
+  menuCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 20,
+    width: 280, overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18, shadowRadius: 24, elevation: 20,
   },
-  quickEmojiRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    backgroundColor: '#fafafa',
+  emojiBar: {
+    flexDirection: 'row', justifyContent: 'space-around',
+    paddingHorizontal: 16, paddingVertical: 16,
+    backgroundColor: '#FAFAFA',
   },
-  quickEmojiBtn: {
-    padding: 6,
-    borderRadius: 12,
-    backgroundColor: '#f1f5f9',
+  emojiTile: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center', justifyContent: 'center',
   },
-  quickEmojiText: { fontSize: 26 },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#e2e8f0' },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+  emojiTxt: { fontSize: 24 },
+  hr: { height: StyleSheet.hairlineWidth, backgroundColor: '#F1F5F9' },
+  menuRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  menuText: { fontSize: 15, color: '#334155', marginLeft: 12, fontWeight: '500' },
+  menuIcon: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+  },
+  menuTxt: { fontSize: 15, fontWeight: '500', color: '#1E293B' },
 });

@@ -1,22 +1,14 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Modal,
-  Pressable,
-  ActivityIndicator,
-  Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ScrollView, Modal, Pressable, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { Message, Attachment } from '../types';
 import { uploadFileToChatService } from '../chatApi';
 
-const EMOJIS = ['😀', '😄', '😁', '😂', '😊', '😍', '😘', '👍', '👏', '🔥', '❤️', '🎉', '😅', '🤔', '😎', '🥺'];
+const EMOJIS = ['😀', '😄', '🥰', '😂', '😅', '🤔', '😎', '🥺', '👍', '👏', '🔥', '❤️', '🎉', '💯', '🙏', '✨'];
 
 interface MessageInputProps {
   onSend: (text: string, attachments?: Attachment[], replyToId?: string) => Promise<void>;
@@ -26,10 +18,7 @@ interface MessageInputProps {
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
-  onSend,
-  replyingTo,
-  onCancelReply,
-  disabled,
+  onSend, replyingTo, onCancelReply, disabled,
 }) => {
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -57,11 +46,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        multiple: true,
-        copyToCacheDirectory: true,
+        type: '*/*', multiple: true, copyToCacheDirectory: true,
       });
-
       if (result.canceled || !result.assets?.length) return;
 
       setIsUploading(true);
@@ -69,22 +55,19 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       for (const asset of result.assets) {
         if (asset.size && asset.size > 20 * 1024 * 1024) {
-          Alert.alert('File quá lớn', `"${asset.name}" vượt quá giới hạn 20MB.`);
+          Alert.alert('File quá lớn', `"${asset.name}" vượt quá 20MB.`);
           continue;
         }
         try {
           const { fileUrl } = await uploadFileToChatService(
-            asset.uri,
-            asset.name,
-            asset.mimeType || 'application/octet-stream'
+            asset.uri, asset.name, asset.mimeType || 'application/octet-stream'
           );
           uploaded.push({ url: fileUrl, fileName: asset.name, fileType: asset.mimeType || '' });
-        } catch (_err) {
+        } catch {
           Alert.alert('Lỗi upload', `Không thể tải lên "${asset.name}".`);
         }
       }
-
-      setAttachments((prev) => [...prev, ...uploaded]);
+      setAttachments((p) => [...p, ...uploaded]);
     } catch (err) {
       console.error('File picker error:', err);
     } finally {
@@ -92,102 +75,104 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const insertEmoji = (emoji: string) => {
-    setText((prev) => prev + emoji);
-    setShowEmoji(false);
-  };
-
   return (
-    <View style={styles.container}>
-      {/* Reply preview */}
+    <View style={styles.wrapper}>
+      {/* Reply bar */}
       {replyingTo && (
         <View style={styles.replyBar}>
-          <Ionicons name="arrow-undo-outline" size={14} color="#3b82f6" style={{ marginRight: 6 }} />
-          <View style={{ flex: 1 }}>
+          <View style={styles.replyAccent} />
+          <View style={styles.replyBody}>
             <Text style={styles.replyLabel}>Đang trả lời</Text>
-            <Text style={styles.replyContent} numberOfLines={1}>
-              {replyingTo.isRevoked ? 'Tin nhắn đã bị thu hồi' : replyingTo.content}
+            <Text style={styles.replyText} numberOfLines={1}>
+              {replyingTo.isRevoked ? '🚫 Tin nhắn đã bị thu hồi' : replyingTo.content}
             </Text>
           </View>
-          <TouchableOpacity onPress={onCancelReply}>
-            <Ionicons name="close" size={18} color="#94a3b8" />
+          <TouchableOpacity style={styles.replyClose} onPress={onCancelReply}>
+            <Ionicons name="close" size={16} color="#94A3B8" />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Attachment previews */}
+      {/* Attachments strip */}
       {attachments.length > 0 && (
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.attachmentBar}
-          contentContainerStyle={{ paddingHorizontal: 8, alignItems: 'center' }}
+          horizontal showsHorizontalScrollIndicator={false}
+          style={styles.attachStrip}
+          contentContainerStyle={styles.attachContent}
         >
-          {attachments.map((att, i) => (
+          {attachments.map((a, i) => (
             <View key={i} style={styles.attachChip}>
-              <Text style={styles.attachChipText} numberOfLines={1}>📎 {att.fileName}</Text>
-              <TouchableOpacity onPress={() => removeAttachment(i)} style={styles.attachRemove}>
-                <Ionicons name="close" size={13} color="#64748b" />
+              <Text style={styles.attachChipTxt} numberOfLines={1}>📎 {a.fileName}</Text>
+              <TouchableOpacity onPress={() => setAttachments((p) => p.filter((_, j) => j !== i))}>
+                <Ionicons name="close-circle" size={15} color="#94A3B8" />
               </TouchableOpacity>
             </View>
           ))}
         </ScrollView>
       )}
 
-      {/* Emoji picker modal */}
+      {/* Emoji modal */}
       <Modal transparent visible={showEmoji} animationType="slide" onRequestClose={() => setShowEmoji(false)}>
         <Pressable style={styles.emojiOverlay} onPress={() => setShowEmoji(false)}>
-          <View style={styles.emojiPanel}>
-            <Text style={styles.emojiPanelTitle}>Chọn emoji</Text>
+          <Pressable style={styles.emojiSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.emojiSheetTitle}>Biểu cảm</Text>
             <View style={styles.emojiGrid}>
               {EMOJIS.map((e) => (
-                <TouchableOpacity key={e} style={styles.emojiItem} onPress={() => insertEmoji(e)}>
-                  <Text style={styles.emojiItemText}>{e}</Text>
+                <TouchableOpacity
+                  key={e}
+                  style={styles.emojiCell}
+                  onPress={() => { setText((p) => p + e); setShowEmoji(false); }}
+                >
+                  <Text style={styles.emojiCellTxt}>{e}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
 
-      {/* Input row */}
-      <View style={styles.inputRow}>
-        {/* Attach file */}
-        <TouchableOpacity style={styles.iconBtn} onPress={handlePickFile} disabled={isUploading || disabled}>
+      {/* Main input row */}
+      <View style={styles.row}>
+        {/* Attach */}
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={handlePickFile}
+          disabled={isUploading || disabled}
+        >
           {isUploading
-            ? <ActivityIndicator size={20} color="#64748b" />
-            : <Ionicons name="attach" size={22} color="#64748b" />}
+            ? <ActivityIndicator size={20} color="#3B82F6" />
+            : <Ionicons name="attach" size={22} color="#64748B" />}
         </TouchableOpacity>
 
-        {/* Text + emoji */}
-        <View style={styles.textBox}>
+        {/* Text box */}
+        <View style={styles.inputBox}>
           <TextInput
+            style={styles.textInput}
             value={text}
             onChangeText={setText}
             placeholder="Nhập tin nhắn..."
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor="#94A3B8"
             multiline
-            style={styles.textInput}
             editable={!disabled && !isUploading}
           />
-          <TouchableOpacity onPress={() => setShowEmoji(true)} style={styles.emojiBtn}>
-            <Ionicons name="happy-outline" size={20} color="#64748b" />
+          <TouchableOpacity
+            style={styles.emojiBtn}
+            onPress={() => setShowEmoji(true)}
+          >
+            <Ionicons name="happy-outline" size={20} color={showEmoji ? '#3B82F6' : '#94A3B8'} />
           </TouchableOpacity>
         </View>
 
         {/* Send */}
         <TouchableOpacity
+          style={[styles.sendBtn, canSend ? styles.sendActive : styles.sendInactive]}
           onPress={handleSend}
           disabled={!canSend}
-          style={[styles.sendBtn, canSend ? styles.sendBtnActive : styles.sendBtnDisabled]}
         >
           {isSending
-            ? <ActivityIndicator size={16} color="#fff" />
-            : <Ionicons name="send" size={17} color={canSend ? '#fff' : '#94a3b8'} style={{ marginLeft: 2 }} />}
+            ? <ActivityIndicator size={16} color="#FFF" />
+            : <Ionicons name="send" size={17} color={canSend ? '#FFF' : '#CBD5E1'} style={{ marginLeft: 2 }} />}
         </TouchableOpacity>
       </View>
     </View>
@@ -195,104 +180,101 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#fff',
+  wrapper: {
+    backgroundColor: '#FFFFFF',
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: '#E2E8F0',
   },
+
+  // Reply bar
   replyBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    paddingRight: 12,
     paddingVertical: 8,
-    backgroundColor: '#eff6ff',
+    backgroundColor: '#F8FAFC',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#bfdbfe',
-    borderLeftWidth: 3,
-    borderLeftColor: '#3b82f6',
+    borderBottomColor: '#E2E8F0',
   },
-  replyLabel: { fontSize: 10, color: '#3b82f6', fontWeight: '700', marginBottom: 1 },
-  replyContent: { fontSize: 13, color: '#334155' },
+  replyAccent: { width: 3, alignSelf: 'stretch', backgroundColor: '#3B82F6', marginRight: 10 },
+  replyBody: { flex: 1 },
+  replyLabel: { fontSize: 11, fontWeight: '700', color: '#3B82F6', marginBottom: 1 },
+  replyText: { fontSize: 13, color: '#475569' },
+  replyClose: { padding: 4 },
 
-  attachmentBar: {
-    maxHeight: 44,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0',
-    paddingVertical: 6,
+  // Attachments strip
+  attachStrip: { maxHeight: 44 },
+  attachContent: {
+    paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center',
   },
   attachChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginRight: 8,
-    maxWidth: 160,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+    marginRight: 8, maxWidth: 160,
+    borderWidth: 1, borderColor: '#BFDBFE',
   },
-  attachChipText: { fontSize: 12, color: '#334155', flex: 1 },
-  attachRemove: { marginLeft: 4 },
+  attachChipTxt: { fontSize: 12, color: '#1D4ED8', flex: 1, marginRight: 4 },
 
+  // Emoji modal
   emojiOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  emojiPanel: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingBottom: 32,
-    paddingHorizontal: 16,
+  emojiSheet: {
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingBottom: 32, paddingTop: 12, paddingHorizontal: 16,
   },
-  emojiPanelTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748b',
-    textAlign: 'center',
-    marginBottom: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  sheetHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 12,
   },
-  emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around' },
-  emojiItem: { padding: 10 },
-  emojiItemText: { fontSize: 28 },
+  emojiSheetTitle: {
+    fontSize: 13, fontWeight: '700', color: '#94A3B8',
+    textAlign: 'center', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5,
+  },
+  emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  emojiCell: {
+    width: '12.5%', aspectRatio: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emojiCellTxt: { fontSize: 28 },
 
-  inputRow: {
+  // Input row
+  row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  iconBtn: { padding: 8, marginRight: 2 },
-  textBox: {
+  iconBtn: {
+    width: 40, height: 40,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 4,
+  },
+  inputBox: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#F1F5F9',
     borderRadius: 22,
-    paddingLeft: 14,
-    paddingRight: 6,
-    minHeight: 42,
-    maxHeight: 110,
+    paddingLeft: 14, paddingRight: 6,
+    minHeight: 42, maxHeight: 110,
+    borderWidth: 1, borderColor: '#E2E8F0',
   },
   textInput: {
     flex: 1,
     fontSize: 15,
-    color: '#0f172a',
-    paddingVertical: 9,
+    color: '#0F172A',
+    paddingVertical: 10,
     lineHeight: 20,
   },
-  emojiBtn: { padding: 6, marginBottom: 3 },
+  emojiBtn: { padding: 8, marginBottom: 2 },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 6,
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center',
+    marginLeft: 8,
   },
-  sendBtnActive: { backgroundColor: '#2563eb' },
-  sendBtnDisabled: { backgroundColor: '#e2e8f0' },
+  sendActive: { backgroundColor: '#2563EB' },
+  sendInactive: { backgroundColor: '#F1F5F9' },
 });

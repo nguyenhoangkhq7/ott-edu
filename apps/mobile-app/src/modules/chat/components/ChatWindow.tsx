@@ -123,19 +123,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#334155" />
+          <Ionicons name="chevron-back" size={26} color="#0F172A" />
         </TouchableOpacity>
-        <Image source={{ uri: chatAvatar }} style={styles.headerAvatar} />
+
+        <View style={styles.headerAvatarWrap}>
+          <Image source={{ uri: chatAvatar }} style={styles.headerAvatar} />
+          {isPrivate && otherParticipant?.isOnline && <View style={styles.onlineDot} />}
+        </View>
+
         <View style={styles.headerInfo}>
           <Text style={styles.headerName} numberOfLines={1}>{chatName}</Text>
-          <Text style={styles.headerStatus}>
+          <Text style={[
+            styles.headerStatus,
+            isPrivate && otherParticipant?.isOnline && styles.headerStatusOnline,
+          ]}>
             {isPrivate
               ? (otherParticipant?.isOnline ? '● Đang hoạt động' : 'Ngoại tuyến')
               : `${conversation.participants.length} thành viên`}
           </Text>
         </View>
+
         <TouchableOpacity style={styles.infoBtn}>
-          <Ionicons name="information-circle-outline" size={24} color="#64748b" />
+          <Ionicons name="ellipsis-horizontal" size={22} color="#94A3B8" />
         </TouchableOpacity>
       </View>
 
@@ -151,7 +160,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             data={invertedMessages}
             keyExtractor={(item) => item.id}
             inverted
-            contentContainerStyle={{ padding: 12, paddingBottom: 8 }}
+            contentContainerStyle={{ paddingHorizontal: 4, paddingVertical: 12 }}
             showsVerticalScrollIndicator={false}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
@@ -160,25 +169,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               const sender = conversation.participants.find((p) => p.id === item.senderId);
               const nextMessage = invertedMessages[index + 1];
               const isConsecutive = nextMessage && nextMessage.senderId === item.senderId;
+              const showTime = !nextMessage || (
+                new Date(item.createdAt).getTime() - new Date(nextMessage.createdAt).getTime() > 5 * 60 * 1000
+              );
 
               return (
-                <MessageBubble
-                  message={item}
-                  isSelf={isSelf}
-                  sender={sender}
-                  onReply={setReplyingTo}
-                  onReact={handleReact}
-                  onRevoke={handleRevoke}
-                  showAvatar={!isSelf && !isConsecutive}
-                />
+                <>
+                  <MessageBubble
+                    message={item}
+                    isSelf={isSelf}
+                    sender={sender}
+                    onReply={setReplyingTo}
+                    onReact={handleReact}
+                    onRevoke={handleRevoke}
+                    showAvatar={!isSelf && !isConsecutive}
+                  />
+                  {!isConsecutive && <View style={{ height: 6 }} />}
+                </>
               );
             }}
             ListEmptyComponent={
               <View style={styles.emptyMessages}>
                 <View style={styles.emptyMsgIcon}>
-                  <Ionicons name="chatbubbles-outline" size={36} color="#93c5fd" />
+                  <Ionicons name="chatbubbles-outline" size={38} color="#93C5FD" />
                 </View>
-                <Text style={styles.emptyMsgText}>Gửi lời chào để bắt đầu! 👋</Text>
+                <Text style={styles.emptyMsgTitle}>Chưa có tin nhắn</Text>
+                <Text style={styles.emptyMsgText}>Gửi lời chào để bắt đầu trò chuyện 👋</Text>
               </View>
             }
           />
@@ -197,32 +213,68 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 };
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f8fafc' },
-  emptyScreen: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
+  screen: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  emptyScreen: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+  },
   emptyIcon: {
-    width: 72, height: 72, borderRadius: 36,
-    backgroundColor: '#dbeafe', alignItems: 'center', justifyContent: 'center',
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center', justifyContent: 'center',
   },
   header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2, elevation: 2,
+    borderBottomColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  backBtn: { padding: 4, marginRight: 8 },
-  headerAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0' },
-  headerInfo: { flex: 1, marginLeft: 10 },
-  headerName: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
-  headerStatus: { fontSize: 12, color: '#64748b', marginTop: 1 },
-  infoBtn: { padding: 6, marginLeft: 8 },
+  backBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerAvatarWrap: { position: 'relative', marginRight: 10 },
+  headerAvatar: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: '#E2E8F0',
+  },
+  onlineDot: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 12, height: 12, borderRadius: 6,
+    backgroundColor: '#22C55E',
+    borderWidth: 2, borderColor: '#FFF',
+  },
+  headerInfo: { flex: 1 },
+  headerName: {
+    fontSize: 16, fontWeight: '700', color: '#0F172A', letterSpacing: -0.2,
+  },
+  headerStatus: { fontSize: 12, color: '#94A3B8', marginTop: 1 },
+  headerStatusOnline: { color: '#22C55E', fontWeight: '600' },
+  infoBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+  },
   messageList: { flex: 1 },
-  emptyMessages: { alignItems: 'center', paddingTop: 80 },
+  emptyMessages: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },
   emptyMsgIcon: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
-  emptyMsgText: { color: '#64748b', fontSize: 14 },
+  emptyMsgTitle: {
+    fontSize: 16, fontWeight: '700', color: '#334155', marginBottom: 6,
+  },
+  emptyMsgText: { fontSize: 13, color: '#94A3B8', textAlign: 'center' },
 });
+
