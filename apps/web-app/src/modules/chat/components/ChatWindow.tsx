@@ -21,6 +21,7 @@ interface ChatWindowProps {
   isLoadingMessages?: boolean;
   isSending?: boolean;
   socket?: Socket | null;
+  onForwardMessage?: (message: Message) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -31,6 +32,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isLoadingMessages = false,
   isSending = false,
   socket,
+  onForwardMessage,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
@@ -65,17 +67,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       );
     };
 
-    // Listen for message revocation
+    // Listen for message revocation (both types)
     const handleMessageRevoked = (data: {
       messageId: string;
-      isRevoked: boolean;
+      revokeType?: "all" | "self";
+      isRevoked?: boolean;
     }) => {
       setLocalMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === data.messageId
-            ? { ...msg, isRevoked: data.isRevoked }
-            : msg,
-        ),
+        prev.map((msg) => {
+          if (msg.id !== data.messageId) return msg;
+          if (data.revokeType === "self") {
+            // revokeForMe: thêm currentUserId vào revokedFor (đã xử lý bởi optimistic ở handleRevokeForMe)
+            return msg;
+          }
+          // revokeForAll
+          return { ...msg, isRevoked: true };
+        }),
       );
     };
 
@@ -158,13 +165,37 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  const handleRevoke = (messageId: string) => {
-    if (socket && conversation) {
-      socket.emit("revokeMessage", {
-        messageId,
-        conversationId: conversation.id,
-      });
-    }
+  const handleRevokeForAll = (messageId: string) => {
+    if (!socket || !conversation) return;
+    // Optimistic: cập nhật giao diện ngay lập tức
+    setLocalMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, isRevoked: true } : m)),
+    );
+    socket.emit("revokeForAll", { messageId, conversationId: conversation.id });
+
+    // Lắng nghe lỗi để rollback nếu cần
+    socket.once("revokeError", (err: { messageId: string; error: string }) => {
+      if (err.messageId === messageId) {
+        console.warn("[Revoke]", err.error);
+        // Rollback
+        setLocalMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, isRevoked: false } : m)),
+        );
+      }
+    });
+  };
+
+  const handleRevokeForMe = (messageId: string) => {
+    if (!socket || !conversation) return;
+    // Optimistic: ẩn ngay cho mình
+    setLocalMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId && currentUser
+          ? { ...m, revokedFor: [...(m.revokedFor || []), currentUser.id] }
+          : m,
+      ),
+    );
+    socket.emit("revokeForMe", { messageId, conversationId: conversation.id });
   };
 
   return (
@@ -240,6 +271,33 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           replyingTo={replyingTo}
           onCancelReply={() => setReplyingTo(null)}
         />
+      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4">
+        {isLoadingMessages ? (
+          <div className="flex h-full items-center justify-center gap-2 text-slate-400">
+            <RefreshCw size={16} className="animate-spin" />
+            <span className="text-sm">Đang tải tin nhắn...</span>
+          </div>
+        ) : localMessages.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-slate-400">
+            Hãy là người đầu tiên gửi tin nhắn! 👋
+          </div>
+        ) : (
+          localMessages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              isOwnMessage={msg.senderId === currentUser?.id}
+              currentUserId={currentUser?.id}
+              sender={getSender(msg.senderId)}
+              onReply={setReplyingTo}
+              onReact={handleReact}
+              onRevokeForAll={handleRevokeForAll}
+              onRevokeForMe={handleRevokeForMe}
+              onForward={onForwardMessage}
+            />
+          ))
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* Info Sidebar - Right Side */}

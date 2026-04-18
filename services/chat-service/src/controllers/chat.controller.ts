@@ -53,12 +53,13 @@ export class ChatController {
   static async getMessagesInConversation(req: Request, res: Response) {
     try {
       const conversationId = req.params.conversationId as string;
+      const requestingUserId = (req as any).user?._id?.toString();
 
       if (!conversationId) {
         return res.status(400).json({ error: "Missing conversationId param" });
       }
 
-      const messages = await ChatService.getMessages(conversationId);
+      const messages = await ChatService.getMessages(conversationId, requestingUserId);
       return res.status(200).json({ data: messages });
     } catch (error: any) {
       console.error("[ChatController] getMessagesInConversation error:", error);
@@ -196,7 +197,7 @@ export class ChatController {
     try {
       const senderId = (req as any).user?._id;
       // Dựa vào việc body gửi lên receiverId (private) hay conversationId (group)
-      const { receiverId, conversationId, content, attachments, replyTo } =
+      const { receiverId, conversationId, content, attachments, replyTo, isForwarded } =
         req.body;
       const normalizedContent =
         typeof content === "string" ? content.trim() : "";
@@ -222,6 +223,7 @@ export class ChatController {
           normalizedContent,
           attachments,
           replyTo,
+          isForwarded,
         );
       }
       // Nếu gửi theo receiverId -> Gửi 1-1 (Private Chat)
@@ -232,6 +234,7 @@ export class ChatController {
           normalizedContent,
           attachments,
           replyTo,
+          isForwarded,
         );
       } else {
         return res

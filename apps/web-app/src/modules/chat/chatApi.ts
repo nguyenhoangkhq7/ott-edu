@@ -40,6 +40,9 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     linkPreview: apiMsg.linkPreview || undefined, // 👈 Thêm linkPreview mapping
     replyTo: apiMsg.replyTo ? mapApiMessageToMessage(apiMsg.replyTo) : null,
     isRevoked: apiMsg.isRevoked || false,
+    // _hiddenForMe: server đã xác nhận user này đã ẩn tin nhắn, dùng marker "__self__" trong revokedFor
+    revokedFor: apiMsg._hiddenForMe ? ["__self__"] : (apiMsg.revokedFor || []),
+    isForwarded: apiMsg.isForwarded || false,
     reactions: apiMsg.reactions || [],
   };
 }
@@ -204,6 +207,7 @@ export async function sendMessage(
   conversationId?: string,
   attachments?: Attachment[],
   replyToMessageId?: string,
+  isForwarded?: boolean,
 ): Promise<Message> {
   const data = await chatHttpService.post<{ data: ApiMessage }>("/messages", {
     receiverId,
@@ -211,6 +215,7 @@ export async function sendMessage(
     content,
     attachments,
     replyTo: replyToMessageId,
+    isForwarded,
   });
   return mapApiMessageToMessage(data.data);
 }
