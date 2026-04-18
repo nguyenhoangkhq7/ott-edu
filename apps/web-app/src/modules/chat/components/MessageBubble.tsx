@@ -48,13 +48,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [now, setNow] = useState(0);
 
   useEffect(() => {
-    setNow(Date.now());
-
-    const timerId = window.setInterval(() => {
+    const updateNow = () => {
       setNow(Date.now());
-    }, 60_000);
+    };
 
-    return () => window.clearInterval(timerId);
+    const initialTimerId = window.setTimeout(updateNow, 0);
+    const timerId = window.setInterval(updateNow, 60_000);
+
+    return () => {
+      window.clearTimeout(initialTimerId);
+      window.clearInterval(timerId);
+    };
   }, []);
 
   const formatTime = (isoStr: string) => {
