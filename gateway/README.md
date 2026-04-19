@@ -52,6 +52,7 @@ If files are missing, generate certificates.
 ```powershell
 winget install FiloSottile.mkcert
 mkcert -install
+cd gateway
 mkcert -cert-file gateway/certs/dev.crt -key-file gateway/certs/dev.key localhost 127.0.0.1 ::1 <YOUR_LAN_IP>
 ```
 

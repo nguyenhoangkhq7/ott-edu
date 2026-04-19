@@ -59,6 +59,9 @@ export function mapApiConversationToConversation(
     lastMessage: lastMsg,
     unreadCount: 0,
     avatarUrl: apiConv.avatarUrl || (type === 'class' ? `https://i.pravatar.cc/150?img=30` : null),
+    ownerId: apiConv.ownerId || null,
+    myRole: apiConv.myRole || null,
+    canManageGroup: apiConv.canManageGroup ?? apiConv.myRole === 'owner',
   };
 }
 
@@ -89,6 +92,41 @@ export async function sendMessage(
     isForwarded,
   });
   return mapApiMessageToMessage(data.data);
+}
+
+export async function fetchConversationRole(conversationId: string): Promise<{
+  conversationId: string;
+  ownerId: string | null;
+  myRole: 'owner' | 'member' | null;
+  canManageGroup: boolean;
+}> {
+  const { data } = await chatApiClient.get<{ data: {
+    conversationId: string;
+    ownerId: string | null;
+    myRole: 'owner' | 'member' | null;
+    canManageGroup: boolean;
+  } }>(`/conversations/${conversationId}/role`);
+
+  return data.data;
+}
+
+export async function removeGroupMember(conversationId: string, memberId: string): Promise<Conversation> {
+  const { data } = await chatApiClient.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/members/${memberId}/remove`,
+  );
+  return mapApiConversationToConversation(data.data, memberId);
+}
+
+export async function dissolveGroup(conversationId: string): Promise<void> {
+  await chatApiClient.post(`/conversations/${conversationId}/dissolve`, {});
+}
+
+export async function leaveGroup(conversationId: string, newOwnerId?: string): Promise<Conversation> {
+  const { data } = await chatApiClient.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/leave`,
+    newOwnerId ? { newOwnerId } : {},
+  );
+  return mapApiConversationToConversation(data.data, '');
 }
 
 /**

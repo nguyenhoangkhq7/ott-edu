@@ -13,6 +13,7 @@ export interface User {
   name: string;
   email?: string;
   code?: string;
+  role?: string;
   avatarUrl: string;
   isOnline: boolean;
 }
@@ -51,6 +52,9 @@ export interface Conversation {
   lastMessage: Message | null;
   unreadCount: number;
   avatarUrl: string | null;
+  ownerId?: string | null;
+  myRole?: "owner" | "member" | null;
+  canManageGroup?: boolean;
 }
 
 export interface ChatUser {
@@ -124,6 +128,9 @@ export interface ApiConversation {
   type: ChatConversationType;
   name?: string;
   avatarUrl?: string;
+  ownerId?: string | null;
+  myRole?: "owner" | "member" | null;
+  canManageGroup?: boolean;
   metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;

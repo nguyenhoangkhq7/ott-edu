@@ -28,12 +28,13 @@ interface MessageBubbleProps {
   onRevokeForAll?: (messageId: string) => void;
   onRevokeForMe?: (messageId: string) => void;
   onForward?: (message: Message) => void;
+  onOpenProfile?: (user: User) => void;
   showAvatar?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message, isSelf, currentUserId, sender, onReply, onReact,
-  onRevokeForAll, onRevokeForMe, onForward, showAvatar = true,
+  onRevokeForAll, onRevokeForMe, onForward, onOpenProfile, showAvatar = true,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const isRevoked = message.isRevoked;
@@ -78,17 +79,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         {/* Avatar */}
         {!isSelf && (
           showAvatar ? (
-            <Image
-              source={{ uri: sender?.avatarUrl || `https://i.pravatar.cc/150?u=${message.senderId}` }}
-              style={styles.avatar}
-            />
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => sender && onOpenProfile?.(sender)}
+            >
+              <Image
+                source={{ uri: sender?.avatarUrl || `https://i.pravatar.cc/150?u=${message.senderId}` }}
+                style={styles.avatar}
+              />
+            </TouchableOpacity>
           ) : <View style={styles.avatarSpace} />
         )}
 
         <View style={[styles.group, isSelf ? styles.groupSelf : styles.groupOther]}>
           {/* Sender name (group chat) */}
           {!isSelf && showAvatar && sender?.name && (
-            <Text style={styles.senderName}>{sender.name}</Text>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => onOpenProfile?.(sender)}>
+              <Text style={styles.senderName}>{sender.name}</Text>
+            </TouchableOpacity>
           )}
 
           {/* Reply quote */}

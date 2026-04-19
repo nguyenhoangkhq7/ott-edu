@@ -39,7 +39,9 @@ export class ChatService {
     userId: string,
   ): GroupRole | null {
     if (conversation.type !== "class") return null;
-    return conversation.ownerId?.toString() === userId.toString()
+    if (!conversation.ownerId || !userId) return "member";
+
+    return conversation.ownerId.toString() === userId.toString()
       ? "owner"
       : "member";
   }
