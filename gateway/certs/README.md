@@ -27,12 +27,12 @@ docker compose up -d --force-recreate gateway
 
 ```powershell
 docker exec gateway nginx -t
-curl.exe -k -I https://192.168.0.103:8443
-curl.exe -I http://192.168.0.103:8000
+curl.exe -k -I https://192.168.0.103:8000
+curl.exe -I http://192.168.0.103:8088
 ```
 
 Expected:
-- HTTP on 8000 redirects to HTTPS on 8443.
+- HTTP on 8088 redirects to HTTPS on 8000.
 - HTTPS returns gateway/web response.
 
 ## Trust on other laptops
