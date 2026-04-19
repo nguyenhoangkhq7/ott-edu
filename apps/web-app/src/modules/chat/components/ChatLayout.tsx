@@ -4,12 +4,14 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
+import { ForwardMessageModal } from "./ForwardMessageModal";
 import { ChatMode, Conversation, Message, User } from "../types";
 import {
   fetchConversations,
   fetchMessages,
   sendMessage,
   mapApiMessageToMessage,
+  fetchAllUsers,
 } from "../chatApi";
 
 const CHAT_SERVICE_URL =
@@ -32,6 +34,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allUsers, setAllUsers] = useState<User[]>([]); // State mới
+  const [forwardMessageTarget, setForwardMessageTarget] =
+    useState<Message | null>(null);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -85,16 +90,45 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         });
       }
 
-      // Cập nhật lastMessage ở sidebar
+      // Cập nhật lastMessage ở sidebar và đưa lên đầu danh sách
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.id === incoming.conversationId);
+        if (index === -1) return prev;
+
+        const shouldIncrement = !isActive && !isSelf;
+        const updatedConv = {
+          ...prev[index],
+          lastMessage: incoming,
+          unreadCount: shouldIncrement
+            ? prev[index].unreadCount + 1
+            : prev[index].unreadCount,
+        };
+
+        const otherConvs = prev.filter((_, i) => i !== index);
+        return [updatedConv, ...otherConvs];
+      });
+    };
+
+    const handleMessageRevoked = (data: {
+      messageId: string;
+      revokeType?: string;
+      isRevoked?: boolean;
+    }) => {
       setConversations((prev) =>
         prev.map((c) => {
-          if (c.id === incoming.conversationId) {
-            // Không tăng biến đếm nếu đang mở khung chat đó hoặc tự mình gửi
-            const shouldIncrement = !isActive && !isSelf;
+          if (c.lastMessage?.id === data.messageId) {
+            if (data.revokeType === "self") {
+              return {
+                ...c,
+                lastMessage: {
+                  ...c.lastMessage,
+                  revokedFor: [...(c.lastMessage.revokedFor || []), "__self__"],
+                },
+              };
+            }
             return {
               ...c,
-              lastMessage: incoming,
-              unreadCount: shouldIncrement ? c.unreadCount + 1 : c.unreadCount,
+              lastMessage: { ...c.lastMessage, isRevoked: true },
             };
           }
           return c;
@@ -103,10 +137,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     };
 
     socket.on("newMessage", handleNewMessage);
+    socket.on("messageRevoked", handleMessageRevoked);
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
       socket.off("newMessage", handleNewMessage);
+      socket.off("messageRevoked", handleMessageRevoked);
       socket.disconnect();
     };
   }, [currentUserId]);
@@ -205,6 +241,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       attachments: attachments || [],
       replyTo: undefined,
       isRevoked: false,
+      revokedFor: [],
       reactions: [],
     };
     setMessages((prev) => [...prev, optimisticMessage]);
@@ -213,18 +250,23 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     try {
       // Gọi API thực POST /api/messages
       let savedMessage: Message;
-      if (activeConversation?.type === "class") {
+      if (
+        activeConversation?.type === "class" ||
+        activeConversation?.type === "group"
+      ) {
+        // Đã là nhóm (class hay group) thì gửi vào ID của nhóm
         savedMessage = await sendMessage(
           text,
-          undefined,
-          activeConversation.id,
+          undefined, // Không có receiverId (vì là chat nhóm)
+          activeConversation.id, // Nhét ID nhóm vào đây
           attachments,
           replyToId,
         );
       } else {
+        // Chat 1-1 thì mới dùng nhánh này
         savedMessage = await sendMessage(
           text,
-          targetReceiver?.id,
+          targetReceiver?.id, // ID của người nhận
           undefined,
           attachments,
           replyToId,
@@ -247,15 +289,20 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         }
       });
 
-      // Cập nhật lastMessage của conversation trong danh sách
+      // Cập nhật lastMessage của conversation trong danh sách và đưa lên đầu
       if (activeConversationId) {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeConversationId
-              ? { ...c, lastMessage: savedMessage }
-              : c,
-          ),
-        );
+        setConversations((prev) => {
+          const index = prev.findIndex((c) => c.id === activeConversationId);
+          if (index === -1) return prev;
+
+          const updatedConv = {
+            ...prev[index],
+            lastMessage: savedMessage,
+          };
+
+          const otherConvs = prev.filter((_, i) => i !== index);
+          return [updatedConv, ...otherConvs];
+        });
       } else if (targetReceiver) {
         const refreshed = await fetchConversations(currentUserId);
         setConversations(refreshed);
@@ -293,33 +340,16 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           avatarUrl: draftReceiver.avatarUrl,
         }
       : null);
-
+  console.log("DEBUG - Danh sách hội thoại:", conversations);
   const suggestedUsers = React.useMemo(() => {
-    const privatePeerIds = new Set<string>();
-    conversations
-      .filter((conv) => conv.type === "private")
-      .forEach((conv) => {
-        conv.participants.forEach((p) => {
-          if (p.id !== currentUserId) privatePeerIds.add(p.id);
-        });
-      });
-
-    const map = new Map<string, User>();
-    conversations
-      .filter((conv) => conv.type === "class")
-      .forEach((conv) => {
-        conv.participants.forEach((p) => {
-          if (p.id === currentUserId) return;
-          if (privatePeerIds.has(p.id)) return;
-          map.set(p.id, p);
-        });
-      });
-
     const query = searchQuery.trim().toLowerCase();
-    const users = Array.from(map.values());
-    if (!query) return [];
 
-    return users
+    // Loại bỏ chính mình khỏi danh sách gợi ý
+    const otherUsers = allUsers.filter((u) => u.id !== currentUserId);
+
+    if (!query) return otherUsers.slice(0, 50); // Hiện 50 người đầu tiên
+
+    return otherUsers
       .filter((u) =>
         [u.name, u.email, u.code]
           .filter(Boolean)
@@ -327,11 +357,23 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           .toLowerCase()
           .includes(query),
       )
-      .slice(0, 20);
-  }, [conversations, currentUserId, searchQuery]);
+      .slice(0, 50);
+  }, [allUsers, currentUserId, searchQuery]);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const users = await fetchAllUsers();
+        setAllUsers(users);
+      } catch (err) {
+        console.error("Lỗi fetch users:", err);
+      }
+    };
+    loadUsers();
+  }, []);
 
   return (
-    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white font-sans shadow-sm">
+    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
       <Sidebar
         currentMode={currentMode}
         onModeChange={setCurrentMode}
@@ -345,6 +387,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onStartPrivateChat={handleStartPrivateChat}
         isLoading={isLoadingConversations}
         error={error}
+        onRefreshConversations={loadConversations}
       />
       <ChatWindow
         conversation={activeConversation}
@@ -354,7 +397,20 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         isLoadingMessages={isLoadingMessages}
         isSending={isSending}
         socket={socketRef.current}
+        onForwardMessage={setForwardMessageTarget}
+        suggestedUsers={suggestedUsers}
       />
+      {forwardMessageTarget && (
+        <ForwardMessageModal
+          message={forwardMessageTarget}
+          conversations={conversations}
+          currentUserId={currentUserId}
+          onClose={() => setForwardMessageTarget(null)}
+          onSuccess={() => {
+            // Có thể thêm Toast notification "Chuyển tiếp thành công" tại đây nếu muốn
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -39,6 +39,9 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     attachments: apiMsg.attachments || [],
     replyTo: apiMsg.replyTo ? mapApiMessageToMessage(apiMsg.replyTo) : null,
     isRevoked: apiMsg.isRevoked || false,
+    // _hiddenForMe: server đã xác nhận user này đã ẩn tin nhắn, dùng marker "__self__" trong revokedFor
+    revokedFor: apiMsg._hiddenForMe ? ["__self__"] : apiMsg.revokedFor || [],
+    isForwarded: apiMsg.isForwarded || false,
     reactions: apiMsg.reactions || [],
   };
 }
@@ -203,6 +206,7 @@ export async function sendMessage(
   conversationId?: string,
   attachments?: Attachment[],
   replyToMessageId?: string,
+  isForwarded?: boolean,
 ): Promise<Message> {
   const data = await chatHttpService.post<{ data: ApiMessage }>("/messages", {
     receiverId,
@@ -210,6 +214,123 @@ export async function sendMessage(
     content,
     attachments,
     replyTo: replyToMessageId,
+    isForwarded,
   });
   return mapApiMessageToMessage(data.data);
 }
+
+/**
+ * POST /api/friends/request
+ * Gửi lời mời kết bạn (SCRUM-164)
+ */
+export async function sendFriendRequest(
+  receiverId: string,
+): Promise<{ success: boolean; message: string }> {
+  const response = await chatHttpService.post<{
+    success: boolean;
+    message: string;
+  }>("/friends/request", {
+    receiverId,
+  });
+  return response; // Bỏ .data đi, trả về trực tiếp response
+}
+
+/**
+ * POST /api/conversations/group
+ * Tạo nhóm chat mới (SCRUM-169)
+ */
+export async function createGroupChat(
+  name: string,
+  participants: string[],
+  type: "group" = "group",
+): Promise<Conversation> {
+  // Lấy currentUserId từ config hoặc lưu trữ cục bộ,
+  // vì backend cần biết ai tạo nhóm.
+  // Nhưng trong cấu trúc hiện tại, middleware auth backend tự lấy `user._id` rồi,
+  // nên có thể không cần truyền creatorId ở body nữa nếu backend đã handle.
+
+  const response = await chatHttpService.post<{ data: ApiConversation }>(
+    "/conversations/group",
+    {
+      name,
+      participants,
+      type,
+    },
+  );
+
+  // Tạm thời truyền "" làm currentUserId vì chỉ cần map dữ liệu trả về
+  return mapApiConversationToConversation(response.data, "");
+}
+
+/**
+ * PUT /api/conversations/:conversationId/members
+ * Thêm thành viên vào nhóm chat (SCRUM-165)
+ */
+export async function addMembersToGroup(
+  conversationId: string,
+  newMemberIds: string[],
+): Promise<Conversation> {
+  const response = await chatHttpService.put<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/members`,
+    {
+      newMemberIds,
+    },
+  );
+
+  return mapApiConversationToConversation(response.data, "");
+}
+
+export async function fetchAllUsers(): Promise<User[]> {
+  const data = await chatHttpService.get<{ data: ApiUser[] }>("/users");
+  return data.data.map(mapApiUserToUser);
+}
+
+// 1. Hàm lấy danh sách lời mời
+export const getFriendRequests = async () => {
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('access_token');
+  
+  const res = await fetch('/api/chat/friend-requests', {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  if (!res.ok) throw new Error('Không thể tải lời mời');
+  return res.json();
+};
+
+// 2. Hàm chấp nhận kết bạn
+export const acceptFriendRequest = async (requesterId: string) => {
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('access_token');
+
+  const res = await fetch('/api/chat/friend-requests/accept', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ requesterId })
+  });
+
+  if (!res.ok) throw new Error('Lỗi khi chấp nhận kết bạn');
+  return res.json();
+};
+
+// 3. Hàm từ chối kết bạn
+export const rejectFriendRequest = async (requesterId: string) => {
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('access_token');
+
+  const res = await fetch('/api/chat/friend-requests/reject', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ requesterId })
+  });
+
+  if (!res.ok) throw new Error('Lỗi khi từ chối kết bạn');
+  return res.json();
+};

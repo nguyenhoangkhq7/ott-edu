@@ -53,14 +53,18 @@ export default function ChatPage() {
   }, [identity]);
 
   if (isInitializing || isResolvingUser) {
-    return <div className="h-[calc(100vh-180px)] animate-pulse rounded-xl border border-slate-200 bg-white" />;
+    return (
+      <div className="h-[calc(100vh-180px)] animate-pulse rounded-xl border border-slate-200 bg-white" />
+    );
   }
 
   if (!isAuthenticated || !user) {
     return (
       <div className="flex h-96 flex-col items-center justify-center text-center">
         <h2 className="mb-2 text-2xl font-semibold text-slate-900">Chat</h2>
-        <p className="max-w-md text-slate-500">Bạn cần đăng nhập để sử dụng tính năng chat.</p>
+        <p className="max-w-md text-slate-500">
+          Bạn cần đăng nhập để sử dụng tính năng chat.
+        </p>
       </div>
     );
   }
@@ -75,9 +79,18 @@ export default function ChatPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Chat</h1>
-        <p className="text-sm text-slate-500">Trao đổi trực tiếp với thành viên trong lớp và nhóm.</p>
+      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Chat</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Trao đổi trực tiếp với thành viên trong lớp và nhóm.
+            </p>
+          </div>
+          <div className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 md:block">
+            {chatUser.name}
+          </div>
+        </div>
       </div>
 
       <ChatLayout currentUserId={chatUser.id} />

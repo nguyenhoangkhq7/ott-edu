@@ -4,14 +4,23 @@ import React, { useRef, useEffect, useState } from "react";
 import { Conversation, Message, User, Attachment, Reaction } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
-import { Phone, Video, Info, RefreshCw } from "lucide-react";
+import {
+  Phone,
+  Video,
+  Info,
+  RefreshCw,
+  UserPlus,
+  UserCheck,
+} from "lucide-react";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
-
+import { AddMemberModal } from "./AddMemberModal"; // IMPORT MỚI
+import { addMembersToGroup, sendFriendRequest } from "../chatApi";
 interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
   currentUser: User | null;
+  suggestedUsers?: User[];
   onSendMessage: (
     text: string,
     attachments?: Attachment[],
@@ -20,6 +29,7 @@ interface ChatWindowProps {
   isLoadingMessages?: boolean;
   isSending?: boolean;
   socket?: Socket | null;
+  onForwardMessage?: (message: Message) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -30,10 +40,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isLoadingMessages = false,
   isSending = false,
   socket,
+  onForwardMessage,
+  suggestedUsers = [],
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
 
   // Update local messages when messages prop changes
   useEffect(() => {
@@ -63,17 +76,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       );
     };
 
-    // Listen for message revocation
+    // Listen for message revocation (both types)
     const handleMessageRevoked = (data: {
       messageId: string;
-      isRevoked: boolean;
+      revokeType?: "all" | "self";
+      isRevoked?: boolean;
     }) => {
       setLocalMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === data.messageId
-            ? { ...msg, isRevoked: data.isRevoked }
-            : msg,
-        ),
+        prev.map((msg) => {
+          if (msg.id !== data.messageId) return msg;
+          if (data.revokeType === "self") {
+            // revokeForMe: thêm currentUserId vào revokedFor (đã xử lý bởi optimistic ở handleRevokeForMe)
+            return msg;
+          }
+          // revokeForAll
+          return { ...msg, isRevoked: true };
+        }),
       );
     };
 
@@ -88,10 +106,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 gap-3">
-        <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-slate-50">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
           <svg
-            className="w-8 h-8 text-blue-500"
+            className="h-8 w-8 text-blue-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -104,7 +122,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             />
           </svg>
         </div>
-        <p className="text-gray-500 dark:text-gray-400 text-sm">
+        <p className="text-sm text-slate-500">
           Chọn một đoạn chat để bắt đầu trò chuyện
         </p>
       </div>
@@ -115,7 +133,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   let displayName = conversation.name;
   let displayAvatar = conversation.avatarUrl;
   let subStatus =
-    conversation.type === "class"
+    conversation.type === "class" || conversation.type === "group"
       ? `${conversation.participants.length} thành viên`
       : "Đang hoạt động";
 
@@ -156,19 +174,72 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  const handleRevoke = (messageId: string) => {
-    if (socket && conversation) {
-      socket.emit("revokeMessage", {
-        messageId,
-        conversationId: conversation.id,
-      });
+  const handleRevokeForAll = (messageId: string) => {
+    if (!socket || !conversation) return;
+    // Optimistic: cập nhật giao diện ngay lập tức
+    setLocalMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, isRevoked: true } : m)),
+    );
+    socket.emit("revokeForAll", { messageId, conversationId: conversation.id });
+
+    // Lắng nghe lỗi để rollback nếu cần
+    socket.once("revokeError", (err: { messageId: string; error: string }) => {
+      if (err.messageId === messageId) {
+        console.warn("[Revoke]", err.error);
+        // Rollback
+        setLocalMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId ? { ...m, isRevoked: false } : m,
+          ),
+        );
+      }
+    });
+  };
+
+  const handleRevokeForMe = (messageId: string) => {
+    if (!socket || !conversation) return;
+    // Optimistic: ẩn ngay cho mình
+    setLocalMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId && currentUser
+          ? { ...m, revokedFor: [...(m.revokedFor || []), currentUser.id] }
+          : m,
+      ),
+    );
+    socket.emit("revokeForMe", { messageId, conversationId: conversation.id });
+  };
+
+  // Xử lý thêm người vào nhóm (SCRUM-165)
+  const handleAddMembers = async (
+    conversationId: string,
+    newMemberIds: string[],
+  ) => {
+    try {
+      await addMembersToGroup(conversationId, newMemberIds);
+      alert("Thêm thành viên thành công!");
+    } catch (error) {
+      alert("Lỗi khi thêm thành viên");
     }
   };
 
+  // Xử lý kết bạn (SCRUM-164)
+  const handleAddFriend = async () => {
+    if (conversation?.type !== "private") return;
+    const otherParticipant = conversation.participants.find(
+      (p) => p.id !== currentUser?.id,
+    );
+    if (!otherParticipant) return;
+
+    try {
+      await sendFriendRequest(otherParticipant.id);
+      alert(`Đã gửi lời mời kết bạn đến ${otherParticipant.name}`);
+    } catch (error) {
+      alert("Gửi lời mời thất bại");
+    }
+  };
   return (
-    <div className="flex-1 flex flex-col h-full bg-white dark:bg-gray-900 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm z-10 flex-shrink-0">
+    <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
         <div className="flex items-center gap-3">
           <Image
             src={
@@ -177,38 +248,68 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             alt="Avatar"
             width={40}
             height={40}
-            className="w-10 h-10 rounded-full object-cover"
+            className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
           />
           <div>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-sm font-semibold text-slate-900">
               {displayName || "Unknown"}
             </h2>
-            <p className="text-xs text-green-500">{subStatus}</p>
+            <p className="text-xs text-slate-500">{subStatus}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-gray-400">
-          <button className="hover:text-blue-500 transition-colors">
+        <div className="flex items-center gap-2 text-slate-400">
+          {/* NÚT THÊM THÀNH VIÊN VÀO NHÓM (SCRUM-165) */}
+          {(conversation.type === "group" || conversation.type === "class") && (
+            <button
+              onClick={() => setIsAddMemberOpen(true)}
+              className="rounded-full p-2 text-blue-600 transition-colors hover:bg-blue-100"
+              title="Thêm thành viên"
+            >
+              <UserPlus size={20} />
+            </button>
+          )}
+
+          {/* NÚT KẾT BẠN (SCRUM-164) - CHỈ HIỆN Ở CHAT 1-1 */}
+          {conversation.type === "private" && (
+            <button
+              onClick={handleAddFriend}
+              className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+              title="Kết bạn"
+            >
+              <UserCheck size={20} />
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+          >
             <Phone size={20} />
           </button>
-          <button className="hover:text-blue-500 transition-colors">
+          <button
+            type="button"
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+          >
             <Video size={20} />
           </button>
-          <button className="hover:text-blue-500 transition-colors">
+          <button
+            type="button"
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+          >
             <Info size={20} />
           </button>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-950">
+      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4">
         {isLoadingMessages ? (
-          <div className="h-full flex items-center justify-center gap-2 text-gray-400">
+          <div className="flex h-full items-center justify-center gap-2 text-slate-400">
             <RefreshCw size={16} className="animate-spin" />
             <span className="text-sm">Đang tải tin nhắn...</span>
           </div>
         ) : localMessages.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+          <div className="flex h-full items-center justify-center text-sm text-slate-400">
             Hãy là người đầu tiên gửi tin nhắn! 👋
           </div>
         ) : (
@@ -217,23 +318,31 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               key={msg.id}
               message={msg}
               isOwnMessage={msg.senderId === currentUser?.id}
+              currentUserId={currentUser?.id}
               sender={getSender(msg.senderId)}
               onReply={setReplyingTo}
               onReact={handleReact}
-              onRevoke={handleRevoke}
+              onRevokeForAll={handleRevokeForAll}
+              onRevokeForMe={handleRevokeForMe}
+              onForward={onForwardMessage}
             />
           ))
         )}
-        {/* Ghost div để auto-scroll */}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <MessageInput
         onSendMessage={handleSendMessage}
         isSending={isSending}
         replyingTo={replyingTo}
         onCancelReply={() => setReplyingTo(null)}
+      />
+      <AddMemberModal
+        isOpen={isAddMemberOpen}
+        onClose={() => setIsAddMemberOpen(false)}
+        suggestedUsers={suggestedUsers}
+        conversation={conversation}
+        onAddMembers={handleAddMembers}
       />
     </div>
   );

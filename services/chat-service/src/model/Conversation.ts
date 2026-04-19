@@ -3,23 +3,31 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IConversation extends Document {
   participants: mongoose.Types.ObjectId[];
   lastMessage?: mongoose.Types.ObjectId;
-  type: "private" | "class";
+  type: "private" | "class" | "group";
+  teamId?: number;
   name?: string;
   avatarUrl?: string;
   metadata?: any;
+  isArchived?: boolean;
 }
 
 const conversationSchema: Schema = new Schema(
   {
     type: {
       type: String,
-      enum: ["private", "class"],
+      enum: ["private", "class", "group"],
       default: "private",
+    },
+    teamId: {
+      type: Number,
+      index: true,
+      unique: true,
+      sparse: true,
     },
     name: {
       type: String,
       required: function (this: IConversation) {
-        return this.type === "class";
+        return this.type === "class" || this.type === "group";
       },
     },
     avatarUrl: {
@@ -27,6 +35,10 @@ const conversationSchema: Schema = new Schema(
     },
     metadata: {
       type: Schema.Types.Mixed,
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
     },
     participants: [
       {

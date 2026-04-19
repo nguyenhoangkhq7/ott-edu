@@ -53,12 +53,13 @@ export class ChatController {
   static async getMessagesInConversation(req: Request, res: Response) {
     try {
       const conversationId = req.params.conversationId as string;
+      const requestingUserId = (req as any).user?._id?.toString();
 
       if (!conversationId) {
         return res.status(400).json({ error: "Missing conversationId param" });
       }
 
-      const messages = await ChatService.getMessages(conversationId);
+      const messages = await ChatService.getMessages(conversationId, requestingUserId);
       return res.status(200).json({ data: messages });
     } catch (error: any) {
       console.error("[ChatController] getMessagesInConversation error:", error);
@@ -194,7 +195,7 @@ export class ChatController {
     try {
       const senderId = (req as any).user?._id;
       // Dựa vào việc body gửi lên receiverId (private) hay conversationId (group)
-      const { receiverId, conversationId, content, attachments, replyTo } =
+      const { receiverId, conversationId, content, attachments, replyTo, isForwarded } =
         req.body;
       const normalizedContent =
         typeof content === "string" ? content.trim() : "";
@@ -220,6 +221,7 @@ export class ChatController {
           normalizedContent,
           attachments,
           replyTo,
+          isForwarded,
         );
       }
       // Nếu gửi theo receiverId -> Gửi 1-1 (Private Chat)
@@ -230,6 +232,7 @@ export class ChatController {
           normalizedContent,
           attachments,
           replyTo,
+          isForwarded,
         );
       } else {
         return res
@@ -255,7 +258,7 @@ export class ChatController {
   static async createGroup(req: Request, res: Response) {
     try {
       const creatorId = (req as any).user?._id;
-      const { name, participants, avatarUrl, metadata } = req.body;
+      const { name, participants, avatarUrl, metadata, type } = req.body;
 
       if (!creatorId) {
         return res.status(401).json({ error: "Unauthorized access" });
@@ -273,6 +276,7 @@ export class ChatController {
         participants,
         avatarUrl,
         metadata,
+        type || "group",
       );
 
       return res.status(201).json({ data: conversation });
@@ -281,6 +285,117 @@ export class ChatController {
       return res
         .status(500)
         .json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
+  // API: POST /api/conversations/class
+  static async syncClassConversation(req: Request, res: Response) {
+    try {
+      const { teamId, name, description, departmentId, archived, participants } =
+        req.body;
+
+      if (!teamId || !name || !Array.isArray(participants)) {
+        return res.status(400).json({
+          error: "teamId, name and participants array are required",
+        });
+      }
+
+      const conversation = await ChatService.syncClassConversation({
+        teamId: Number(teamId),
+        name,
+        description,
+        departmentId: departmentId !== undefined ? Number(departmentId) : null,
+        archived: Boolean(archived),
+        participants,
+      });
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] syncClassConversation error:", error);
+      return res.status(500).json({
+        error: "Internal server error",
+        detail: error.message,
+      });
+    }
+  }
+  // [SCRUM-164]: GỬI LỜI MỜI KẾT BẠN
+  // API: POST /api/friends/request
+  static async requestFriend(req: Request, res: Response) {
+    try {
+      const senderId = (req as any).user?._id;
+      const { receiverId } = req.body;
+
+      if (!senderId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+      if (!receiverId) {
+        return res.status(400).json({ error: "Missing receiverId" });
+      }
+
+      await ChatService.sendFriendRequest(senderId, receiverId);
+      return res.status(200).json({ success: true, message: "Đã gửi lời mời kết bạn" });
+    } catch (error: any) {
+      console.error("[ChatController] requestFriend error:", error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  // [SCRUM-164]: CHẤP NHẬN KẾT BẠN
+  // API: POST /api/friends/accept
+  static async acceptFriend(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const { senderId } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+      if (!senderId) {
+        return res.status(400).json({ error: "Missing senderId" });
+      }
+
+      const result = await ChatService.acceptFriendRequest(userId, senderId);
+      return res.status(200).json(result);
+    } catch (error: any) {
+      console.error("[ChatController] acceptFriend error:", error);
+      return res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  // [SCRUM-165]: THÊM THÀNH VIÊN VÀO NHÓM
+  // API: PUT /api/conversations/:conversationId/members
+  static async addMembers(req: Request, res: Response) {
+    try {
+      // Giả sử có logic check quyền thêm member ở đây nếu cần (người thêm phải ở trong group)
+      const conversationId = req.params.conversationId;
+      const { newMemberIds } = req.body;
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "Missing conversationId" });
+      }
+      if (!newMemberIds || !Array.isArray(newMemberIds) || newMemberIds.length === 0) {
+        return res.status(400).json({ error: "Invalid or empty newMemberIds array" });
+      }
+
+      const updatedGroup = await ChatService.addMembersToGroup(conversationId as string, newMemberIds);
+      // Có thể emit socket cho các thành viên mới ở đây nếu cần
+      // socketManager.emitToUsers(newMemberIds, 'added_to_group', updatedGroup);
+
+      return res.status(200).json({ data: updatedGroup });
+    } catch (error: any) {
+      console.error("[ChatController] addMembers error:", error);
+      return res.status(500).json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
+  // API: GET /api/users
+  static async getAllUsers(req: Request, res: Response) {
+    try {
+      const users = await ChatService.getAllUsers();
+      return res.status(200).json({ data: users });
+    } catch (error: any) {
+      console.error("[ChatController] getAllUsers error:", error);
+      return res.status(500).json({ error: "Lỗi khi lấy danh sách người dùng" });
     }
   }
 }

@@ -1,21 +1,25 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IUser extends Document {
+  accountId?: number;
   email: string;
   fullName: string;
   code?: string;
   role: string;
   avatarUrl: string;
+  friends: mongoose.Types.ObjectId[];
+  friendRequests: mongoose.Types.ObjectId[];
 }
 
 const userSchema: Schema = new Schema(
   {
+    accountId: { type: Number, unique: true, sparse: true },
     email: {
       type: String,
       required: true,
       unique: true,
-      // Kiểm tra định dạng email bằng regex
-      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Email không hợp lệ']
+      // Cho phép các địa chỉ email hợp lệ phổ biến, gồm cả dấu + và TLD dài
+      match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email không hợp lệ']
     },
     fullName: {
       type: String,
@@ -34,7 +38,19 @@ const userSchema: Schema = new Schema(
     avatarUrl: {
       type: String,
       default: 'https://via.placeholder.com/150' // Link ảnh placeholder mặc định
+    },
+    friends: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
     }
+  ],
+  friendRequests: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  ]
   },
   {
     timestamps: true // Tự động sinh `createdAt` và `updatedAt`

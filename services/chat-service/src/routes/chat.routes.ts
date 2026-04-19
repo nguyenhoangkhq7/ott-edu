@@ -35,4 +35,16 @@ router.post("/messages", ChatController.sendMessage);
 // Tạo nhóm (Group Chat) mới
 router.post("/conversations/group", ChatController.createGroup);
 
+// Đồng bộ conversation của class từ core-service
+router.post("/conversations/class", ChatController.syncClassConversation);
+// [SCRUM-165] Thêm thành viên vào nhóm chat hiện có
+router.put("/conversations/:conversationId/members", ChatController.addMembers);
+
+// [SCRUM-164] Gửi lời mời kết bạn
+router.post("/friends/request", ChatController.requestFriend);
+
+// [SCRUM-164] Chấp nhận lời mời kết bạn
+router.post("/friends/accept", ChatController.acceptFriend);
+
+router.get("/users", ChatController.getAllUsers);
 export default router;

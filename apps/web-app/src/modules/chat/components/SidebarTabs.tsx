@@ -1,33 +1,48 @@
-import React from 'react';
-import { ChatMode } from '../types';
+import React from "react";
+import { ChatMode } from "../types";
+import { Plus } from "lucide-react";
 
 interface SidebarTabsProps {
   currentMode: ChatMode;
   onModeChange: (mode: ChatMode) => void;
+  onOpenCreateGroup?: () => void;
 }
 
-export const SidebarTabs: React.FC<SidebarTabsProps> = ({ currentMode, onModeChange }) => {
+export const SidebarTabs: React.FC<SidebarTabsProps> = ({
+  currentMode,
+  onModeChange,
+  onOpenCreateGroup,
+}) => {
   return (
-    <div className="flex p-2 bg-gray-100 dark:bg-gray-800 rounded-lg mx-4 my-2">
+    <div className="mx-4 my-3 flex rounded-2xl bg-slate-100 p-1.5">
       <button
-        onClick={() => onModeChange('private')}
-        className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
-          currentMode === 'private'
-            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+        type="button"
+        onClick={() => onModeChange("private")}
+        className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+          currentMode === "private"
+            ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+            : "text-slate-500 hover:text-slate-800"
         }`}
       >
         Chat 1-1
       </button>
       <button
-        onClick={() => onModeChange('class')}
-        className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
-          currentMode === 'class'
-            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+        type="button"
+        onClick={() => onModeChange("class")}
+        className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+          currentMode === "class"
+            ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+            : "text-slate-500 hover:text-slate-800"
         }`}
       >
         Chat Nhóm
+      </button>
+      <button
+        onClick={onOpenCreateGroup}
+        className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 transition-colors hover:bg-blue-100"
+        title="Tạo nhóm mới"
+      >
+        <Plus size={20} />
       </button>
     </div>
   );
