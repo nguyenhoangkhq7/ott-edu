@@ -185,18 +185,22 @@ export class ConversationInfoController {
         return res.status(401).json({ error: "Unauthorized access" });
       }
 
+      if (!conversationId) {
+        return res.status(400).json({ error: "Missing conversationId" });
+      }
+
       // Kiểm tra xem user có phải thành viên không
       const isMember = await ConversationInfoService.isUserMemberOfConversation(
-        conversationId,
-        userId
+        conversationId as string,
+        userId as string
       );
       if (!isMember) {
         return res.status(403).json({ error: "Access denied" });
       }
 
       const groups = await ConversationInfoService.getCommonGroups(
-        conversationId,
-        userId
+        conversationId as string,
+        userId as string
       );
       return res.status(200).json({ data: groups });
     } catch (error: any) {

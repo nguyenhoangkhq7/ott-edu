@@ -297,21 +297,20 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
       {/* Header */}
       <div className="flex flex-col items-center gap-3 px-4 py-4 border-b border-gray-200">
         {/* Avatar - For private chat use participant's avatar, for class chat use conversation avatar */}
-        {(isPrivateChat && conversationInfo?.participants?.length > 0
-          ? conversationInfo.participants[0].avatarUrl
-          : conversationInfo?.avatarUrl) &&
-        (isPrivateChat && conversationInfo?.participants?.length > 0
-          ? conversationInfo.participants[0].avatarUrl
-          : conversationInfo?.avatarUrl
-        ).trim() !== "" ? (
+        {(() => {
+          const avatarUrl = isPrivateChat && conversationInfo?.participants && conversationInfo.participants.length > 0
+            ? conversationInfo.participants[0].avatarUrl
+            : conversationInfo?.avatarUrl;
+          return avatarUrl && avatarUrl.trim() !== "";
+        })() ? (
           <Image
             src={
-              isPrivateChat && conversationInfo?.participants?.length > 0
-                ? conversationInfo.participants[0].avatarUrl
-                : conversationInfo?.avatarUrl
+              isPrivateChat && conversationInfo?.participants && conversationInfo.participants.length > 0
+                ? conversationInfo.participants[0].avatarUrl || ""
+                : conversationInfo?.avatarUrl || ""
             }
             alt={
-              isPrivateChat && conversationInfo?.participants?.length > 0
+              isPrivateChat && conversationInfo?.participants && conversationInfo.participants.length > 0
                 ? conversationInfo.participants[0].fullName
                 : conversationInfo?.name || "Conversation"
             }
@@ -322,7 +321,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
         ) : (
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
             <span className="text-white font-semibold text-lg">
-              {isPrivateChat && conversationInfo?.participants?.length > 0
+              {isPrivateChat && conversationInfo?.participants && conversationInfo.participants.length > 0
                 ? conversationInfo.participants[0].fullName?.charAt(0)?.toUpperCase()
                 : conversationInfo?.name?.charAt(0)?.toUpperCase() || "C"}
             </span>
@@ -330,7 +329,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
         )}
         <div className="text-center">
           <h2 className="font-semibold text-gray-900 text-sm line-clamp-2">
-            {isPrivateChat && conversationInfo?.participants?.length > 0
+            {isPrivateChat && conversationInfo?.participants && conversationInfo.participants.length > 0
               ? conversationInfo.participants[0].fullName
               : conversationInfo?.name || "Loading..."}
           </h2>
