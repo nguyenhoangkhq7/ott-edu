@@ -5,7 +5,7 @@ import { io, Socket } from "socket.io-client";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
 import { ForwardMessageModal } from "./ForwardMessageModal";
-import { ChatMode, Conversation, Message, User } from "../types";
+import { ChatMode, Conversation, Message, User, Reaction } from "../types";
 import {
   fetchConversations,
   fetchMessages,
@@ -237,10 +237,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       createdAt: new Date().toISOString(),
       status: "sent",
       attachments: attachments || [],
-      replyTo: undefined,
+      replyTo: null,
       isRevoked: false,
-      revokedFor: [],
-      reactions: [],
+      revokedFor: [] as string[],
+      reactions: [] as Reaction[],
     };
     setMessages((prev) => [...prev, optimisticMessage]);
 

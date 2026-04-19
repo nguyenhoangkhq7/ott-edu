@@ -112,7 +112,7 @@ class SocketManager {
             const { messageId, conversationId } = data;
             if (!messageId || !conversationId || !userId) return;
 
-            const message = await Message.findById(messageId);
+            let message = await Message.findById(messageId);
             if (!message) {
               socket.emit("revokeError", { messageId, error: "Tin nhắn không tồn tại." });
               return;
@@ -213,7 +213,11 @@ class SocketManager {
   // Bằng cách này gửi tin nhắn dù private (2 ng) hay group (100 ng) đều cực kỳ nhanh và chỉ 1 lệnh
   public emitMessageToRoom(conversationId: string, message: any) {
     if (this.io) {
-      this.io.to(conversationId).emit("newMessage", message);
+      // Serialize Mongoose document thành plain object để đảm bảo tất cả fields (including linkPreview) được emit
+      const plainMessage = message.toObject
+        ? message.toObject()
+        : JSON.parse(JSON.stringify(message));
+      this.io.to(conversationId).emit("newMessage", plainMessage);
     }
   }
 }

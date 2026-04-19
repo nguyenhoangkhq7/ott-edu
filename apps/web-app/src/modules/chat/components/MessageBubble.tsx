@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Message, User } from "../types";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 import Image from "next/image";
 import {
   MoreVertical,
@@ -68,6 +69,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const isImage = (fileType: string) => fileType.startsWith("image/");
 
+  // 👈 Thêm hàm kiểm tra video
+  const isVideo = (fileType: string) => fileType.startsWith("video/");
+
   const getFileIcon = (fileName: string) => {
     if (fileName.endsWith(".pdf")) return "📄";
     if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) return "📃";
@@ -107,7 +111,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           isOwnMessage ? "justify-end" : "justify-start"
         }`}
       >
-        {!isOwnMessage && sender && (
+        {!isOwnMessage && sender && sender.avatarUrl && (
           <Image
             src={sender.avatarUrl}
             alt={sender.name}
@@ -145,7 +149,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     <div
       className={`group mb-4 flex w-full ${isOwnMessage ? "justify-end" : "justify-start"}`}
     >
-      {!isOwnMessage && sender && (
+      {!isOwnMessage && sender && sender.avatarUrl && (
         <Image
           src={sender.avatarUrl}
           alt={sender.name}
@@ -198,7 +202,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         <div
-          className={`rounded-2xl px-4 py-2 ${
+          className={`w-full max-w-full rounded-2xl px-4 py-2 ${
             isOwnMessage
               ? "rounded-br-sm bg-blue-600 text-white"
               : "rounded-bl-sm bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
@@ -225,6 +229,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         className="max-h-[200px] max-w-[200px] rounded-lg object-cover"
                       />
                     </a>
+                  ) : isVideo(attachment.fileType) ? (
+                    // 👈 Render video player cho video attachments
+                    <video
+                      controls
+                      className="max-h-[300px] max-w-[300px] rounded-lg bg-black"
+                      poster={undefined}
+                    >
+                      <source src={attachment.url} type={attachment.fileType} />
+                      Your browser does not support the video tag.
+                    </video>
                   ) : (
                     <a
                       href={attachment.url}
@@ -239,6 +253,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Render Link Preview Card nếu có linkPreview data */}
+          {message.linkPreview && (
+            <LinkPreviewCard
+              linkPreview={message.linkPreview}
+              isOwnMessage={isOwnMessage}
+            />
           )}
         </div>
 

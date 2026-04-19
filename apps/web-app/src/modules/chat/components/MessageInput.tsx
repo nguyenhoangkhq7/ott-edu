@@ -27,9 +27,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false); // 👈 Drag-over state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const inputToolsRef = useRef<HTMLDivElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null); // 👈 Ref cho drop zone
   const EMOJIS = ["😀", "😄", "😁", "😂", "😊", "😍", "😘", "👍", "👏", "🔥", "❤️", "🎉"];
 
   const handleSend = async () => {
@@ -113,6 +115,71 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleAttachmentClick = () => {
     fileInputRef.current?.click();
+  };
+
+  // 👇 Handlers cho Drag-and-Drop file upload
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Chỉ set isDragOver = false nếu drag leave khỏi container chính, không phải child
+    if (e.currentTarget === dropZoneRef.current) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    // Tái sử dụng logic upload từ file input
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const uploadedAttachments: Attachment[] = [];
+
+      for (const file of Array.from(files)) {
+        try {
+          // Validate file size (max 20MB)
+          if (file.size > 20 * 1024 * 1024) {
+            throw new Error(
+              `File "${file.name}" is too large. Maximum size is 20MB.`,
+            );
+          }
+
+          // Upload qua backend
+          const { fileUrl } = await uploadFileToChatService(file);
+
+          uploadedAttachments.push({
+            url: fileUrl,
+            fileType: file.type,
+            fileName: file.name,
+          });
+        } catch (error) {
+          throw new Error(
+            `Failed to upload "${file.name}": ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+          );
+        }
+      }
+
+      setAttachments((prev) => [...prev, ...uploadedAttachments]);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const insertEmoji = (emoji: string) => {
@@ -210,7 +277,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      <div className="flex items-center gap-2">
+      {/* Drop Zone Container - cho Drag and Drop */}
+      <div
+        ref={dropZoneRef}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`relative flex items-center gap-2 rounded-2xl transition-all ${
+          isDragOver
+            ? "bg-blue-50 ring-2 ring-blue-400 ring-dashed"
+            : "bg-transparent"
+        }`}
+      >
         <button
           type="button"
           onClick={handleAttachmentClick}
@@ -322,6 +400,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             <Send size={18} />
           )}
         </button>
+
+        {/* Drop Zone Text Feedback */}
+        {isDragOver && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center rounded-2xl bg-blue-400/10">
+            <p className="text-sm font-medium text-blue-600">
+              Thả file để đính kèm
+            </p>
+          </div>
+        )}
       </div>
 
       <input
@@ -330,7 +417,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         multiple
         onChange={handleFileSelect}
         className="hidden"
-        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+        accept="image/*,video/mp4,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
       />
     </div>
   );

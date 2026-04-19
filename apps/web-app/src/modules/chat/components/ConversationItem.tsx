@@ -46,7 +46,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     >
       <div className="relative flex-shrink-0">
         <Image
-          src={displayAvatar || 'https://via.placeholder.com/150'}
+          src={displayAvatar?.trim() || 'https://via.placeholder.com/150'}
           alt={displayName || 'Conversation'}
           width={48}
           height={48}
