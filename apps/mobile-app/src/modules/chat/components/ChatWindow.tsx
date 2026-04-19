@@ -270,7 +270,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               );
             }}
             ListEmptyComponent={() => (
-              <View style={styles.emptyMessages}>
+              <View style={[styles.emptyMessages, { transform: [{ scaleY: -1 }] }]}>
                 <View style={styles.emptyMsgIcon}>
                   <Ionicons name="chatbubbles-outline" size={38} color="#93C5FD" />
                 </View>
