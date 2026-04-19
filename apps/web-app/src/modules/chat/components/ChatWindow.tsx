@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useRef, useEffect, useState } from "react";
 import { Conversation, Message, User, Attachment, Reaction } from "../types";
 import { MessageBubble } from "./MessageBubble";
@@ -22,6 +21,8 @@ interface ChatWindowProps {
   isSending?: boolean;
   socket?: Socket | null;
   onForwardMessage?: (message: Message) => void;
+  onOpenProfile?: (user: User) => void;
+  onOpenGroupManage?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -33,6 +34,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   isSending = false,
   socket,
   onForwardMessage,
+  onOpenProfile,
+  onOpenGroupManage,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
@@ -53,7 +56,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     if (!socket || !conversation) return;
 
-    // Listen for message reactions
     const handleMessageReacted = (data: {
       messageId: string;
       reactions: Reaction[];
@@ -67,7 +69,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       );
     };
 
-    // Listen for message revocation (both types)
     const handleMessageRevoked = (data: {
       messageId: string;
       revokeType?: "all" | "self";
@@ -76,10 +77,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       setLocalMessages((prev) =>
         prev.map((msg) => {
           if (msg.id !== data.messageId) return msg;
+
           if (data.revokeType === "self") {
-            // revokeForMe: thêm currentUserId vào revokedFor (đã xử lý bởi optimistic ở handleRevokeForMe)
-            return msg;
+            return msg; // Đã xử lý optimistic ở handleRevokeForMe
           }
+
           // revokeForAll
           return { ...msg, isRevoked: true };
         }),
@@ -167,115 +169,160 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const handleRevokeForAll = (messageId: string) => {
     if (!socket || !conversation) return;
-    // Optimistic: cập nhật giao diện ngay lập tức
+
+    // Optimistic update
     setLocalMessages((prev) =>
       prev.map((m) => (m.id === messageId ? { ...m, isRevoked: true } : m)),
     );
+
     socket.emit("revokeForAll", { messageId, conversationId: conversation.id });
 
-    // Lắng nghe lỗi để rollback nếu cần
+    // Rollback if error
     socket.once("revokeError", (err: { messageId: string; error: string }) => {
       if (err.messageId === messageId) {
         console.warn("[Revoke]", err.error);
-        // Rollback
         setLocalMessages((prev) =>
-          prev.map((m) => (m.id === messageId ? { ...m, isRevoked: false } : m)),
+          prev.map((m) =>
+            m.id === messageId ? { ...m, isRevoked: false } : m,
+          ),
         );
       }
     });
   };
 
   const handleRevokeForMe = (messageId: string) => {
-    if (!socket || !conversation) return;
-    // Optimistic: ẩn ngay cho mình
+    if (!socket || !conversation || !currentUser) return;
+
+    // Optimistic update
     setLocalMessages((prev) =>
       prev.map((m) =>
-        m.id === messageId && currentUser
+        m.id === messageId
           ? { ...m, revokedFor: [...(m.revokedFor || []), currentUser.id] }
           : m,
       ),
     );
+
     socket.emit("revokeForMe", { messageId, conversationId: conversation.id });
   };
 
   return (
-    <div className="flex h-full flex-1 overflow-hidden bg-white">
-      {/* Chat Area - Left Side */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
-          <div className="flex items-center gap-3">
-            <Image
-              src={
-                displayAvatar?.trim() || `https://i.pravatar.cc/150?u=${conversation.id}`
-              }
-              alt="Avatar"
-              width={40}
-              height={40}
-              className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
-            />
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">
-                {displayName || "Unknown"}
-              </h2>
-              <p className="text-xs text-slate-500">{subStatus}</p>
-            </div>
-          </div>
+    <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
+      {/* ==================== HEADER ==================== */}
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+        <button
+          type="button"
+          onClick={() => {
+            if (conversation.type !== "private" || !currentUser) return;
+            const headerUser = conversation.participants.find(
+              (p) => p.id !== currentUser.id,
+            );
+            if (headerUser) onOpenProfile?.(headerUser);
+          }}
+          className={`flex items-center gap-3 text-left ${
+            conversation.type === "private" ? "cursor-pointer" : "cursor-default"
+          }`}
+        >
+          <Image
+            src={
+              displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
+            }
+            alt="Avatar"
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+          />
 
-          <div className="flex items-center gap-2 text-slate-400">
-            <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
-              <Phone size={20} />
-            </button>
-            <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
-              <Video size={20} />
-            </button>
-            <button 
-              type="button" 
-              onClick={() => setIsInfoSidebarOpen(!isInfoSidebarOpen)}
-              className={`rounded-full p-2 transition-colors ${isInfoSidebarOpen ? 'bg-blue-100 text-blue-500' : 'hover:bg-slate-100 hover:text-blue-500'}`}
-              title="Thông tin hội thoại"
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">
+              {displayName || "Unknown"}
+            </h2>
+            <p className="text-xs text-slate-500">{subStatus}</p>
+          </div>
+        </button>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 text-slate-400">
+          <button
+            type="button"
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+          >
+            <Phone size={20} />
+          </button>
+          <button
+            type="button"
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+          >
+            <Video size={20} />
+          </button>
+
+          {/* Info Button - Mở Sidebar */}
+          <button
+            type="button"
+            onClick={() => setIsInfoSidebarOpen(!isInfoSidebarOpen)}
+            className={`rounded-full p-2 transition-colors ${
+              isInfoSidebarOpen
+                ? "bg-blue-100 text-blue-500"
+                : "hover:bg-slate-100 hover:text-blue-500"
+            }`}
+            title="Thông tin hội thoại"
+          >
+            <Info size={20} />
+          </button>
+
+          {/* Group Manage Button (chỉ hiện với class/group) */}
+          {conversation.type === "class" && onOpenGroupManage && (
+            <button
+              type="button"
+              onClick={onOpenGroupManage}
+              className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+              title="Quản lý nhóm"
             >
-              <Info size={20} />
+              <Info size={20} /> {/* Bạn có thể thay bằng icon khác nếu muốn */}
             </button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4">
-          {isLoadingMessages ? (
-            <div className="flex h-full items-center justify-center gap-2 text-slate-400">
-              <RefreshCw size={16} className="animate-spin" />
-              <span className="text-sm">Đang tải tin nhắn...</span>
-            </div>
-          ) : localMessages.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-slate-400">
-              Hãy là người đầu tiên gửi tin nhắn! 👋
-            </div>
-          ) : (
-            localMessages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                isOwnMessage={msg.senderId === currentUser?.id}
-                currentUserId={currentUser?.id}
-                sender={getSender(msg.senderId)}
-                onReply={setReplyingTo}
-                onReact={handleReact}
-                onRevokeForAll={handleRevokeForAll}
-                onRevokeForMe={handleRevokeForMe}
-              />
-            ))
           )}
-          <div ref={messagesEndRef} />
         </div>
-
-        <MessageInput
-          onSendMessage={handleSendMessage}
-          isSending={isSending}
-          replyingTo={replyingTo}
-          onCancelReply={() => setReplyingTo(null)}
-        />
       </div>
 
-      {/* Info Sidebar - Right Side */}
+      {/* ==================== MESSAGES AREA ==================== */}
+      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4">
+        {isLoadingMessages ? (
+          <div className="flex h-full items-center justify-center gap-2 text-slate-400">
+            <RefreshCw size={16} className="animate-spin" />
+            <span className="text-sm">Đang tải tin nhắn...</span>
+          </div>
+        ) : localMessages.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-slate-400">
+            Hãy là người đầu tiên gửi tin nhắn! 👋
+          </div>
+        ) : (
+          localMessages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              isOwnMessage={msg.senderId === currentUser?.id}
+              currentUserId={currentUser?.id}
+              sender={getSender(msg.senderId)}
+              onReply={setReplyingTo}
+              onReact={handleReact}
+              onRevokeForAll={handleRevokeForAll}
+              onRevokeForMe={handleRevokeForMe}
+              onForward={onForwardMessage}
+              onOpenProfile={onOpenProfile}
+            />
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* ==================== MESSAGE INPUT ==================== */}
+      <MessageInput
+        onSendMessage={handleSendMessage}
+        isSending={isSending}
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+      />
+
+      {/* ==================== INFO SIDEBAR ==================== */}
       {isInfoSidebarOpen && (
         <ConversationInfoSidebar
           conversationId={conversation.id}

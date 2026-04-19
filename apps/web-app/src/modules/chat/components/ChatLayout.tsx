@@ -5,10 +5,16 @@ import { io, Socket } from "socket.io-client";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
 import { ForwardMessageModal } from "./ForwardMessageModal";
+import { ChatUserProfileModal } from "./ChatUserProfileModal";
+import { ChatGroupManageModal } from "./ChatGroupManageModal";
 import { ChatMode, Conversation, Message, User, Reaction } from "../types";
 import {
   fetchConversations,
   fetchMessages,
+  fetchConversationRole,
+  dissolveGroup,
+  leaveGroup,
+  removeGroupMember,
   sendMessage,
   mapApiMessageToMessage,
 } from "../chatApi";
@@ -35,6 +41,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [error, setError] = useState<string | null>(null);
   const [forwardMessageTarget, setForwardMessageTarget] =
     useState<Message | null>(null);
+  const [profileTarget, setProfileTarget] = useState<User | null>(null);
+  const [showGroupManageModal, setShowGroupManageModal] = useState(false);
+  const [groupOwnerTarget, setGroupOwnerTarget] = useState<User | null>(null);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -70,6 +79,28 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     });
 
     socketRef.current = socket;
+
+    const handleUserStatusChanged = (data: {
+      userId: string;
+      isOnline: boolean;
+    }) => {
+      setConversations((prev) =>
+        prev.map((conv) => ({
+          ...conv,
+          participants: conv.participants.map((participant) =>
+            participant.id === data.userId
+              ? { ...participant, isOnline: data.isOnline }
+              : participant,
+          ),
+        })),
+      );
+
+      setProfileTarget((prev) =>
+        prev && prev.id === data.userId
+          ? { ...prev, isOnline: data.isOnline }
+          : prev,
+      );
+    };
 
     // Nhận tin nhắn mới từ server real-time
     const handleNewMessage = (rawMessage: unknown) => {
@@ -136,11 +167,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
     socket.on("newMessage", handleNewMessage);
     socket.on("messageRevoked", handleMessageRevoked);
+    socket.on("userStatusChanged", handleUserStatusChanged);
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
       socket.off("newMessage", handleNewMessage);
       socket.off("messageRevoked", handleMessageRevoked);
+      socket.off("userStatusChanged", handleUserStatusChanged);
       socket.disconnect();
     };
   }, [currentUserId]);
@@ -160,6 +193,89 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setActiveConversationId(null);
     setMessages([]);
   }, []);
+
+  const refreshAfterGroupChange = useCallback(async () => {
+    const refreshed = await fetchConversations(currentUserId);
+    setConversations(refreshed);
+
+    if (activeConversationId) {
+      const stillExists = refreshed.some(
+        (conv) => conv.id === activeConversationId,
+      );
+      if (!stillExists) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    }
+  }, [activeConversationId, currentUserId]);
+
+  const handleRemoveGroupMember = useCallback(
+    async (memberId: string) => {
+      if (!activeConversationId) return;
+      await removeGroupMember(activeConversationId, memberId);
+      await refreshAfterGroupChange();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange],
+  );
+
+  const handleDissolveGroup = useCallback(async () => {
+    if (!activeConversationId) return;
+    await dissolveGroup(activeConversationId);
+    await refreshAfterGroupChange();
+    setShowGroupManageModal(false);
+  }, [activeConversationId, refreshAfterGroupChange]);
+
+  const handleLeaveGroup = useCallback(
+    async (newOwnerId?: string) => {
+      if (!activeConversationId) return;
+      await leaveGroup(activeConversationId, newOwnerId);
+      await refreshAfterGroupChange();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange],
+  );
+
+  const handleOpenGroupManage = useCallback(async () => {
+    const currentConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId,
+    );
+
+    if (!currentConversation) return;
+
+    setShowGroupManageModal(true);
+
+    if (currentConversation.type !== "class") return;
+
+    try {
+      const roleData = await fetchConversationRole(currentConversation.id);
+      const owner = currentConversation.participants.find(
+        (participant) => participant.id === roleData.ownerId,
+      );
+      setGroupOwnerTarget(owner || null);
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === currentConversation.id
+            ? {
+                ...conversation,
+                ownerId: roleData.ownerId,
+                myRole: roleData.myRole,
+                canManageGroup: roleData.canManageGroup,
+              }
+            : conversation,
+        ),
+      );
+    } catch (error) {
+      console.error("[ChatLayout] fetchConversationRole error:", error);
+      setGroupOwnerTarget(
+        currentConversation.ownerId
+          ? currentConversation.participants.find(
+              (participant) => participant.id === currentConversation.ownerId,
+            ) || null
+          : null,
+      );
+    }
+  }, [activeConversationId, conversations]);
 
   // ── Fetch Conversations ──────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
@@ -371,7 +487,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, [conversations, currentUserId, searchQuery]);
 
   return (
-    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
+    <div className="flex h-[calc(100vh-220px)] min-h-155 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
       <Sidebar
         currentMode={currentMode}
         onModeChange={setCurrentMode}
@@ -395,6 +511,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         isSending={isSending}
         socket={socketRef.current}
         onForwardMessage={setForwardMessageTarget}
+        onOpenProfile={setProfileTarget}
+        onOpenGroupManage={() => void handleOpenGroupManage()}
       />
       {forwardMessageTarget && (
         <ForwardMessageModal
@@ -405,6 +523,24 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           onSuccess={() => {
             // Có thể thêm Toast notification "Chuyển tiếp thành công" tại đây nếu muốn
           }}
+        />
+      )}
+      {profileTarget && (
+        <ChatUserProfileModal
+          user={profileTarget}
+          onClose={() => setProfileTarget(null)}
+        />
+      )}
+      {showGroupManageModal && activeConversation && currentUser && (
+        <ChatGroupManageModal
+          conversation={activeConversation}
+          currentUser={currentUser}
+          onClose={() => setShowGroupManageModal(false)}
+          onOpenProfile={setProfileTarget}
+          ownerUser={groupOwnerTarget}
+          onRemoveMember={handleRemoveGroupMember}
+          onDissolveGroup={handleDissolveGroup}
+          onLeaveGroup={handleLeaveGroup}
         />
       )}
     </div>

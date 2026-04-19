@@ -14,13 +14,18 @@ export class ChatController {
       }
 
       const user = await User.findById(userId)
-        .select("fullName avatarUrl email code")
+        .select("fullName avatarUrl email code role")
         .lean();
       if (!user) {
         return res.status(404).json({ error: "Chat user not found" });
       }
 
-      return res.status(200).json({ data: user });
+      return res.status(200).json({
+        data: {
+          ...user,
+          isOnline: socketManager.isUserOnline(userId.toString()),
+        },
+      });
     } catch (error: any) {
       console.error("[ChatController] getCurrentChatUser error:", error);
       return res
@@ -46,6 +51,26 @@ export class ChatController {
       return res
         .status(500)
         .json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
+  // API: GET /api/conversations/:conversationId/role
+  static async getConversationRole(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const conversationId = req.params.conversationId as string;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      const data = await ChatService.getConversationRole(userId, conversationId);
+      return res.status(200).json({ data });
+    } catch (error: any) {
+      console.error("[ChatController] getConversationRole error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
     }
   }
 
@@ -286,6 +311,91 @@ export class ChatController {
       return res
         .status(500)
         .json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/members/:memberId/remove
+  static async removeGroupMember(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const memberId = typeof req.params.memberId === "string" ? req.params.memberId : "";
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId || !memberId) {
+        return res.status(400).json({ error: "conversationId and memberId are required" });
+      }
+
+      const conversation = await ChatService.removeGroupMember(
+        requesterId,
+        conversationId,
+        memberId,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] removeGroupMember error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/dissolve
+  static async dissolveGroup(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
+      const conversation = await ChatService.dissolveGroup(requesterId, conversationId);
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] dissolveGroup error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/leave
+  static async leaveGroup(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const newOwnerId = typeof req.body?.newOwnerId === "string" ? req.body.newOwnerId : undefined;
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
+      const conversation = await ChatService.leaveGroup(
+        requesterId,
+        conversationId,
+        newOwnerId,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] leaveGroup error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
     }
   }
 
