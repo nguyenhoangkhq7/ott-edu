@@ -4,12 +4,18 @@ import { io, Socket } from 'socket.io-client';
 import { Sidebar } from './Sidebar';
 import { ChatWindow } from './ChatWindow';
 import { ForwardMessageModal } from './ForwardMessageModal';
+import { ChatUserProfileModal } from './ChatUserProfileModal';
+import { ChatGroupManageModal } from './ChatGroupManageModal';
 import { ChatMode, Conversation, Message, User } from '../types';
 import {
   fetchConversations,
   fetchMessages,
   sendMessage,
   mapApiMessageToMessage,
+  fetchConversationRole,
+  removeGroupMember,
+  dissolveGroup,
+  leaveGroup,
 } from '../chatApi';
 import { Attachment } from '../types';
 
@@ -36,26 +42,39 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forwardMessageTarget, setForwardMessageTarget] = useState<Message | null>(null);
+  const [profileTarget, setProfileTarget] = useState<User | null>(null);
+  const [showGroupManageModal, setShowGroupManageModal] = useState(false);
+  const [groupOwnerTarget, setGroupOwnerTarget] = useState<User | null>(null);
 
   // chatMongoId: MongoDB ObjectId của user hiện tại trong chat-service
   // (khác với currentUserId dạng số từ core-service)
   const [chatMongoId, setChatMongoId] = useState<string>(currentUserId);
 
   // currentUser được tìm từ participants dùng chatMongoId
-  const currentUser: User | null =
-    conversations.length > 0
-      ? conversations[0].participants.find((p) => p.id === chatMongoId) || {
-          id: chatMongoId,
-          name: 'Bạn',
-          avatarUrl: `https://i.pravatar.cc/150?u=${chatMongoId}`,
-          isOnline: true,
-        }
-      : {
-          id: chatMongoId,
-          name: 'Bạn',
-          avatarUrl: `https://i.pravatar.cc/150?u=${chatMongoId}`,
-          isOnline: true,
-        };
+  const currentUser: User | null = React.useMemo(() => {
+    if (!chatMongoId) return null;
+    
+    // Ưu tiên tìm trong conversation hiện tại nếu có
+    const activeConv = conversations.find(c => c.id === activeConversationId);
+    if (activeConv) {
+      const found = activeConv.participants.find(p => p.id === chatMongoId);
+      if (found) return found;
+    }
+
+    // Tìm trong tất cả conversations
+    for (const conv of conversations) {
+      const found = conv.participants.find(p => p.id === chatMongoId);
+      if (found) return found;
+    }
+
+    // Fallback object
+    return {
+      id: chatMongoId,
+      name: 'Bạn',
+      avatarUrl: `https://i.pravatar.cc/150?u=${chatMongoId}`,
+      isOnline: true,
+    };
+  }, [conversations, chatMongoId, activeConversationId]);
 
   const socketRef = useRef<Socket | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
@@ -230,6 +249,94 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setActiveView('sidebar');
   }, []);
 
+  const handleOpenProfile = useCallback((user: User) => {
+    setProfileTarget(user);
+  }, []);
+
+  const handleOpenGroupManage = useCallback(async () => {
+    const conversation = conversations.find((item) => item.id === activeConversationId);
+    if (!conversation || conversation.type !== 'class') return;
+
+    // Fetch fresh role data from server
+    try {
+      const roleData = await fetchConversationRole(conversation.id);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversation.id
+            ? {
+                ...c,
+                ownerId: roleData.ownerId,
+                myRole: roleData.myRole,
+                canManageGroup: roleData.canManageGroup,
+              }
+            : c
+        )
+      );
+      
+      const owner = roleData.ownerId
+        ? conversation.participants.find((p) => p.id === roleData.ownerId) || null
+        : null;
+      setGroupOwnerTarget(owner);
+    } catch (err) {
+      console.error('[ChatLayout] fetch role error:', err);
+      // Fallback to local data
+      setGroupOwnerTarget(
+        conversation.ownerId
+          ? conversation.participants.find((participant) => participant.id === conversation.ownerId) || null
+          : null
+      );
+    }
+
+    setShowGroupManageModal(true);
+  }, [activeConversationId, conversations]);
+
+  const handleRemoveGroupMember = useCallback(async (memberId: string) => {
+    if (!activeConversationId) return;
+    try {
+      await removeGroupMember(activeConversationId, memberId);
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === activeConversationId
+            ? {
+                ...conversation,
+                participants: conversation.participants.filter((participant) => participant.id !== memberId),
+              }
+            : conversation
+        )
+      );
+    } catch (err) {
+      console.error('[ChatLayout] remove member error:', err);
+      setError('Không thể xóa thành viên. Vui lòng thử lại.');
+    }
+  }, [activeConversationId]);
+
+  const handleDissolveGroup = useCallback(async () => {
+    if (!activeConversationId) return;
+    try {
+      await dissolveGroup(activeConversationId);
+      setConversations((prev) => prev.filter((conversation) => conversation.id !== activeConversationId));
+      setActiveConversationId(null);
+      setActiveView('sidebar');
+    } catch (err) {
+      console.error('[ChatLayout] dissolve group error:', err);
+      setError('Không thể giải tán nhóm.');
+    }
+  }, [activeConversationId]);
+
+  const handleLeaveGroup = useCallback(async (newOwnerId?: string) => {
+    if (!activeConversationId || !currentUser) return;
+
+    try {
+      await leaveGroup(activeConversationId, newOwnerId);
+      setConversations((prev) => prev.filter((c) => c.id !== activeConversationId));
+      setActiveConversationId(null);
+      setActiveView('sidebar');
+    } catch (err) {
+      console.error('[ChatLayout] leave group error:', err);
+      setError('Không thể rời nhóm.');
+    }
+  }, [activeConversationId, currentUser]);
+
   const handleSendMessage = async (
     text: string,
     attachments?: Attachment[],
@@ -390,6 +497,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           onBack={handleBackToSidebar}
           socket={socketRef.current}
           onForwardMessage={setForwardMessageTarget}
+          onOpenProfile={handleOpenProfile}
+          onOpenGroupManage={handleOpenGroupManage}
         />
       )}
 
@@ -403,6 +512,24 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           onSuccess={() => setForwardMessageTarget(null)}
         />
       )}
+
+      <ChatUserProfileModal
+        visible={!!profileTarget}
+        user={profileTarget}
+        onClose={() => setProfileTarget(null)}
+      />
+
+      <ChatGroupManageModal
+        visible={showGroupManageModal}
+        conversation={activeConversation}
+        currentUser={currentUser}
+        ownerUser={groupOwnerTarget}
+        onClose={() => setShowGroupManageModal(false)}
+        onOpenProfile={handleOpenProfile}
+        onRemoveMember={handleRemoveGroupMember}
+        onDissolveGroup={handleDissolveGroup}
+        onLeaveGroup={handleLeaveGroup}
+      />
     </View>
   );
 };

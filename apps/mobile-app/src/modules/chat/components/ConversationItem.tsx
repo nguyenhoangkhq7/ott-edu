@@ -50,6 +50,13 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           : isMe ? `Bạn: ${lastMsg.content}` : lastMsg.content;
 
   const hasUnread = conversation.unreadCount > 0;
+  const roleLabel = conversation.type !== 'private'
+    ? conversation.myRole === 'owner'
+      ? 'Owner'
+      : conversation.myRole === 'member'
+        ? 'Member'
+        : null
+    : null;
 
   return (
     <TouchableOpacity
@@ -71,9 +78,16 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
       {/* Content */}
       <View style={styles.content}>
         <View style={styles.topRow}>
-          <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>
-            {displayName}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>
+              {displayName}
+            </Text>
+            {roleLabel && (
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>{roleLabel}</Text>
+              </View>
+            )}
+          </View>
           {lastMsg && (
             <Text style={[styles.time, hasUnread && styles.timeUnread]}>
               {formatTime(lastMsg.createdAt)}
@@ -149,14 +163,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 3,
   },
+  nameRow: { flex: 1, flexDirection: 'row', alignItems: 'center', minWidth: 0, marginRight: 8 },
   name: {
-    flex: 1,
     fontSize: 15,
     fontWeight: '500',
     color: '#1E293B',
-    marginRight: 8,
+    flexShrink: 1,
   },
   nameUnread: { fontWeight: '700', color: '#0F172A' },
+  roleBadge: {
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#E0F2FE',
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0284C7',
+    textTransform: 'uppercase',
+  },
   time: { fontSize: 12, color: '#94A3B8' },
   timeUnread: { color: '#3B82F6', fontWeight: '600' },
   bottomRow: {
