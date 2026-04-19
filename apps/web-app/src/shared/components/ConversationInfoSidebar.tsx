@@ -146,18 +146,35 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [fileItems, setFileItems] = useState<FileItem[]>([]);
   const [linkItems, setLinkItems] = useState<LinkItem[]>([]);
+  const [commonGroups, setCommonGroups] = useState<Array<{ _id: string; name: string; participantCount: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Determine if this is a private or class conversation
+  const isPrivateChat = conversationInfo?.type === "private" || conversationType === "private";
 
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>(
     {
       members: true,
+      groups: false,
       media: true,
       files: false,
       links: false,
       settings: false,
     },
   );
+
+  // Update accordion state when conversation type is determined
+  useEffect(() => {
+    if (conversationInfo?.type) {
+      const isPrivate = conversationInfo.type === "private";
+      setOpenAccordions((prev) => ({
+        ...prev,
+        members: !isPrivate,
+        groups: isPrivate,
+      }));
+    }
+  }, [conversationInfo?.type]);
 
   const toggleAccordion = useCallback((key: string) => {
     setOpenAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -191,6 +208,18 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
       console.error("[ConversationInfoSidebar] fetchMediaItems error:", error);
+    }
+  }, [conversationId]);
+
+  const fetchCommonGroups = useCallback(async () => {
+    try {
+      const response = await chatApiClient.get(
+        `/chat/info/${conversationId}/common-groups`,
+      );
+      setCommonGroups(response.data.data || []);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Unknown error");
+      console.error("[ConversationInfoSidebar] fetchCommonGroups error:", error);
     }
   }, [conversationId]);
 
@@ -238,6 +267,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
           fetchMediaItems(),
           fetchFileItems(),
           fetchLinkItems(),
+          isPrivateChat ? fetchCommonGroups() : Promise.resolve(),
         ]);
       } catch (err) {
         const error = err instanceof Error ? err : new Error("Unknown error");
@@ -266,11 +296,25 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
     <div className="w-80 flex flex-col border-l border-gray-200 bg-white overflow-hidden">
       {/* Header */}
       <div className="flex flex-col items-center gap-3 px-4 py-4 border-b border-gray-200">
-        {conversationInfo?.avatarUrl &&
-        conversationInfo.avatarUrl.trim() !== "" ? (
+        {/* Avatar - For private chat use participant's avatar, for class chat use conversation avatar */}
+        {(isPrivateChat && conversationInfo?.participants?.length > 0
+          ? conversationInfo.participants[0].avatarUrl
+          : conversationInfo?.avatarUrl) &&
+        (isPrivateChat && conversationInfo?.participants?.length > 0
+          ? conversationInfo.participants[0].avatarUrl
+          : conversationInfo?.avatarUrl
+        ).trim() !== "" ? (
           <Image
-            src={conversationInfo.avatarUrl}
-            alt={conversationInfo.name || "Conversation"}
+            src={
+              isPrivateChat && conversationInfo?.participants?.length > 0
+                ? conversationInfo.participants[0].avatarUrl
+                : conversationInfo?.avatarUrl
+            }
+            alt={
+              isPrivateChat && conversationInfo?.participants?.length > 0
+                ? conversationInfo.participants[0].fullName
+                : conversationInfo?.name || "Conversation"
+            }
             width={64}
             height={64}
             className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
@@ -278,17 +322,23 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
         ) : (
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
             <span className="text-white font-semibold text-lg">
-              {conversationInfo?.name?.charAt(0)?.toUpperCase() || "C"}
+              {isPrivateChat && conversationInfo?.participants?.length > 0
+                ? conversationInfo.participants[0].fullName?.charAt(0)?.toUpperCase()
+                : conversationInfo?.name?.charAt(0)?.toUpperCase() || "C"}
             </span>
           </div>
         )}
         <div className="text-center">
           <h2 className="font-semibold text-gray-900 text-sm line-clamp-2">
-            {conversationInfo?.name || "Loading..."}
+            {isPrivateChat && conversationInfo?.participants?.length > 0
+              ? conversationInfo.participants[0].fullName
+              : conversationInfo?.name || "Loading..."}
           </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {conversationInfo?.totalMembers || 0} thành viên
-          </p>
+          {!isPrivateChat && (
+            <p className="text-xs text-gray-500 mt-1">
+              {conversationInfo?.totalMembers || 0} thành viên
+            </p>
+          )}
         </div>
       </div>
 
@@ -336,13 +386,15 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
               <Pin size={16} className="text-gray-600" />
               <span className="text-xs text-gray-700">Ghim</span>
             </button>
-            <button
-              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-200 rounded-lg transition"
-              title="Thêm thành viên"
-            >
-              <UserPlus size={16} className="text-gray-600" />
-              <span className="text-xs text-gray-700">Thêm thành viên</span>
-            </button>
+            {!isPrivateChat && (
+              <button
+                className="flex flex-col items-center gap-1 p-2 hover:bg-gray-200 rounded-lg transition"
+                title="Thêm thành viên"
+              >
+                <UserPlus size={16} className="text-gray-600" />
+                <span className="text-xs text-gray-700">Thêm thành viên</span>
+              </button>
+            )}
             {conversationType === "class" && onOpenGroupManage && (
               <button
                 type="button"
@@ -361,23 +413,59 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             )}
           </div>
 
-          {/* Members Accordion */}
-          <Accordion
-            title="Thành viên nhóm"
-            icon={<UserPlus size={14} />}
-            isOpen={openAccordions.members}
-            onToggle={() => toggleAccordion("members")}
-            count={conversationInfo?.totalMembers}
-          >
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {conversationInfo?.participants?.map((participant) => (
-                <div
-                  key={participant._id}
-                  className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
-                >
-                  {participant.avatarUrl ? (
-                    <Image
-                      src={participant.avatarUrl}
+          {/* For Private Chat: Common Groups Accordion */}
+          {isPrivateChat && (
+            <Accordion
+              title="Nhóm chung"
+              icon={<UserPlus size={14} />}
+              isOpen={openAccordions.groups}
+              onToggle={() => toggleAccordion("groups")}
+              count={commonGroups.length}
+            >
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {commonGroups && commonGroups.length > 0 ? (
+                  commonGroups.map((group) => (
+                    <div
+                      key={group._id}
+                      className="flex items-center justify-between p-2 hover:bg-white rounded transition"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-800 truncate">
+                          {group.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {group.participantCount} thành viên
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-500 text-center py-2">
+                    Không có nhóm chung
+                  </p>
+                )}
+              </div>
+            </Accordion>
+          )}
+
+          {/* For Class Chat: Members Accordion */}
+          {!isPrivateChat && (
+            <Accordion
+              title="Thành viên nhóm"
+              icon={<UserPlus size={14} />}
+              isOpen={openAccordions.members}
+              onToggle={() => toggleAccordion("members")}
+              count={conversationInfo?.totalMembers}
+            >
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {conversationInfo?.participants?.map((participant) => (
+                  <div
+                    key={participant._id}
+                    className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
+                  >
+                    {participant.avatarUrl ? (
+                      <Image
+                        src={participant.avatarUrl}
                       alt={participant.fullName}
                       width={32}
                       height={32}
@@ -399,6 +487,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
               ))}
             </div>
           </Accordion>
+          )}
 
           {/* Media Accordion */}
           <Accordion

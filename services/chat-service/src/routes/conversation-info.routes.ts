@@ -41,4 +41,11 @@ router.get(
   ConversationInfoController.getLinkItems
 );
 
+// GET /api/chat/info/:conversationId/common-groups
+// Lấy danh sách nhóm chung (cho private chat)
+router.get(
+  "/:conversationId/common-groups",
+  ConversationInfoController.getCommonGroups
+);
+
 export default router;
