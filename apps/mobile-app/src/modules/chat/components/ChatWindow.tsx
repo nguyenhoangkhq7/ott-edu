@@ -251,7 +251,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               );
 
               return (
-                <>
+                <View>
                   <MessageBubble
                     message={item}
                     isSelf={isSelf}
@@ -266,10 +266,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     showAvatar={!isSelf && !isConsecutive}
                   />
                   {!isConsecutive && <View style={{ height: 6 }} />}
-                </>
+                </View>
               );
             }}
-            ListEmptyComponent={
+            ListEmptyComponent={() => (
               <View style={styles.emptyMessages}>
                 <View style={styles.emptyMsgIcon}>
                   <Ionicons name="chatbubbles-outline" size={38} color="#93C5FD" />
@@ -277,7 +277,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <Text style={styles.emptyMsgTitle}>Chưa có tin nhắn</Text>
                 <Text style={styles.emptyMsgText}>Gửi lời chào để bắt đầu trò chuyện 👋</Text>
               </View>
-            }
+            )}
           />
         )}
       </View>

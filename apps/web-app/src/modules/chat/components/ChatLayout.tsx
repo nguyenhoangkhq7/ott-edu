@@ -7,7 +7,7 @@ import { ChatWindow } from "./ChatWindow";
 import { ForwardMessageModal } from "./ForwardMessageModal";
 import { ChatUserProfileModal } from "./ChatUserProfileModal";
 import { ChatGroupManageModal } from "./ChatGroupManageModal";
-import { ChatMode, Conversation, Message, User } from "../types";
+import { ChatMode, Conversation, Message, User, Reaction } from "../types";
 import {
   fetchConversations,
   fetchMessages,
@@ -199,7 +199,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setConversations(refreshed);
 
     if (activeConversationId) {
-      const stillExists = refreshed.some((conv) => conv.id === activeConversationId);
+      const stillExists = refreshed.some(
+        (conv) => conv.id === activeConversationId,
+      );
       if (!stillExists) {
         setActiveConversationId(null);
         setMessages([]);
@@ -351,10 +353,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       createdAt: new Date().toISOString(),
       status: "sent",
       attachments: attachments || [],
-      replyTo: undefined,
+      replyTo: null,
       isRevoked: false,
-      revokedFor: [],
-      reactions: [],
+      revokedFor: [] as string[],
+      reactions: [] as Reaction[],
     };
     setMessages((prev) => [...prev, optimisticMessage]);
 

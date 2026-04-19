@@ -25,6 +25,14 @@ export interface Reaction {
   emoji: string;
 }
 
+// Link Preview Data Type
+export interface LinkPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -33,6 +41,7 @@ export interface Message {
   createdAt: string;
   status: "sent" | "delivered" | "read";
   attachments?: Attachment[];
+  linkPreview?: LinkPreview; // Thêm link preview field
   replyTo?: Message | null;
   /** Thu hồi với tất cả */
   isRevoked: boolean;
@@ -79,6 +88,14 @@ export interface ApiReaction {
   emoji: string;
 }
 
+// API Link Preview Data Type
+export interface ApiLinkPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
 export interface ApiMessage {
   _id: string;
   conversationId: string;
@@ -87,6 +104,7 @@ export interface ApiMessage {
   createdAt: string;
   updatedAt?: string;
   attachments?: ApiAttachment[];
+  linkPreview?: ApiLinkPreview; // Thêm link preview field
   replyTo?: ApiMessage | null;
   isRevoked: boolean;
   revokedFor?: string[];
