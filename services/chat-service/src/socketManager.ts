@@ -318,6 +318,10 @@ class SocketManager {
     return true;
   }
 
+  public isUserOnline(userId: string) {
+    return this.onlineUsers.has(userId);
+  }
+
   public init(io: Server) {
     this.io = io;
 
@@ -329,6 +333,11 @@ class SocketManager {
       if (userId) {
         this.onlineUsers.set(userId, socket.id);
         console.log(`User ${userId} joined with socket ${socket.id}`);
+
+        this.io?.emit("userStatusChanged", {
+          userId: userId as string,
+          isOnline: true,
+        });
 
         // Tự động Join user vào tất cả các phòng (conversation) mà họ tham gia
         try {
@@ -360,6 +369,11 @@ class SocketManager {
 
           this.onlineUsers.delete(userId);
           console.log(`User ${userId} disconnected`);
+
+          this.io?.emit("userStatusChanged", {
+            userId: userId as string,
+            isOnline: false,
+          });
         }
       });
 
@@ -672,33 +686,101 @@ class SocketManager {
         },
       );
 
-      // Handle message revocation
+      // ── Thu hồi với TẤT CẢ mọi người (giới hạn 15 phút) ──────────────
+      socket.on(
+        "revokeForAll",
+        async (data: { messageId: string; conversationId: string }) => {
+          try {
+            const { messageId, conversationId } = data;
+            if (!messageId || !conversationId || !userId) return;
+
+            let message = await Message.findById(messageId);
+            if (!message) {
+              socket.emit("revokeError", { messageId, error: "Tin nhắn không tồn tại." });
+              return;
+            }
+
+            // Chỉ người gửi mới được thu hồi
+            if (message.senderId.toString() !== userId.toString()) {
+              socket.emit("revokeError", { messageId, error: "Bạn không có quyền thu hồi tin nhắn này." });
+              return;
+            }
+
+            // Kiểm tra giới hạn thời gian 15 phút
+            const now = Date.now();
+            const sentAt = new Date(message.createdAt).getTime();
+            const { REVOKE_FOR_ALL_LIMIT_MS } = await import("./model/Message.ts");
+            if (now - sentAt > REVOKE_FOR_ALL_LIMIT_MS) {
+              socket.emit("revokeError", {
+                messageId,
+                error: "Không thể thu hồi tin nhắn đã gửi quá 15 phút.",
+              });
+              return;
+            }
+
+            await Message.findByIdAndUpdate(messageId, { isRevoked: true });
+
+            // Broadcast cho tất cả trong phòng
+            this.io?.to(conversationId).emit("messageRevoked", {
+              messageId,
+              revokeType: "all",
+              isRevoked: true,
+            });
+          } catch (err) {
+            console.error("Error in revokeForAll:", err);
+          }
+        },
+      );
+
+      // ── Thu hồi chỉ về phía BẢN THÂN (không giới hạn thời gian) ──────
+      socket.on(
+        "revokeForMe",
+        async (data: { messageId: string; conversationId: string }) => {
+          try {
+            const { messageId, conversationId } = data;
+            if (!messageId || !conversationId || !userId) return;
+
+            const message = await Message.findById(messageId);
+            if (!message) {
+              socket.emit("revokeError", { messageId, error: "Tin nhắn không tồn tại." });
+              return;
+            }
+
+            // Thêm userId vào mảng revokedFor (nếu chưa có)
+            if (!message.revokedFor.some((id: any) => id.toString() === userId.toString())) {
+              await Message.findByIdAndUpdate(messageId, {
+                $addToSet: { revokedFor: userId },
+              });
+            }
+
+            // Chỉ emit cho socket của người dùng này (private)
+            socket.emit("messageRevoked", {
+              messageId,
+              revokeType: "self",
+              isRevoked: false,
+            });
+          } catch (err) {
+            console.error("Error in revokeForMe:", err);
+          }
+        },
+      );
+
+      // Legacy handler – giữ tương thích ngược
       socket.on(
         "revokeMessage",
         async (data: { messageId: string; conversationId: string }) => {
           try {
             const { messageId, conversationId } = data;
-
-            if (!messageId || !conversationId || !userId) {
-              console.warn("Invalid revoke data:", data);
-              return;
-            }
-
-            // Update message as revoked
+            if (!messageId || !conversationId || !userId) return;
             const message = await Message.findByIdAndUpdate(
               messageId,
               { isRevoked: true },
               { new: true },
             );
-
-            if (!message) {
-              console.warn("Message not found:", messageId);
-              return;
-            }
-
-            // Emit revocation event to all clients in the room
+            if (!message) return;
             this.io?.to(conversationId).emit("messageRevoked", {
               messageId,
+              revokeType: "all",
               isRevoked: true,
             });
           } catch (error) {
@@ -713,7 +795,11 @@ class SocketManager {
   // Bằng cách này gửi tin nhắn dù private (2 ng) hay group (100 ng) đều cực kỳ nhanh và chỉ 1 lệnh
   public emitMessageToRoom(conversationId: string, message: any) {
     if (this.io) {
-      this.io.to(conversationId).emit("newMessage", message);
+      // Serialize Mongoose document thành plain object để đảm bảo tất cả fields (including linkPreview) được emit
+      const plainMessage = message.toObject
+        ? message.toObject()
+        : JSON.parse(JSON.stringify(message));
+      this.io.to(conversationId).emit("newMessage", plainMessage);
     }
   }
 }

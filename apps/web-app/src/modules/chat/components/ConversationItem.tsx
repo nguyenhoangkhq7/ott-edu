@@ -46,7 +46,7 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
     >
       <div className="relative flex-shrink-0">
         <Image
-          src={displayAvatar || 'https://via.placeholder.com/150'}
+          src={displayAvatar?.trim() || 'https://via.placeholder.com/150'}
           alt={displayName || 'Conversation'}
           width={48}
           height={48}
@@ -73,7 +73,15 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           <p className={`truncate text-sm ${
             conversation.unreadCount > 0 ? 'font-semibold text-slate-900' : 'text-slate-500'
           }`}>
-            {conversation.lastMessage?.content || 'Chưa có tin nhắn...'}
+            {!conversation.lastMessage
+              ? 'Chưa có tin nhắn...'
+              : conversation.lastMessage.isRevoked
+                ? '🚫 Tin nhắn đã thu hồi'
+                : conversation.lastMessage.revokedFor?.includes('__self__')
+                  ? (conversation.lastMessage.senderId === currentUser.id ? 'Bạn: ' : '') + 'Tin nhắn đã ẩn'
+                  : conversation.lastMessage.attachments?.length
+                    ? '📎 Tệp đính kèm'
+                    : (conversation.lastMessage.senderId === currentUser.id ? 'Bạn: ' : '') + conversation.lastMessage.content}
           </p>
           {conversation.unreadCount > 0 && (
             <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white">

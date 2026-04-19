@@ -43,6 +43,16 @@ services:
       - mongo_data:/data/db
     ports:
       - "${MONGO_PORT}:27017"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand({ ping: 1 }).ok\" | grep 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
     networks:
       - app-network
 
@@ -103,7 +113,8 @@ services:
     ports:
       - "${CHAT_PORT}:3001"
     depends_on:
-      - mongo-db
+      mongo-db:
+        condition: service_healthy
     networks:
       - app-network
 

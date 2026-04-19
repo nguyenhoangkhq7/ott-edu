@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useRef, useEffect, useState } from "react";
 import {
   ActiveVideoCall,
@@ -17,6 +16,7 @@ import { MessageInput } from "./MessageInput";
 import { Camera, CameraOff, Info, Mic, MicOff, Phone, PhoneOff, RefreshCw, Video, X } from "lucide-react";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
+import ConversationInfoSidebar from "@/shared/components/ConversationInfoSidebar";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -52,6 +52,9 @@ interface ChatWindowProps {
   onEndVideoCall?: () => void;
   onToggleMicrophone?: () => void;
   onToggleCamera?: () => void;
+  onForwardMessage?: (message: Message) => void;
+  onOpenProfile?: (user: User) => void;
+  onOpenGroupManage?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -84,6 +87,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onEndVideoCall,
   onToggleMicrophone,
   onToggleCamera,
+  onForwardMessage,
+  onOpenProfile,
+  onOpenGroupManage,
 }) => {
     const formatCallDuration = (durationSec: number): string => {
       if (!durationSec || durationSec <= 0) {
@@ -132,6 +138,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [isInfoSidebarOpen, setIsInfoSidebarOpen] = useState(false);
 
   // Update local messages when messages prop changes
   useEffect(() => {
@@ -212,7 +219,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     if (!socket || !conversation) return;
 
-    // Listen for message reactions
     const handleMessageReacted = (data: {
       messageId: string;
       reactions: Reaction[];
@@ -226,17 +232,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       );
     };
 
-    // Listen for message revocation
     const handleMessageRevoked = (data: {
       messageId: string;
-      isRevoked: boolean;
+      revokeType?: "all" | "self";
+      isRevoked?: boolean;
     }) => {
       setLocalMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === data.messageId
-            ? { ...msg, isRevoked: data.isRevoked }
-            : msg,
-        ),
+        prev.map((msg) => {
+          if (msg.id !== data.messageId) return msg;
+
+          if (data.revokeType === "self") {
+            return msg; // Đã xử lý optimistic ở handleRevokeForMe
+          }
+
+          // revokeForAll
+          return { ...msg, isRevoked: true };
+        }),
       );
     };
 
@@ -485,19 +496,60 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  const handleRevoke = (messageId: string) => {
-    if (socket && conversation) {
-      socket.emit("revokeMessage", {
-        messageId,
-        conversationId: conversation.id,
-      });
-    }
+  const handleRevokeForAll = (messageId: string) => {
+    if (!socket || !conversation) return;
+
+    // Optimistic update
+    setLocalMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, isRevoked: true } : m)),
+    );
+
+    socket.emit("revokeForAll", { messageId, conversationId: conversation.id });
+
+    // Rollback if error
+    socket.once("revokeError", (err: { messageId: string; error: string }) => {
+      if (err.messageId === messageId) {
+        console.warn("[Revoke]", err.error);
+        setLocalMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId ? { ...m, isRevoked: false } : m,
+          ),
+        );
+      }
+    });
+  };
+
+  const handleRevokeForMe = (messageId: string) => {
+    if (!socket || !conversation || !currentUser) return;
+
+    // Optimistic update
+    setLocalMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId
+          ? { ...m, revokedFor: [...(m.revokedFor || []), currentUser.id] }
+          : m,
+      ),
+    );
+
+    socket.emit("revokeForMe", { messageId, conversationId: conversation.id });
   };
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (conversation.type !== "private" || !currentUser) return;
+            const headerUser = conversation.participants.find(
+              (p) => p.id !== currentUser.id,
+            );
+            if (headerUser) onOpenProfile?.(headerUser);
+          }}
+          className={`flex items-center gap-3 text-left ${
+            conversation.type === "private" ? "cursor-pointer" : "cursor-default"
+          }`}
+        >
           <Image
             src={
               displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
@@ -507,16 +559,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             height={40}
             className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
           />
+
           <div>
             <h2 className="text-sm font-semibold text-slate-900">
               {displayName || "Unknown"}
             </h2>
             <p className="text-xs text-slate-500">{subStatus}</p>
           </div>
-        </div>
+        </button>
 
+        {/* Action Buttons */}
         <div className="flex items-center gap-2 text-slate-400">
-          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
+          <button
+            type="button"
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+          >
             <Phone size={20} />
           </button>
           <button
@@ -528,9 +585,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           >
             <Video size={20} />
           </button>
-          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
+
+          {/* Info Button - Mở Sidebar */}
+          <button
+            type="button"
+            onClick={() => setIsInfoSidebarOpen(!isInfoSidebarOpen)}
+            className={`rounded-full p-2 transition-colors ${
+              isInfoSidebarOpen
+                ? "bg-blue-100 text-blue-500"
+                : "hover:bg-slate-100 hover:text-blue-500"
+            }`}
+            title="Thông tin hội thoại"
+          >
             <Info size={20} />
           </button>
+
+          {/* Group Manage Button (chỉ hiện với class/group) */}
+          {conversation.type === "class" && onOpenGroupManage && (
+            <button
+              type="button"
+              onClick={onOpenGroupManage}
+              className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+              title="Quản lý nhóm"
+            >
+              <Info size={20} /> {/* Bạn có thể thay bằng icon khác nếu muốn */}
+            </button>
+          )}
         </div>
       </div>
 
@@ -586,22 +666,36 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               key={msg.id}
               message={msg}
               isOwnMessage={msg.senderId === currentUser?.id}
+              currentUserId={currentUser?.id}
               sender={getSender(msg.senderId)}
               onReply={setReplyingTo}
               onReact={handleReact}
-              onRevoke={handleRevoke}
+              onRevokeForAll={handleRevokeForAll}
+              onRevokeForMe={handleRevokeForMe}
+              onForward={onForwardMessage}
+              onOpenProfile={onOpenProfile}
             />
           ))
         )}
         <div ref={messagesEndRef} />
       </div>
 
+      {/* ==================== MESSAGE INPUT ==================== */}
       <MessageInput
         onSendMessage={handleSendMessage}
         isSending={isSending}
         replyingTo={replyingTo}
         onCancelReply={() => setReplyingTo(null)}
       />
+
+      {/* ==================== INFO SIDEBAR ==================== */}
+      {isInfoSidebarOpen && (
+        <ConversationInfoSidebar
+          conversationId={conversation.id}
+          isOpen={isInfoSidebarOpen}
+          onClose={() => setIsInfoSidebarOpen(false)}
+        />
+      )}
     </div>
   );
 };

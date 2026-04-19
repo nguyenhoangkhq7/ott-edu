@@ -55,7 +55,7 @@ function mapApiUserToChatUser(apiUser: ApiUser): ChatUser {
     name: apiUser.fullName,
     email: apiUser.email,
     code: apiUser.code,
-    avatarUrl: apiUser.avatarUrl,
+    avatarUrl: apiUser.avatarUrl || null,
   };
 }
 
@@ -75,7 +75,7 @@ function mapApiConversationToChatConversation(
     type: apiConversation.type,
     name,
     participants,
-    avatarUrl: apiConversation.avatarUrl,
+    avatarUrl: apiConversation.avatarUrl || null,
   };
 }
 

@@ -18,9 +18,10 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
     name: apiUser.fullName,
     email: apiUser.email,
     code: apiUser.code,
+    role: apiUser.role,
     avatarUrl:
       apiUser.avatarUrl || `https://i.pravatar.cc/150?u=${apiUser._id}`,
-    isOnline: false, // Backend chưa cung cấp trạng thái online; có thể cập nhật qua Socket
+    isOnline: apiUser.isOnline ?? false,
   };
 }
 
@@ -38,8 +39,12 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     createdAt: apiMsg.createdAt,
     status: "sent",
     attachments: apiMsg.attachments || [],
+    linkPreview: apiMsg.linkPreview || undefined, // 👈 Thêm linkPreview mapping
     replyTo: apiMsg.replyTo ? mapApiMessageToMessage(apiMsg.replyTo) : null,
     isRevoked: apiMsg.isRevoked || false,
+    // _hiddenForMe: server đã xác nhận user này đã ẩn tin nhắn, dùng marker "__self__" trong revokedFor
+    revokedFor: apiMsg._hiddenForMe ? ["__self__"] : (apiMsg.revokedFor || []),
+    isForwarded: apiMsg.isForwarded || false,
     reactions: apiMsg.reactions || [],
   };
 }
@@ -72,6 +77,9 @@ export function mapApiConversationToConversation(
     avatarUrl:
       apiConv.avatarUrl ||
       (type === "class" ? `https://i.pravatar.cc/150?img=30` : null),
+    ownerId: apiConv.ownerId || null,
+    myRole: apiConv.myRole || null,
+    canManageGroup: apiConv.canManageGroup ?? apiConv.myRole === "owner",
   };
 }
 
@@ -204,6 +212,7 @@ export async function sendMessage(
   conversationId?: string,
   attachments?: Attachment[],
   replyToMessageId?: string,
+  isForwarded?: boolean,
 ): Promise<Message> {
   const data = await chatHttpService.post<{ data: ApiMessage }>("/messages", {
     receiverId,
@@ -211,6 +220,7 @@ export async function sendMessage(
     content,
     attachments,
     replyTo: replyToMessageId,
+    isForwarded,
   });
   return mapApiMessageToMessage(data.data);
 }
@@ -257,4 +267,83 @@ export async function fetchCallHistory(params?: {
     items: data.data,
     pagination: data.pagination,
   };
+}
+
+/**
+ * POST /api/conversations/group
+ * Tạo group chat mới, người tạo sẽ là owner.
+ */
+export async function createGroupConversation(payload: {
+  name: string;
+  participants: string[];
+  avatarUrl?: string;
+  metadata?: unknown;
+}): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    "/conversations/group",
+    payload,
+  );
+
+  return mapApiConversationToConversation(data.data, "");
+}
+
+/**
+ * GET /api/conversations/:conversationId/role
+ * Lấy role của user hiện tại trong group chat.
+ */
+export async function fetchConversationRole(conversationId: string): Promise<{
+  conversationId: string;
+  ownerId: string | null;
+  myRole: "owner" | "member" | null;
+  canManageGroup: boolean;
+}> {
+  const data = await chatHttpService.get<{
+    data: {
+      conversationId: string;
+      ownerId: string | null;
+      myRole: "owner" | "member" | null;
+      canManageGroup: boolean;
+    };
+  }>(`/conversations/${conversationId}/role`);
+
+  return data.data;
+}
+
+/**
+ * POST /api/conversations/:conversationId/members/:memberId/remove
+ * Owner xóa member khỏi nhóm.
+ */
+export async function removeGroupMember(
+  conversationId: string,
+  memberId: string,
+): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/members/${memberId}/remove`,
+  );
+
+  return mapApiConversationToConversation(data.data, memberId);
+}
+
+/**
+ * POST /api/conversations/:conversationId/dissolve
+ * Owner giải tán nhóm.
+ */
+export async function dissolveGroup(conversationId: string): Promise<void> {
+  await chatHttpService.post(`/conversations/${conversationId}/dissolve`, {});
+}
+
+/**
+ * POST /api/conversations/:conversationId/leave
+ * Rời group chat. Nếu là owner thì truyền newOwnerId để chuyển quyền trước.
+ */
+export async function leaveGroup(
+  conversationId: string,
+  newOwnerId?: string,
+): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/leave`,
+    newOwnerId ? { newOwnerId } : {},
+  );
+
+  return mapApiConversationToConversation(data.data, "");
 }
