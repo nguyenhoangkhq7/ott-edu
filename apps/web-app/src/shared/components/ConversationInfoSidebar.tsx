@@ -23,6 +23,19 @@ import {
 } from "lucide-react";
 import { chatApiClient } from "@/services/api";
 
+const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) && parsed.hostname !== "via.placeholder.com";
+  } catch {
+    return false;
+  }
+};
+
 interface Participant {
   _id: string;
   fullName: string;
@@ -66,6 +79,7 @@ interface ConversationInfoDTO {
   type: "private" | "class";
   ownerId: string | null;
   deputyId: string | null;
+  joinPolicy: "open" | "approval";
   participants: Participant[];
   totalMembers: number;
 }
@@ -314,6 +328,18 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
           <p className="text-xs text-gray-500 mt-1">
             {conversationInfo?.totalMembers || 0} thành viên
           </p>
+          {conversationInfo?.type === "class" && (
+            <div
+              className={`mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${conversationInfo.joinPolicy === "approval" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}
+            >
+              <Lock size={14} />
+              <span>
+                {conversationInfo.joinPolicy === "approval"
+                  ? "Riêng tư - cần duyệt"
+                  : "Công khai"}
+              </span>
+            </div>
+          )}
         </div>
         {deputyParticipant && (
           <div className="w-full rounded-xl bg-sky-50 px-3 py-2 text-left ring-1 ring-sky-100">
@@ -412,7 +438,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                     Trưởng nhóm
                   </div>
                   <div className="flex items-center gap-2 rounded-lg p-2 hover:bg-white transition">
-                    {ownerParticipant.avatarUrl ? (
+                    {isSafeAvatarUrl(ownerParticipant.avatarUrl) ? (
                       <Image
                         src={ownerParticipant.avatarUrl}
                         alt={ownerParticipant.fullName}
@@ -450,7 +476,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                       key={participant._id}
                       className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
                     >
-                      {participant.avatarUrl ? (
+                      {isSafeAvatarUrl(participant.avatarUrl) ? (
                         <Image
                           src={participant.avatarUrl}
                           alt={participant.fullName}

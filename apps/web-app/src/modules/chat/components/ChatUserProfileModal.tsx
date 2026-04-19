@@ -49,7 +49,7 @@ export function ChatUserProfileModal({ user, onClose }: ChatUserProfileModalProp
               )}
               <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
                 <BadgeInfo size={12} />
-                {user.isOnline ? "Đang hoạt động" : "Ngoại tuyến"}
+                {user.isOnline ? "Online" : "Ngoại tuyến"}
               </span>
             </div>
           </div>

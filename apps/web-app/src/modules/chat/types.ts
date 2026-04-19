@@ -62,8 +62,20 @@ export interface Conversation {
   avatarUrl: string | null;
   ownerId?: string | null;
   deputyId?: string | null;
+  joinPolicy?: "open" | "approval";
+  pendingMemberRequests?: PendingMemberRequest[];
   myRole?: "owner" | "deputy" | "member" | null;
   canManageGroup?: boolean;
+}
+
+export interface PendingMemberRequest {
+  _id: string;
+  targetUserId: string;
+  targetEmail: string;
+  targetName: string;
+  requestedById: string;
+  requestedByName: string;
+  createdAt?: string;
 }
 
 export type VideoCallStatus = "idle" | "calling" | "receiving" | "connected";
@@ -155,6 +167,8 @@ export interface ApiConversation {
   avatarUrl?: string;
   ownerId?: string | null;
   deputyId?: string | null;
+  joinPolicy?: "open" | "approval";
+  pendingMemberRequests?: PendingMemberRequest[];
   myRole?: "owner" | "deputy" | "member" | null;
   canManageGroup?: boolean;
   metadata?: unknown;

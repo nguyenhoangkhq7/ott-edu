@@ -2,8 +2,21 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { X, Trash2, ShieldCheck, Crown, UserMinus } from "lucide-react";
+import { X, Trash2, ShieldCheck, Crown, UserMinus, Mail, CheckCircle2, XCircle, LockKeyhole, Users } from "lucide-react";
 import { Conversation, User } from "../types";
+
+const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) && parsed.hostname !== "via.placeholder.com";
+  } catch {
+    return false;
+  }
+};
 
 interface ChatGroupManageModalProps {
   conversation: Conversation;
@@ -12,8 +25,22 @@ interface ChatGroupManageModalProps {
   onOpenProfile?: (user: User) => void;
   ownerUser?: User | null;
   deputyUser?: User | null;
+  joinPolicy: "open" | "approval";
+  pendingMemberRequests: Array<{
+    _id: string;
+    targetUserId: string;
+    targetEmail: string;
+    targetName: string;
+    requestedById: string;
+    requestedByName: string;
+    createdAt?: string;
+  }>;
   onRemoveMember: (memberId: string) => Promise<void>;
   onSetDeputy: (deputyId: string | null) => Promise<void>;
+  onUpdateJoinPolicy: (joinPolicy: "open" | "approval") => Promise<void>;
+  onInviteMember: (email: string) => Promise<"added" | "requested" | void>;
+  onApproveMemberRequest: (requestId: string) => Promise<void>;
+  onRejectMemberRequest: (requestId: string) => Promise<void>;
   onDissolveGroup: () => Promise<void>;
   onLeaveGroup: (newOwnerId?: string) => Promise<void>;
 }
@@ -25,8 +52,14 @@ export function ChatGroupManageModal({
   onOpenProfile,
   ownerUser,
   deputyUser,
+  joinPolicy,
+  pendingMemberRequests,
   onRemoveMember,
   onSetDeputy,
+  onUpdateJoinPolicy,
+  onInviteMember,
+  onApproveMemberRequest,
+  onRejectMemberRequest,
   onDissolveGroup,
   onLeaveGroup,
 }: ChatGroupManageModalProps) {
@@ -44,6 +77,8 @@ export function ChatGroupManageModal({
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [selectedNewOwnerId, setSelectedNewOwnerId] = useState<string>("");
   const [selectedDeputyId, setSelectedDeputyId] = useState<string>(conversation.deputyId || "");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [selectedJoinPolicy, setSelectedJoinPolicy] = useState<"open" | "approval">(joinPolicy);
 
   const handleRemoveMember = async (memberId: string, memberName: string) => {
     if (isSubmitting) return;
@@ -91,6 +126,53 @@ export function ChatGroupManageModal({
     } catch (error) {
       console.error("[ChatGroupManageModal] set deputy error:", error);
       setFeedback("Không thể cập nhật phó nhóm. Vui lòng thử lại.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateJoinPolicy = async () => {
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setFeedback(null);
+    try {
+      await onUpdateJoinPolicy(selectedJoinPolicy);
+      setFeedback(
+        selectedJoinPolicy === "approval"
+          ? "Đã chuyển nhóm sang chế độ riêng tư cần duyệt."
+          : "Đã chuyển nhóm sang chế độ công khai.",
+      );
+    } catch (error) {
+      console.error("[ChatGroupManageModal] update join policy error:", error);
+      setFeedback("Không thể cập nhật chế độ nhóm. Vui lòng thử lại.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInviteMember = async () => {
+    if (isSubmitting) return;
+
+    const email = inviteEmail.trim();
+    if (!email) {
+      setFeedback("Vui lòng nhập email thành viên cần mời.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+    try {
+      const mode = await onInviteMember(email);
+      setInviteEmail("");
+      setFeedback(
+        mode === "requested"
+          ? `Đã gửi yêu cầu duyệt cho ${email}.`
+          : `Đã thêm ${email} vào nhóm.`,
+      );
+    } catch (error) {
+      console.error("[ChatGroupManageModal] invite member error:", error);
+      setFeedback("Không thể mời thành viên. Vui lòng thử lại.");
     } finally {
       setIsSubmitting(false);
     }
@@ -261,6 +343,130 @@ export function ChatGroupManageModal({
                 >
                   Hủy
                 </button>
+              </div>
+            </div>
+          )}
+          <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
+              <LockKeyhole size={16} />
+              <span>Chế độ nhóm:</span>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs ${joinPolicy === "approval" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                {joinPolicy === "approval" ? "Riêng tư - cần duyệt" : "Công khai"}
+              </span>
+            </div>
+            {conversation.myRole === "owner" ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setSelectedJoinPolicy("open")}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedJoinPolicy === "open" ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+                >
+                  Công khai
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setSelectedJoinPolicy("approval")}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${selectedJoinPolicy === "approval" ? "border-amber-400 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
+                >
+                  Riêng tư
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmitting || selectedJoinPolicy === joinPolicy}
+                  onClick={() => void handleUpdateJoinPolicy()}
+                  className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Lưu chế độ
+                </button>
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-slate-500">
+                Chủ nhóm quản lý chế độ công khai / riêng tư.
+              </p>
+            )}
+          </div>
+          <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
+              <Mail size={16} />
+              <span>Mời thành viên</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Nếu nhóm ở chế độ riêng tư, lời mời sẽ vào danh sách chờ duyệt.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                placeholder="Nhập email thành viên"
+                disabled={isSubmitting}
+                className="min-w-0 flex-1 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm outline-none ring-0 placeholder:text-slate-400 focus:border-sky-400"
+              />
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => void handleInviteMember()}
+                className="rounded-full bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+              >
+                Mời
+              </button>
+            </div>
+          </div>
+          {(conversation.myRole === "owner" || conversation.myRole === "deputy") && (
+            <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                <Users size={16} />
+                <span>Yêu cầu chờ duyệt</span>
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">
+                  {pendingMemberRequests.length}
+                </span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {pendingMemberRequests.length > 0 ? (
+                  pendingMemberRequests.map((request) => (
+                    <div key={request._id} className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-900">
+                            {request.targetName}
+                          </p>
+                          <p className="truncate text-xs text-slate-500">
+                            {request.targetEmail}
+                          </p>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            Yêu cầu bởi {request.requestedByName}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => void onApproveMemberRequest(request._id)}
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            <CheckCircle2 size={14} />
+                            Duyệt
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={() => void onRejectMemberRequest(request._id)}
+                            className="inline-flex items-center gap-1 rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            <XCircle size={14} />
+                            Từ chối
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                    Chưa có yêu cầu nào đang chờ duyệt.
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -446,13 +652,19 @@ export function ChatGroupManageModal({
                       className="shrink-0 rounded-full ring-2 ring-transparent transition hover:ring-sky-200 focus:outline-none focus:ring-sky-300"
                       aria-label={`Xem thông tin ${participant.name}`}
                     >
-                      <Image
-                        src={participant.avatarUrl}
-                        alt={participant.name}
-                        width={40}
-                        height={40}
-                        className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
-                      />
+                      {isSafeAvatarUrl(participant.avatarUrl) ? (
+                        <Image
+                          src={participant.avatarUrl}
+                          alt={participant.name}
+                          width={40}
+                          height={40}
+                          className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-purple-600 text-sm font-semibold text-white ring-1 ring-slate-200">
+                          {(participant.name || "U").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </button>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">

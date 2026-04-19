@@ -26,6 +26,10 @@ import {
   leaveGroup,
   setGroupDeputy,
   removeGroupMember,
+  updateGroupJoinPolicy,
+  requestOrAddGroupMember,
+  approveGroupMemberRequest,
+  rejectGroupMemberRequest,
   sendMessage,
   mapApiMessageToMessage,
 } from "../chatApi";
@@ -371,6 +375,48 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setShowGroupManageModal(false);
   }, [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar]);
 
+  const handleUpdateJoinPolicy = useCallback(
+    async (joinPolicy: "open" | "approval") => {
+      if (!activeConversationId) return;
+      await updateGroupJoinPolicy(activeConversationId, joinPolicy);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleInviteGroupMember = useCallback(
+    async (email: string) => {
+      if (!activeConversationId) return;
+      const result = await requestOrAddGroupMember(activeConversationId, { email });
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      return result.mode;
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleApproveGroupMemberRequest = useCallback(
+    async (requestId: string) => {
+      if (!activeConversationId) return;
+      await approveGroupMemberRequest(activeConversationId, requestId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleRejectGroupMemberRequest = useCallback(
+    async (requestId: string) => {
+      if (!activeConversationId) return;
+      await rejectGroupMemberRequest(activeConversationId, requestId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
   const handleSetGroupDeputy = useCallback(
     async (deputyId: string | null) => {
       if (!activeConversationId) return;
@@ -421,6 +467,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
                 ...conversation,
                 ownerId: roleData.ownerId,
                 deputyId: roleData.deputyId,
+                joinPolicy: roleData.joinPolicy,
                 myRole: roleData.myRole,
                 canManageGroup: roleData.canManageGroup,
               }
@@ -867,8 +914,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           onOpenProfile={setProfileTarget}
           ownerUser={groupOwnerTarget}
           deputyUser={groupDeputyTarget}
+          joinPolicy={activeConversation.joinPolicy || "open"}
+          pendingMemberRequests={activeConversation.pendingMemberRequests || []}
           onRemoveMember={handleRemoveGroupMember}
           onSetDeputy={handleSetGroupDeputy}
+          onUpdateJoinPolicy={handleUpdateJoinPolicy}
+          onInviteMember={handleInviteGroupMember}
+          onApproveMemberRequest={handleApproveGroupMemberRequest}
+          onRejectMemberRequest={handleRejectGroupMemberRequest}
           onDissolveGroup={handleDissolveGroup}
           onLeaveGroup={handleLeaveGroup}
         />

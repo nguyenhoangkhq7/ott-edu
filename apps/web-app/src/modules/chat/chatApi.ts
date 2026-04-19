@@ -79,6 +79,8 @@ export function mapApiConversationToConversation(
       (type === "class" ? `https://i.pravatar.cc/150?img=30` : null),
     ownerId: apiConv.ownerId || null,
     deputyId: apiConv.deputyId || null,
+    joinPolicy: apiConv.joinPolicy || "open",
+    pendingMemberRequests: apiConv.pendingMemberRequests || [],
     myRole: apiConv.myRole || null,
     canManageGroup:
       apiConv.canManageGroup ??
@@ -281,10 +283,64 @@ export async function createGroupConversation(payload: {
   participants: string[];
   avatarUrl?: string;
   metadata?: unknown;
+  joinPolicy?: "open" | "approval";
 }): Promise<Conversation> {
   const data = await chatHttpService.post<{ data: ApiConversation }>(
     "/conversations/group",
     payload,
+  );
+
+  return mapApiConversationToConversation(data.data, "");
+}
+
+export async function updateGroupJoinPolicy(
+  conversationId: string,
+  joinPolicy: "open" | "approval",
+): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/join-policy`,
+    { joinPolicy },
+  );
+
+  return mapApiConversationToConversation(data.data, "");
+}
+
+export async function requestOrAddGroupMember(
+  conversationId: string,
+  payload: { email?: string; accountId?: string },
+): Promise<{
+  conversation: Conversation;
+  mode: "added" | "requested";
+}> {
+  const data = await chatHttpService.post<{
+    data: { conversation: ApiConversation; mode: "added" | "requested" };
+  }>(`/conversations/${conversationId}/members`, payload);
+
+  return {
+    conversation: mapApiConversationToConversation(data.data.conversation, ""),
+    mode: data.data.mode,
+  };
+}
+
+export async function approveGroupMemberRequest(
+  conversationId: string,
+  requestId: string,
+): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/member-requests/${requestId}/approve`,
+    {},
+  );
+
+  return mapApiConversationToConversation(data.data, "");
+}
+
+export async function rejectGroupMemberRequest(
+  conversationId: string,
+  requestId: string,
+): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/member-requests/${requestId}/reject`,
+    {},
   );
 
   return mapApiConversationToConversation(data.data, "");
@@ -298,6 +354,7 @@ export async function fetchConversationRole(conversationId: string): Promise<{
   conversationId: string;
   ownerId: string | null;
   deputyId: string | null;
+  joinPolicy: "open" | "approval";
   myRole: "owner" | "deputy" | "member" | null;
   canManageGroup: boolean;
 }> {
@@ -306,6 +363,7 @@ export async function fetchConversationRole(conversationId: string): Promise<{
       conversationId: string;
       ownerId: string | null;
       deputyId: string | null;
+      joinPolicy: "open" | "approval";
       myRole: "owner" | "deputy" | "member" | null;
       canManageGroup: boolean;
     };
