@@ -637,19 +637,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             >
               <Info size={20} />
             </button>
-
-            {/* Group Manage Button (chỉ hiện với class/group) */}
-            {conversation.type === "class" && onOpenGroupManage && (
-              <button
-                type="button"
-                onClick={onOpenGroupManage}
-                className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
-                title="Quản lý nhóm"
-              >
-                <Info size={20} />{" "}
-                {/* Bạn có thể thay bằng icon khác nếu muốn */}
-              </button>
-            )}
           </div>
         </div>
 
@@ -742,6 +729,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           conversationId={conversation.id}
           isOpen={isInfoSidebarOpen}
           onClose={() => setIsInfoSidebarOpen(false)}
+          onOpenGroupManage={onOpenGroupManage}
+          conversationType={conversation.type}
         />
       )}
     </div>

@@ -72,6 +72,8 @@ interface ConversationInfoSidebarProps {
   conversationId: string;
   isOpen: boolean;
   onClose: () => void;
+  onOpenGroupManage?: () => void;
+  conversationType?: "private" | "class";
 }
 
 // ===================== UTILITY FUNCTIONS =====================
@@ -135,6 +137,9 @@ const Accordion: React.FC<AccordionProps> = ({
 const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   conversationId,
   isOpen,
+  onClose,
+  onOpenGroupManage,
+  conversationType,
 }) => {
   const [conversationInfo, setConversationInfo] =
     useState<ConversationInfoDTO | null>(null);
@@ -338,13 +343,22 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
               <UserPlus size={16} className="text-gray-600" />
               <span className="text-xs text-gray-700">Thêm thành viên</span>
             </button>
-            <button
-              className="flex flex-col items-center gap-1 p-2 hover:bg-gray-200 rounded-lg transition"
-              title="Quản lý nhóm"
-            >
-              <Settings size={16} className="text-gray-600" />
-              <span className="text-xs text-gray-700">Quản lý</span>
-            </button>
+            {conversationType === "class" && onOpenGroupManage && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenGroupManage();
+                  onClose?.();
+                }}
+                className="flex flex-col items-center gap-1 p-2 hover:bg-blue-200 rounded-lg transition text-blue-600"
+                title="Quản lý nhóm"
+              >
+                <Settings size={16} className="text-blue-600" />
+                <span className="text-xs text-blue-600 font-medium">
+                  Quản lý
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Members Accordion */}
@@ -511,6 +525,23 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             onToggle={() => toggleAccordion("settings")}
           >
             <div className="space-y-1">
+              {conversationType === "class" && onOpenGroupManage && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenGroupManage();
+                      onClose?.();
+                    }}
+                    className="w-full flex items-center gap-2 p-2 hover:bg-blue-50 rounded transition text-left text-xs text-blue-600 font-medium border-b border-gray-200 mb-2 pb-2"
+                  >
+                    <span className="text-blue-600 flex-shrink-0">
+                      <Settings size={12} />
+                    </span>
+                    <span>Quản lý nhóm</span>
+                  </button>
+                </>
+              )}
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
                 <span className="text-gray-600 flex-shrink-0">
                   <Lock size={12} />
