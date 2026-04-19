@@ -47,6 +47,8 @@ mkcert -CAROOT
 
 Copy rootCA.pem from that directory to other laptop and import into Trusted Root Certification Authorities.
 
+Import-Certificate -FilePath "C:\Users\Admin\AppData\Local\mkcert\rootCA.pem" -CertStoreLocation "Cert:\LocalMachine\Root"
+
 Notes:
 - This setup is for local development only.
 - Do not commit private keys.
