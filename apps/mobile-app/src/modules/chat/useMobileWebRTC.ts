@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
-import {
+import type {
   MediaStream,
   RTCIceCandidate,
   RTCPeerConnection,
   RTCSessionDescription,
-  mediaDevices,
 } from "react-native-webrtc";
 import type {
   ActiveVideoCall,
@@ -68,6 +67,7 @@ type UseMobileWebRTCParams = {
 };
 
 type UseMobileWebRTCReturn = {
+  isWebRTCSupported: boolean;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   localStreamUrl: string | null;
@@ -106,9 +106,67 @@ type MutablePeerConnection = RTCPeerConnection & {
   onconnectionstatechange: (() => void) | null;
 };
 
-const RTC_CONFIGURATION = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+type IceServerConfig = {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
 };
+
+function resolveIceServers(): IceServerConfig[] {
+  const fallback: IceServerConfig[] = [{ urls: "stun:stun.l.google.com:19302" }];
+  const raw = process.env.EXPO_PUBLIC_WEBRTC_ICE_SERVERS?.trim();
+
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return fallback;
+    }
+
+    const normalized = parsed.filter(
+      (item): item is IceServerConfig =>
+        typeof item === "object" &&
+        item !== null &&
+        "urls" in item &&
+        (typeof (item as { urls?: unknown }).urls === "string" ||
+          Array.isArray((item as { urls?: unknown }).urls)),
+    );
+
+    return normalized.length > 0 ? normalized : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+const RTC_CONFIGURATION = {
+  iceServers: resolveIceServers(),
+};
+
+type WebRtcModule = typeof import("react-native-webrtc");
+
+const ENABLE_WEBRTC = process.env.EXPO_PUBLIC_ENABLE_WEBRTC === "true";
+
+function loadWebRtcModule(): WebRtcModule | null {
+  if (!ENABLE_WEBRTC) {
+    return null;
+  }
+
+  try {
+    // Expo Go does not bundle react-native-webrtc native module.
+    return require("react-native-webrtc") as WebRtcModule;
+  } catch {
+    return null;
+  }
+}
+
+function createWebRtcUnavailableError(): Error {
+  return new Error(
+    "Tinh nang goi video can Expo Development Build (khong ho tro Expo Go).",
+  );
+}
 
 function toFriendlyUnavailableReason(reason?: string): string {
   switch (reason) {
@@ -130,6 +188,8 @@ function toFriendlyEndedReason(reason?: string): string | null {
       return "Doi phuong da tu choi cuoc goi.";
     case "callee-busy":
       return "Doi phuong dang ban.";
+    case "no-answer":
+      return "Doi phuong chua chap nhan cuoc goi.";
     default:
       return null;
   }
@@ -165,6 +225,8 @@ export function useMobileWebRTC({
   socket,
   currentUserId,
 }: UseMobileWebRTCParams): UseMobileWebRTCReturn {
+  const webRtcModuleRef = useRef<WebRtcModule | null>(null);
+
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [localStreamUrl, setLocalStreamUrl] = useState<string | null>(null);
@@ -189,6 +251,21 @@ export function useMobileWebRTC({
   const pendingIceCandidatesRef = useRef<Map<string, IceCandidatePayload[]>>(
     new Map(),
   );
+
+  const getWebRtcModule = useCallback((): WebRtcModule | null => {
+    if (!ENABLE_WEBRTC) {
+      return null;
+    }
+
+    if (webRtcModuleRef.current) {
+      return webRtcModuleRef.current;
+    }
+
+    webRtcModuleRef.current = loadWebRtcModule();
+    return webRtcModuleRef.current;
+  }, []);
+
+  const isWebRTCSupported = ENABLE_WEBRTC && Boolean(getWebRtcModule());
 
   useEffect(() => {
     socketRef.current = socket;
@@ -238,6 +315,11 @@ export function useMobileWebRTC({
 
   const flushQueuedIceCandidates = useCallback(
     async (callId: string, peerConnection: RTCPeerConnection) => {
+      const webRtcModule = getWebRtcModule();
+      if (!webRtcModule) {
+        return;
+      }
+
       const queued = pendingIceCandidatesRef.current.get(callId);
       if (!queued || queued.length === 0) {
         return;
@@ -245,7 +327,9 @@ export function useMobileWebRTC({
 
       for (const candidate of queued) {
         try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          await peerConnection.addIceCandidate(
+            new webRtcModule.RTCIceCandidate(candidate),
+          );
         } catch (error) {
           console.error("[useMobileWebRTC] addIceCandidate error:", error);
         }
@@ -253,7 +337,7 @@ export function useMobileWebRTC({
 
       pendingIceCandidatesRef.current.delete(callId);
     },
-    [],
+    [getWebRtcModule],
   );
 
   const resetPeerConnection = useCallback(() => {
@@ -302,12 +386,17 @@ export function useMobileWebRTC({
   );
 
   const ensureLocalStream = useCallback(async (): Promise<MediaStream> => {
+    const webRtcModule = getWebRtcModule();
+    if (!webRtcModule) {
+      throw createWebRtcUnavailableError();
+    }
+
     const existingStream = localStreamRef.current;
     if (existingStream) {
       return existingStream;
     }
 
-    const stream = await mediaDevices.getUserMedia({
+    const stream = await webRtcModule.mediaDevices.getUserMedia({
       audio: true,
       video: {
         facingMode: "user",
@@ -319,7 +408,7 @@ export function useMobileWebRTC({
     setIsMicrophoneEnabled(stream.getAudioTracks().some((track) => track.enabled));
     setIsCameraEnabled(stream.getVideoTracks().some((track) => track.enabled));
     return stream;
-  }, []);
+  }, [getWebRtcModule]);
 
   const toggleMicrophone = useCallback(() => {
     const stream = localStreamRef.current;
@@ -376,7 +465,12 @@ export function useMobileWebRTC({
   }, []);
 
   const createPeerConnection = useCallback((call: ActiveVideoCall) => {
-    const peerConnection = new RTCPeerConnection(RTC_CONFIGURATION);
+    const webRtcModule = getWebRtcModule();
+    if (!webRtcModule) {
+      throw createWebRtcUnavailableError();
+    }
+
+    const peerConnection = new webRtcModule.RTCPeerConnection(RTC_CONFIGURATION);
     const mutablePeerConnection = peerConnection as MutablePeerConnection;
     const stream = localStreamRef.current;
 
@@ -430,7 +524,7 @@ export function useMobileWebRTC({
 
     peerConnectionRef.current = peerConnection;
     return peerConnection;
-  }, []);
+  }, [getWebRtcModule]);
 
   const applyIncomingOfferAndAnswer = useCallback(
     async (payload: WebRtcOfferPayload) => {
@@ -444,7 +538,14 @@ export function useMobileWebRTC({
         peerConnection = createPeerConnection(currentCall);
       }
 
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+      const webRtcModule = getWebRtcModule();
+      if (!webRtcModule) {
+        throw createWebRtcUnavailableError();
+      }
+
+      await peerConnection.setRemoteDescription(
+        new webRtcModule.RTCSessionDescription(payload.offer),
+      );
       await flushQueuedIceCandidates(payload.callId, peerConnection);
 
       const answer = await peerConnection.createAnswer();
@@ -458,7 +559,7 @@ export function useMobileWebRTC({
 
       setCallStatus("connected");
     },
-    [createPeerConnection, flushQueuedIceCandidates],
+    [createPeerConnection, flushQueuedIceCandidates, getWebRtcModule],
   );
 
   const startVideoCall = useCallback(
@@ -551,11 +652,16 @@ export function useMobileWebRTC({
 
   const endVideoCall = useCallback(
     (reason = "ended") => {
+      const safeReason =
+        typeof reason === "string" && reason.trim().length > 0
+          ? reason
+          : "ended";
+
       const currentCall = activeCallRef.current;
       if (currentCall && socketRef.current) {
         socketRef.current.emit("endVideoCall", {
           callId: currentCall.callId,
-          reason,
+          reason: safeReason,
         });
       }
 
@@ -571,6 +677,15 @@ export function useMobileWebRTC({
 
     const handleIncomingVideoCall = (payload: IncomingVideoCall) => {
       if (payload.toUserId && payload.toUserId !== currentUserId) {
+        return;
+      }
+
+      if (!getWebRtcModule()) {
+        setCallError(createWebRtcUnavailableError().message);
+        socket.emit("endVideoCall", {
+          callId: payload.callId,
+          reason: "accept-failed",
+        });
         return;
       }
 
@@ -677,7 +792,14 @@ export function useMobileWebRTC({
       }
 
       try {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+        const webRtcModule = getWebRtcModule();
+        if (!webRtcModule) {
+          throw createWebRtcUnavailableError();
+        }
+
+        await peerConnection.setRemoteDescription(
+          new webRtcModule.RTCSessionDescription(payload.answer),
+        );
         await flushQueuedIceCandidates(payload.callId, peerConnection);
         setCallStatus("connected");
       } catch (error) {
@@ -710,7 +832,14 @@ export function useMobileWebRTC({
       }
 
       try {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        const webRtcModule = getWebRtcModule();
+        if (!webRtcModule) {
+          return;
+        }
+
+        await peerConnection.addIceCandidate(
+          new webRtcModule.RTCIceCandidate(candidate),
+        );
       } catch (error) {
         console.error("[useMobileWebRTC] addIceCandidate failed:", error);
       }
@@ -798,6 +927,7 @@ export function useMobileWebRTC({
     queueIceCandidate,
     resetCallState,
     socket,
+    getWebRtcModule,
   ]);
 
   useEffect(() => {
@@ -814,7 +944,38 @@ export function useMobileWebRTC({
     };
   }, [resetCallState]);
 
+  useEffect(() => {
+    if (
+      !activeCall ||
+      activeCall.direction !== "outgoing" ||
+      callStatus !== "calling" ||
+      Boolean(remoteStream)
+    ) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      const latestActiveCall = activeCallRef.current;
+      if (!latestActiveCall || latestActiveCall.callId !== activeCall.callId) {
+        return;
+      }
+
+      socketRef.current?.emit("endVideoCall", {
+        callId: activeCall.callId,
+        reason: "no-answer",
+      });
+
+      setCallError("Doi phuong chua chap nhan cuoc goi.");
+      resetCallState({ preserveError: true });
+    }, 20000);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [activeCall, callStatus, remoteStream, resetCallState]);
+
   return {
+    isWebRTCSupported,
     localStream,
     remoteStream,
     localStreamUrl,

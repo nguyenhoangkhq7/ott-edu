@@ -80,8 +80,37 @@ type UseWebRTCReturn = {
   clearCallError: () => void;
 };
 
+function resolveIceServers(): RTCIceServer[] {
+  const fallback: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+  const raw = process.env.NEXT_PUBLIC_WEBRTC_ICE_SERVERS?.trim();
+
+  if (!raw) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return fallback;
+    }
+
+    const normalized = parsed.filter(
+      (item): item is RTCIceServer =>
+        typeof item === "object" &&
+        item !== null &&
+        "urls" in item &&
+        (typeof (item as { urls?: unknown }).urls === "string" ||
+          Array.isArray((item as { urls?: unknown }).urls)),
+    );
+
+    return normalized.length > 0 ? normalized : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 const RTC_CONFIGURATION: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: resolveIceServers(),
 };
 
 function toFriendlyUnavailableReason(reason?: string): string {

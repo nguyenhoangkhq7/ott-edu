@@ -4,13 +4,12 @@ import {
   FlatList,
   Modal,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { io, type Socket } from "socket.io-client";
-import { RTCView } from "react-native-webrtc";
 import { useAuth } from "../auth/AuthProvider";
 import { CHAT_SERVICE_URL } from "./chat.config";
 import { fetchConversations, fetchCurrentChatUser } from "./chat.service";
@@ -31,6 +30,7 @@ function toCallStatusLabel(status: "idle" | "calling" | "receiving" | "connected
 }
 
 export default function ChatScreen() {
+  const isWebRTCFeatureEnabled = process.env.EXPO_PUBLIC_ENABLE_WEBRTC === "true";
   const { user } = useAuth();
   const [chatUser, setChatUser] = useState<ChatUser | null>(null);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
@@ -51,6 +51,7 @@ export default function ChatScreen() {
   }, [user?.code, user?.email]);
 
   const {
+    isWebRTCSupported,
     localStreamUrl,
     remoteStreamUrl,
     callStatus,
@@ -72,6 +73,23 @@ export default function ChatScreen() {
     socket,
     currentUserId: chatUser?.id || "",
   });
+
+  const RTCViewComponent = useMemo(() => {
+    if (!isWebRTCFeatureEnabled || !isWebRTCSupported) {
+      return null;
+    }
+
+    try {
+      return require("react-native-webrtc").RTCView as React.ComponentType<{
+        streamURL: string;
+        objectFit?: "cover" | "contain";
+        mirror?: boolean;
+        style?: unknown;
+      }>;
+    } catch {
+      return null;
+    }
+  }, [isWebRTCFeatureEnabled, isWebRTCSupported]);
 
   const privateConversations = useMemo(
     () => conversations.filter((conversation) => conversation.type === "private"),
@@ -220,7 +238,10 @@ export default function ChatScreen() {
     return "Nguoi dung";
   }, [incomingCall, privateConversations]);
 
-  const canStartVideoCall = Boolean(activeConversation && activePeer) && callStatus === "idle";
+  const canStartVideoCall =
+    isWebRTCSupported &&
+    Boolean(activeConversation && activePeer) &&
+    callStatus === "idle";
 
   const handleStartVideoCall = useCallback(async () => {
     if (!activeConversation || !activePeer) {
@@ -384,7 +405,9 @@ export default function ChatScreen() {
         </View>
 
         <Text style={styles.permissionHint}>
-          Luu y: Goi video can Expo Development Build (khong ho tro Expo Go).
+          {isWebRTCSupported
+            ? "Luu y: Goi video can Expo Development Build (khong ho tro Expo Go)."
+            : "Ban dang test Expo Go. Goi video (WebRTC) dang tat tam thoi, chi test chat/mobile flow."}
         </Text>
       </View>
 
@@ -394,11 +417,17 @@ export default function ChatScreen() {
           <View style={styles.videoGrid}>
             <View style={styles.videoPane}>
               {remoteStreamUrl ? (
-                <RTCView
-                  streamURL={remoteStreamUrl}
-                  objectFit="cover"
-                  style={styles.videoView}
-                />
+                RTCViewComponent ? (
+                  <RTCViewComponent
+                    streamURL={remoteStreamUrl}
+                    objectFit="cover"
+                    style={styles.videoView}
+                  />
+                ) : (
+                  <View style={styles.videoPlaceholder}>
+                    <Text style={styles.videoPlaceholderText}>WebRTC chua san sang tren runtime hien tai</Text>
+                  </View>
+                )
               ) : (
                 <View style={styles.videoPlaceholder}>
                   <Text style={styles.videoPlaceholderText}>Dang cho video doi phuong</Text>
@@ -408,12 +437,18 @@ export default function ChatScreen() {
 
             <View style={styles.videoPane}>
               {localStreamUrl ? (
-                <RTCView
-                  streamURL={localStreamUrl}
-                  objectFit="cover"
-                  mirror
-                  style={styles.videoView}
-                />
+                RTCViewComponent ? (
+                  <RTCViewComponent
+                    streamURL={localStreamUrl}
+                    objectFit="cover"
+                    mirror
+                    style={styles.videoView}
+                  />
+                ) : (
+                  <View style={styles.videoPlaceholder}>
+                    <Text style={styles.videoPlaceholderText}>WebRTC chua san sang tren runtime hien tai</Text>
+                  </View>
+                )
               ) : (
                 <View style={styles.videoPlaceholder}>
                   <Text style={styles.videoPlaceholderText}>Dang mo camera cua ban</Text>
