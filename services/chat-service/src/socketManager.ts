@@ -256,7 +256,7 @@ class SocketManager {
       dataKey: "offer" | "answer" | "candidate";
       dataValue: unknown;
     },
-  ): void {
+  ): boolean {
     const { callId, toUserId, dataKey, dataValue } = payload;
     const session = this.callSessions.get(callId);
 
@@ -266,7 +266,7 @@ class SocketManager {
         message: "Video call session not found.",
         callId,
       });
-      return;
+      return false;
     }
 
     if (!this.isSessionParticipant(session, fromUserId)) {
@@ -275,7 +275,7 @@ class SocketManager {
         message: "You are not a participant of this call.",
         callId,
       });
-      return;
+      return false;
     }
 
     const peerUserId = this.getPeerId(session, fromUserId);
@@ -285,7 +285,7 @@ class SocketManager {
         message: "Peer user is unavailable for this call.",
         callId,
       });
-      return;
+      return false;
     }
 
     if (toUserId && toUserId !== peerUserId) {
@@ -294,7 +294,7 @@ class SocketManager {
         message: "Signal target does not match current call session.",
         callId,
       });
-      return;
+      return false;
     }
 
     const emitted = this.emitToUser(peerUserId, eventName, {
@@ -312,7 +312,10 @@ class SocketManager {
         reason: "peer-offline",
       });
       this.endCallSession(callId, fromUserId, "peer-offline", false);
+      return false;
     }
+
+    return true;
   }
 
   public init(io: Server) {
@@ -519,21 +522,23 @@ class SocketManager {
           return;
         }
 
-        const session = this.callSessions.get(callId);
-        if (session) {
-          session.status = "connected";
-          session.connectedAt = Date.now();
-          void this.markCallConnected(callId, session.connectedAt);
-        }
-
-        this.relayWebRtcPayload(socket, userId, "webrtcAnswer", {
+        const relayed = this.relayWebRtcPayload(socket, userId, "webrtcAnswer", {
           callId,
           ...(data?.toUserId ? { toUserId: data.toUserId } : {}),
           dataKey: "answer",
           dataValue: data.answer,
         });
 
-        if (session && this.isSessionParticipant(session, userId)) {
+        const session = this.callSessions.get(callId);
+        if (!relayed || !session) {
+          return;
+        }
+
+        session.status = "connected";
+        session.connectedAt = Date.now();
+        void this.markCallConnected(callId, session.connectedAt);
+
+        if (this.isSessionParticipant(session, userId)) {
           const peerUserId = this.getPeerId(session, userId);
           socket.emit("videoCallConnected", {
             callId,

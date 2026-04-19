@@ -862,6 +862,8 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       };
 
       peerConnection.onconnectionstatechange = () => {
+        console.debug("[useWebRTC] Peer connection state:", peerConnection.connectionState);
+
         if (peerConnection.connectionState === "connected") {
           setCallStatus("connected");
           setCallError(null);
@@ -869,6 +871,10 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
 
         if (peerConnection.connectionState === "failed") {
           setCallError("Ket noi WebRTC that bai. Vui long thu lai.");
+        }
+
+        if (peerConnection.connectionState === "disconnected") {
+          setCallError("Ket noi tam thoi bi gian doan.");
         }
       };
 
@@ -879,8 +885,8 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
   );
 
   const applyIncomingOfferAndAnswer = useCallback(
-    async (payload: WebRtcOfferPayload) => {
-      const currentCall = activeCallRef.current;
+    async (payload: WebRtcOfferPayload, callOverride?: ActiveVideoCall) => {
+      const currentCall = callOverride || activeCallRef.current;
       if (!currentCall || currentCall.callId !== payload.callId) {
         return;
       }
@@ -901,8 +907,6 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
         toUserId: payload.fromUserId,
         answer,
       });
-
-      setCallStatus("connected");
     },
     [createPeerConnection, flushQueuedIceCandidates],
   );
@@ -966,7 +970,7 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       const pendingOffer = pendingOfferRef.current;
       if (pendingOffer && pendingOffer.callId === call.callId) {
         pendingOfferRef.current = null;
-        await applyIncomingOfferAndAnswer(pendingOffer);
+        await applyIncomingOfferAndAnswer(pendingOffer, nextActiveCall);
       }
     } catch (error) {
       const message = toFriendlyMediaError(error);
@@ -1137,7 +1141,6 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
           new RTCSessionDescription(payload.answer),
         );
         await flushQueuedIceCandidates(payload.callId, peerConnection);
-        setCallStatus("connected");
       } catch (error) {
         console.error("[useWebRTC] Failed to set remote answer:", error);
         setCallError("Khong the thiet lap ket noi voi doi phuong.");

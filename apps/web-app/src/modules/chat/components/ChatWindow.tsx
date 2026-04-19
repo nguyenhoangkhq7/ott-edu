@@ -186,14 +186,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       return;
     }
 
+    if (remoteStream.getVideoTracks().length === 0) {
+      console.warn("[ChatWindow] Remote stream has no video track.");
+      return;
+    }
+
     const playRemoteVideo = () => {
       void remoteVideoElement.play().catch((error) => {
         console.debug("[ChatWindow] Remote video autoplay blocked:", error);
       });
     };
 
-    remoteVideoElement.onloadedmetadata = playRemoteVideo;
-    playRemoteVideo();
+    if (remoteVideoElement.readyState >= 1) {
+      playRemoteVideo();
+    } else {
+      remoteVideoElement.onloadedmetadata = playRemoteVideo;
+    }
 
     return () => {
       remoteVideoElement.onloadedmetadata = null;

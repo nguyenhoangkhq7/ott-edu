@@ -79,6 +79,8 @@ lerna-debug.log*
 # Local TLS certs
 gateway/certs/*.crt
 gateway/certs/*.pem
+gateway/certs/*.key
+!gateway/certs/README.md
 
 # Misc
 .cache/

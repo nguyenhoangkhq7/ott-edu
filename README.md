@@ -157,11 +157,16 @@ The mobile app is **not** in Docker to allow for easier device testing/emulation
 | Component      | URL / Port                        | Description                     |
 | :------------- | :-------------------------------- | :------------------------------ |
 | **Gateway**    | `http://localhost:8000`           | Unified entry point.            |
+| **Gateway TLS**| `https://<LAN-IP>:8443`           | Secure context for WebRTC camera on LAN clients. |
 | **Web App**    | `http://localhost:8000`           | Accessible via Gateway.         |
 | **Mobile App** | `exp://<your-ip>:8081`            | Access via Expo Go or Emulator. |
 | **Core API**   | `http://localhost:8000/api/core/` | Spring Boot Swagger/API.        |
 | **Chat API**   | `http://localhost:8000/api/chat/` | Chat Service API.               |
 | **Socket.io**  | `ws://localhost:8000`             | Path: `/socket.io/`             |
+
+For LAN video call testing from other laptops, prefer HTTPS via gateway TLS endpoint so browser camera permission is available in secure context.
+
+See [gateway/certs/README.md](gateway/certs/README.md) for mkcert setup and trust steps.
 
 ---
 
