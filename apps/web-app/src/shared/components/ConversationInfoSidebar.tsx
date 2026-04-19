@@ -64,6 +64,8 @@ interface ConversationInfoDTO {
   name: string;
   avatarUrl: string;
   type: "private" | "class";
+  ownerId: string | null;
+  deputyId: string | null;
   participants: Participant[];
   totalMembers: number;
 }
@@ -74,6 +76,7 @@ interface ConversationInfoSidebarProps {
   onClose: () => void;
   onOpenGroupManage?: () => void;
   conversationType?: "private" | "class";
+  refreshSignal?: number;
 }
 
 // ===================== UTILITY FUNCTIONS =====================
@@ -88,6 +91,16 @@ const formatFileSize = (bytes: number): string => {
 
 const getFileExtension = (fileName: string): string => {
   return fileName.split(".").pop()?.toUpperCase() || "FILE";
+};
+
+const getParticipantRoleLabel = (
+  ownerId: string | null | undefined,
+  deputyId: string | null | undefined,
+  participantId: string,
+): string => {
+  if (ownerId && ownerId === participantId) return "Trưởng nhóm";
+  if (deputyId && deputyId === participantId) return "Phó nhóm";
+  return "Thành viên";
 };
 
 // ===================== ACCORDION COMPONENT =====================
@@ -140,6 +153,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   onClose,
   onOpenGroupManage,
   conversationType,
+  refreshSignal,
 }) => {
   const [conversationInfo, setConversationInfo] =
     useState<ConversationInfoDTO | null>(null);
@@ -148,6 +162,16 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   const [linkItems, setLinkItems] = useState<LinkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const ownerParticipant = conversationInfo?.participants?.find(
+    (participant) => participant._id === conversationInfo?.ownerId,
+  );
+  const memberParticipants = conversationInfo?.participants?.filter(
+    (participant) => participant._id !== conversationInfo?.ownerId,
+  );
+  const deputyParticipant = conversationInfo?.participants?.find(
+    (participant) => participant._id === conversationInfo?.deputyId,
+  );
 
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>(
     {
@@ -252,6 +276,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   }, [
     isOpen,
     conversationId,
+    refreshSignal,
     fetchConversationInfo,
     fetchMediaItems,
     fetchFileItems,
@@ -276,7 +301,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
           />
         ) : (
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center">
             <span className="text-white font-semibold text-lg">
               {conversationInfo?.name?.charAt(0)?.toUpperCase() || "C"}
             </span>
@@ -290,6 +315,16 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             {conversationInfo?.totalMembers || 0} thành viên
           </p>
         </div>
+        {deputyParticipant && (
+          <div className="w-full rounded-xl bg-sky-50 px-3 py-2 text-left ring-1 ring-sky-100">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-sky-700">
+              Phó nhóm
+            </p>
+            <p className="truncate text-xs font-medium text-slate-900">
+              {deputyParticipant.fullName}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Loading State */}
@@ -369,34 +404,83 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             onToggle={() => toggleAccordion("members")}
             count={conversationInfo?.totalMembers}
           >
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {conversationInfo?.participants?.map((participant) => (
-                <div
-                  key={participant._id}
-                  className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
-                >
-                  {participant.avatarUrl ? (
-                    <Image
-                      src={participant.avatarUrl}
-                      alt={participant.fullName}
-                      width={32}
-                      height={32}
-                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-xs font-semibold">
-                        {participant.fullName?.charAt(0)?.toUpperCase() || "U"}
+            <div className="space-y-4 max-h-48 overflow-y-auto">
+              {ownerParticipant && (
+                <div>
+                  <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Trưởng nhóm
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg p-2 hover:bg-white transition">
+                    {ownerParticipant.avatarUrl ? (
+                      <Image
+                        src={ownerParticipant.avatarUrl}
+                        alt={ownerParticipant.fullName}
+                        width={32}
+                        height={32}
+                        className="w-8 h-8 rounded-full object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-400 to-purple-600 flex items-center justify-center shrink-0">
+                        <span className="text-white text-xs font-semibold">
+                          {ownerParticipant.fullName?.charAt(0)?.toUpperCase() || "U"}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                      <p className="truncate text-xs font-medium text-gray-800">
+                        {ownerParticipant.fullName}
+                      </p>
+                      <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                        Trưởng nhóm
                       </span>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-800 truncate">
-                      {participant.fullName}
-                    </p>
                   </div>
                 </div>
-              ))}
+              )}
+
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                  Thành viên
+                </div>
+                <div className="space-y-2">
+                  {memberParticipants?.map((participant) => (
+                    <div
+                      key={participant._id}
+                      className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
+                    >
+                      {participant.avatarUrl ? (
+                        <Image
+                          src={participant.avatarUrl}
+                          alt={participant.fullName}
+                          width={32}
+                          height={32}
+                          className="w-8 h-8 rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-400 to-purple-600 flex items-center justify-center shrink-0">
+                          <span className="text-white text-xs font-semibold">
+                            {participant.fullName?.charAt(0)?.toUpperCase() || "U"}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-gray-800 truncate">
+                          {participant.fullName}
+                        </p>
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                          {getParticipantRoleLabel(
+                            conversationInfo?.ownerId,
+                            conversationInfo?.deputyId,
+                            participant._id,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </Accordion>
 
@@ -457,7 +541,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
                   >
-                    <div className="w-6 h-6 rounded bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
+                    <div className="w-6 h-6 rounded bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0">
                       <span className="text-white text-xs font-bold">
                         {getFileExtension(item.fileName).substring(0, 1)}
                       </span>
@@ -498,9 +582,9 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
                   >
-                    <LinkIcon
+                      <LinkIcon
                       size={12}
-                      className="text-gray-600 flex-shrink-0"
+                      className="text-gray-600 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-blue-600 truncate hover:underline">
@@ -535,7 +619,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                     }}
                     className="w-full flex items-center gap-2 p-2 hover:bg-blue-50 rounded transition text-left text-xs text-blue-600 font-medium border-b border-gray-200 mb-2 pb-2"
                   >
-                    <span className="text-blue-600 flex-shrink-0">
+                    <span className="text-blue-600 shrink-0">
                       <Settings size={12} />
                     </span>
                     <span>Quản lý nhóm</span>
@@ -543,25 +627,25 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                 </>
               )}
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
-                <span className="text-gray-600 flex-shrink-0">
+                <span className="text-gray-600 shrink-0">
                   <Lock size={12} />
                 </span>
                 <span>Tin nhắn tự xóa</span>
               </button>
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
-                <span className="text-gray-600 flex-shrink-0">
+                <span className="text-gray-600 shrink-0">
                   <Eye size={12} />
                 </span>
                 <span>Ẩn trò chuyện</span>
               </button>
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
-                <span className="text-gray-600 flex-shrink-0">
+                <span className="text-gray-600 shrink-0">
                   <AlertTriangle size={12} />
                 </span>
                 <span>Báo xấu</span>
               </button>
               <button className="w-full flex items-center gap-2 p-2 hover:bg-white rounded transition text-left text-xs text-gray-700">
-                <span className="text-gray-600 flex-shrink-0">
+                <span className="text-gray-600 shrink-0">
                   <Trash2 size={12} />
                 </span>
                 <span>Xóa lịch sử</span>

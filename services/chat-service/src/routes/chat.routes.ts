@@ -19,6 +19,9 @@ router.get("/calls/history", ChatController.getCallHistory);
 // Lấy role/quyền của user trong conversation
 router.get("/conversations/:conversationId/role", ChatController.getConversationRole);
 
+// Cấp / gỡ quyền phó nhóm
+router.post("/conversations/:conversationId/deputy", ChatController.setGroupDeputy);
+
 // Lấy toàn bộ lịch sử tin nhắn của một cuộc trò chuyện
 router.get(
   "/messages/:conversationId",

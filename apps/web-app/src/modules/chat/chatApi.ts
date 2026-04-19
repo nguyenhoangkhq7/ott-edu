@@ -78,8 +78,11 @@ export function mapApiConversationToConversation(
       apiConv.avatarUrl ||
       (type === "class" ? `https://i.pravatar.cc/150?img=30` : null),
     ownerId: apiConv.ownerId || null,
+    deputyId: apiConv.deputyId || null,
     myRole: apiConv.myRole || null,
-    canManageGroup: apiConv.canManageGroup ?? apiConv.myRole === "owner",
+    canManageGroup:
+      apiConv.canManageGroup ??
+      (apiConv.myRole === "owner" || apiConv.myRole === "deputy"),
   };
 }
 
@@ -294,14 +297,16 @@ export async function createGroupConversation(payload: {
 export async function fetchConversationRole(conversationId: string): Promise<{
   conversationId: string;
   ownerId: string | null;
-  myRole: "owner" | "member" | null;
+  deputyId: string | null;
+  myRole: "owner" | "deputy" | "member" | null;
   canManageGroup: boolean;
 }> {
   const data = await chatHttpService.get<{
     data: {
       conversationId: string;
       ownerId: string | null;
-      myRole: "owner" | "member" | null;
+      deputyId: string | null;
+      myRole: "owner" | "deputy" | "member" | null;
       canManageGroup: boolean;
     };
   }>(`/conversations/${conversationId}/role`);
@@ -322,6 +327,22 @@ export async function removeGroupMember(
   );
 
   return mapApiConversationToConversation(data.data, memberId);
+}
+
+/**
+ * POST /api/conversations/:conversationId/deputy
+ * Owner cấp hoặc gỡ phó nhóm.
+ */
+export async function setGroupDeputy(
+  conversationId: string,
+  deputyId?: string | null,
+): Promise<Conversation> {
+  const data = await chatHttpService.post<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/deputy`,
+    deputyId ? { deputyId } : { deputyId: null },
+  );
+
+  return mapApiConversationToConversation(data.data, deputyId || "");
 }
 
 /**

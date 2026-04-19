@@ -162,6 +162,40 @@ export class ChatController {
     }
   }
 
+  // API: POST /api/conversations/:conversationId/deputy
+  static async setGroupDeputy(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const deputyId = typeof req.body?.deputyId === "string"
+        ? req.body.deputyId
+        : req.body?.deputyId === null
+          ? null
+          : undefined;
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
+      const conversation = await ChatService.setGroupDeputy(
+        requesterId,
+        conversationId,
+        deputyId,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] setGroupDeputy error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
   // API: GET /api/messages/:conversationId
   static async getMessagesInConversation(req: Request, res: Response) {
     try {

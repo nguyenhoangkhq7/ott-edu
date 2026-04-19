@@ -37,6 +37,8 @@ export interface ConversationInfoDTO {
   name: string;
   avatarUrl: string;
   type: "private" | "class";
+  ownerId: string | null;
+  deputyId: string | null;
   participants: Array<{
     _id: string;
     fullName: string;
@@ -75,6 +77,8 @@ export class ConversationInfoService {
             .join(", "),
         avatarUrl: conversation.avatarUrl || "",
         type: conversation.type,
+        ownerId: conversation.ownerId ? conversation.ownerId.toString() : null,
+        deputyId: conversation.deputyId ? conversation.deputyId.toString() : null,
         participants: (conversation.participants as any[]).map((p: any) => ({
           _id: p._id.toString(),
           fullName: p.fullName,

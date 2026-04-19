@@ -5,6 +5,7 @@ export interface IConversation extends Document {
   lastMessage?: mongoose.Types.ObjectId;
   type: "private" | "class";
   ownerId?: mongoose.Types.ObjectId;
+  deputyId?: mongoose.Types.ObjectId | null;
   teamId?: number;
   name?: string;
   avatarUrl?: string;
@@ -39,6 +40,13 @@ const conversationSchema: Schema = new Schema(
       ref: "User",
       required: false,
       index: true,
+    },
+    deputyId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+      index: true,
+      default: null,
     },
     metadata: {
       type: Schema.Types.Mixed,

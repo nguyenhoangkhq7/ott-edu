@@ -4,7 +4,7 @@ import Message from "../model/Message.ts";
 import User from "../model/User.ts";
 import socketManager from "../socketManager.ts";
 
-export type GroupRole = "owner" | "member";
+export type GroupRole = "owner" | "deputy" | "member";
 import { LinkPreviewService } from "./link-preview.service.ts";
 
 type SyncParticipant = {
@@ -27,6 +27,7 @@ type SyncClassConversationRequest = {
 
 type ConversationWithRole = any & {
   ownerId?: mongoose.Types.ObjectId | string;
+  deputyId?: mongoose.Types.ObjectId | string | null;
   myRole?: GroupRole;
   canManageGroup?: boolean;
 };
@@ -41,9 +42,15 @@ export class ChatService {
     if (conversation.type !== "class") return null;
     if (!conversation.ownerId || !userId) return "member";
 
-    return conversation.ownerId.toString() === userId.toString()
-      ? "owner"
-      : "member";
+    if (conversation.ownerId.toString() === userId.toString()) {
+      return "owner";
+    }
+
+    if (conversation.deputyId && conversation.deputyId.toString() === userId.toString()) {
+      return "deputy";
+    }
+
+    return "member";
   }
 
   private static ensureConversationOwner(
@@ -55,6 +62,18 @@ export class ChatService {
     }
 
     if (conversation.ownerId?.toString() !== requesterId.toString()) {
+      const error = new Error("You do not have permission to manage this group");
+      (error as any).statusCode = 403;
+      throw error;
+    }
+  }
+
+  private static ensureConversationManager(
+    conversation: ConversationWithRole,
+    requesterId: string,
+  ) {
+    const role = this.resolveConversationRole(conversation, requesterId);
+    if (role !== "owner" && role !== "deputy") {
       const error = new Error("You do not have permission to manage this group");
       (error as any).statusCode = 403;
       throw error;
@@ -128,9 +147,11 @@ export class ChatService {
       return {
         ...conv,
         ownerId: conv.ownerId?.toString() || null,
+        deputyId: conv.deputyId?.toString() || null,
         myRole: this.resolveConversationRole(conv, userId),
         canManageGroup:
-          this.resolveConversationRole(conv, userId) === "owner",
+          this.resolveConversationRole(conv, userId) === "owner" ||
+          this.resolveConversationRole(conv, userId) === "deputy",
         participants,
         otherParticipant,
       };
@@ -359,6 +380,7 @@ export class ChatService {
         name: payload.name,
         participants: participantIds,
         ownerId,
+        deputyId: null,
         metadata,
         isArchived: payload.archived ?? false,
       });
@@ -374,6 +396,10 @@ export class ChatService {
       conversation.ownerId = ownerId;
     }
 
+    if (conversation.deputyId && !participantIds.some((participantId) => this.participantIdEquals(participantId, conversation.deputyId!.toString()))) {
+      conversation.deputyId = null;
+    }
+
     await conversation.save();
     return conversation;
   }
@@ -387,16 +413,59 @@ export class ChatService {
     const result: {
       conversationId: string;
       ownerId: string | null;
+      deputyId: string | null;
       myRole: GroupRole | null;
       canManageGroup: boolean;
     } = {
       conversationId: conversation._id.toString(),
       ownerId: conversation.ownerId?.toString() || null,
+      deputyId: conversation.deputyId?.toString() || null,
       myRole: this.resolveConversationRole(conversation as ConversationWithRole, userId),
-      canManageGroup: this.resolveConversationRole(conversation as ConversationWithRole, userId) === "owner",
+      canManageGroup:
+        this.resolveConversationRole(conversation as ConversationWithRole, userId) === "owner" ||
+        this.resolveConversationRole(conversation as ConversationWithRole, userId) === "deputy",
     };
 
     return result;
+  }
+
+  static async setGroupDeputy(
+    requesterId: string,
+    conversationId: string,
+    deputyId?: string | null,
+  ) {
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      throw new Error("Conversation not found");
+    }
+
+    this.ensureConversationOwner(conversation as ConversationWithRole, requesterId);
+
+    if (deputyId === undefined || deputyId === null || deputyId === "") {
+      conversation.deputyId = null;
+      await conversation.save();
+      return conversation;
+    }
+
+    if (conversation.ownerId?.toString() === deputyId.toString()) {
+      const error = new Error("Owner cannot be assigned as deputy");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    const isValidMember = conversation.participants.some(
+      (participantId: ConversationParticipantId) => this.participantIdEquals(participantId, deputyId),
+    );
+
+    if (!isValidMember) {
+      const error = new Error("Deputy must be an existing member of the group");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    conversation.deputyId = new mongoose.Types.ObjectId(deputyId);
+    await conversation.save();
+    return conversation;
   }
 
   static async removeGroupMember(
@@ -409,7 +478,7 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
-    this.ensureConversationOwner(conversation as ConversationWithRole, requesterId);
+    this.ensureConversationManager(conversation as ConversationWithRole, requesterId);
 
     if (conversation.ownerId?.toString() === memberId.toString()) {
       const error = new Error("Cannot remove the owner from the group");
@@ -426,6 +495,10 @@ export class ChatService {
     conversation.participants = conversation.participants.filter(
       (participantId: ConversationParticipantId) => !this.participantIdEquals(participantId, memberId),
     ) as any;
+
+    if (conversation.deputyId?.toString() === memberId.toString()) {
+      conversation.deputyId = null;
+    }
 
     await conversation.save();
     return conversation;
@@ -489,11 +562,19 @@ export class ChatService {
       }
 
       conversation.ownerId = new mongoose.Types.ObjectId(newOwnerId);
+
+      if (conversation.deputyId?.toString() === newOwnerId.toString()) {
+        conversation.deputyId = null;
+      }
     }
 
     conversation.participants = conversation.participants.filter(
       (participantId: ConversationParticipantId) => !this.participantIdEquals(participantId, requesterId),
     ) as any;
+
+    if (conversation.deputyId?.toString() === requesterId.toString()) {
+      conversation.deputyId = null;
+    }
 
     if (conversation.participants.length === 0) {
       conversation.isArchived = true;

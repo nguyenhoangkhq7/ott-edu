@@ -61,7 +61,8 @@ export interface Conversation {
   unreadCount: number;
   avatarUrl: string | null;
   ownerId?: string | null;
-  myRole?: "owner" | "member" | null;
+  deputyId?: string | null;
+  myRole?: "owner" | "deputy" | "member" | null;
   canManageGroup?: boolean;
 }
 
@@ -153,7 +154,8 @@ export interface ApiConversation {
   name?: string;
   avatarUrl?: string;
   ownerId?: string | null;
-  myRole?: "owner" | "member" | null;
+  deputyId?: string | null;
+  myRole?: "owner" | "deputy" | "member" | null;
   canManageGroup?: boolean;
   metadata?: unknown;
   participants: ApiUser[];
