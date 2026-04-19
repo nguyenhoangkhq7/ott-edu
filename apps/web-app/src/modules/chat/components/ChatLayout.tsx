@@ -351,10 +351,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       createdAt: new Date().toISOString(),
       status: "sent",
       attachments: attachments || [],
-      replyTo: undefined,
+      replyTo: null,
       isRevoked: false,
-      revokedFor: [],
-      reactions: [],
+      revokedFor: [] as string[],
+      reactions: [] as Reaction[],
     };
     setMessages((prev) => [...prev, optimisticMessage]);
 

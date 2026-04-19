@@ -9,6 +9,7 @@ import mongoose from "mongoose";
 import connectDB from "./config/db.ts";
 import User from "./model/User.ts";
 import chatRoutes from "./routes/chat.routes.ts";
+import conversationInfoRoutes from "./routes/conversation-info.routes.ts";
 
 const app: Application = express();
 
@@ -114,6 +115,9 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
 
 // Đăng ký chat routes vào path /api
 app.use("/api", chatRoutes);
+
+// Đăng ký conversation info routes vào path /api/chat/info
+app.use("/api/chat/info", conversationInfoRoutes);
 
 app.get("/", (req: Request, res: Response) => {
   res.send("API is running...");

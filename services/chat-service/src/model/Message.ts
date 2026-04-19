@@ -11,11 +11,20 @@ export interface Reaction {
   emoji: string;
 }
 
+// LinkPreview interface để lưu dữ liệu meta của URL
+export interface LinkPreview {
+  url: string; // URL gốc
+  title?: string; // Tiêu đề trang web
+  description?: string; // Mô tả trang web
+  image?: string; // URL ảnh thumbnail
+}
+
 export interface IMessage extends Document {
   conversationId: mongoose.Types.ObjectId;
   senderId: mongoose.Types.ObjectId;
   content: string;
   attachments?: Attachment[];
+  linkPreview?: LinkPreview; // Thêm field link preview
   replyTo?: mongoose.Types.ObjectId;
   /** Thu hồi với TẤT CẢ mọi người */
   isRevoked: boolean;
@@ -48,6 +57,29 @@ const reactionSchema: Schema = new Schema(
   { _id: false },
 );
 
+// Schema cho Link Preview metadata
+const linkPreviewSchema: Schema = new Schema(
+  {
+    url: {
+      type: String,
+      required: true,
+    },
+    title: {
+      type: String,
+      default: null,
+    },
+    description: {
+      type: String,
+      default: null,
+    },
+    image: {
+      type: String,
+      default: null,
+    },
+  },
+  { _id: false },
+);
+
 const messageSchema: Schema = new Schema(
   {
     conversationId: {
@@ -75,6 +107,10 @@ const messageSchema: Schema = new Schema(
       },
     },
     attachments: [attachmentSchema],
+    linkPreview: {
+      type: linkPreviewSchema,
+      default: null,
+    },
     replyTo: {
       type: Schema.Types.ObjectId,
       ref: "Message",

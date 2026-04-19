@@ -118,6 +118,7 @@ export class ChatController {
         "image/png",
         "image/gif",
         "image/webp",
+        "video/mp4", // 👈 Thêm hỗ trợ video/mp4
         "application/pdf",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -182,6 +183,7 @@ export class ChatController {
         "image/png",
         "image/gif",
         "image/webp",
+        "video/mp4", // 👈 Thêm hỗ trợ video/mp4
         "application/pdf",
         "application/msword",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
