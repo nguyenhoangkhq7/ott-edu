@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -56,6 +57,7 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
 }
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [form, setForm] = useState<RegisterFormState>(INITIAL_FORM);
   const [code, setCode] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -210,6 +212,7 @@ export default function RegisterPage() {
         departmentId: false,
       });
       setShowPassword(false);
+      router.replace("/login");
     } catch (error) {
       if (error instanceof Error) {
         setSubmitError(error.message);

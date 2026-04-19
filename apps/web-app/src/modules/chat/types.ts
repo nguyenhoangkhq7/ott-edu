@@ -65,6 +65,39 @@ export interface Conversation {
   canManageGroup?: boolean;
 }
 
+export type VideoCallStatus = "idle" | "calling" | "receiving" | "connected";
+
+export interface IncomingVideoCall {
+  callId: string;
+  conversationId: string;
+  fromUserId: string;
+  toUserId: string;
+  initiatedAt?: string;
+}
+
+export interface ActiveVideoCall {
+  callId: string;
+  conversationId: string;
+  peerUserId: string;
+  direction: "incoming" | "outgoing";
+}
+
+export interface CallHistoryItem {
+  _id: string;
+  callId: string;
+  conversationId: string;
+  callerId: string;
+  calleeId: string;
+  status: "ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed";
+  startedAt: string;
+  connectedAt?: string;
+  endedAt?: string;
+  durationSec: number;
+  endReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Raw API Response Types (từ backend MongoDB) ────────────────────────────
 
 export interface ApiUser {

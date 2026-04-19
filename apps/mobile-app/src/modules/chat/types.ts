@@ -1,14 +1,18 @@
-// ─── Frontend UI Types ──────────────────────────────────────────────────────
-// Đây là interface dùng cho component hiển thị.
-// Dữ liệu từ API sẽ được transform sang format này.
+export type ChatAuthIdentity = {
+  email: string;
+  code?: string;
+};
 
 export type ChatMode = "private" | "class";
+export type ChatConversationType = ChatMode | "group";
+
+export type VideoCallStatus = "idle" | "calling" | "receiving" | "connected";
 
 export interface User {
-  id: string; // mapped từ _id của MongoDB
-  name: string; // mapped từ fullName của MongoDB
+  id: string;
+  name: string;
   email?: string;
-  code?: string; // MSSV / MSGV
+  code?: string;
   role?: string;
   avatarUrl: string;
   isOnline: boolean;
@@ -34,17 +38,14 @@ export interface Message {
   status: "sent" | "delivered" | "read";
   attachments?: Attachment[];
   replyTo?: Message | null;
-  /** Thu hồi với tất cả */
   isRevoked: boolean;
-  /** Danh sách userId đã tự thu hồi về phía mình */
   revokedFor: string[];
-  /** Đánh dấu tin nhắn chuyển tiếp */
   isForwarded?: boolean;
   reactions: Reaction[];
 }
 
 export interface Conversation {
-  id: string; // mapped từ _id
+  id: string;
   name: string | null;
   type: ChatMode;
   participants: User[];
@@ -56,7 +57,36 @@ export interface Conversation {
   canManageGroup?: boolean;
 }
 
-// ─── Raw API Response Types (từ backend MongoDB) ────────────────────────────
+export interface ChatUser {
+  id: string;
+  name: string;
+  email?: string;
+  code?: string;
+  avatarUrl: string | null;
+}
+
+export interface ChatConversation {
+  id: string;
+  type: ChatConversationType;
+  name: string;
+  participants: ChatUser[];
+  avatarUrl: string | null;
+}
+
+export interface IncomingVideoCall {
+  callId: string;
+  conversationId: string;
+  fromUserId: string;
+  toUserId: string;
+  initiatedAt?: string;
+}
+
+export interface ActiveVideoCall {
+  callId: string;
+  conversationId: string;
+  peerUserId: string;
+  direction: "incoming" | "outgoing";
+}
 
 export interface ApiUser {
   _id: string;
@@ -95,7 +125,7 @@ export interface ApiMessage {
 
 export interface ApiConversation {
   _id: string;
-  type: "private" | "class";
+  type: ChatConversationType;
   name?: string;
   avatarUrl?: string;
   ownerId?: string | null;
@@ -104,7 +134,7 @@ export interface ApiConversation {
   metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;
-  otherParticipant?: ApiUser; 
+  otherParticipant?: ApiUser;
   createdAt?: string;
   updatedAt?: string;
 }

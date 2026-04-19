@@ -175,7 +175,7 @@ export default function VerifyIdentityPage() {
             <button
               type="submit"
               disabled={!otp.every(digit => digit !== "") || isLoading}
-              className="mb-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="mb-4 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
             >
               {isLoading ? "Verifying..." : "Verify and continue"}
             </button>
@@ -202,7 +202,7 @@ export default function VerifyIdentityPage() {
             {timeLeft === 0 && (
               <button
                 onClick={handleResendCode}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
               >
                 I didn&apos;t receive a code
               </button>

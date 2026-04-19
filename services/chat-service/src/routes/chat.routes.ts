@@ -13,6 +13,9 @@ router.get("/me", ChatController.getCurrentChatUser);
 // Lấy danh sách hộp thoại của user hiện tại
 router.get("/conversations", ChatController.getMyConversations);
 
+// Lấy lịch sử cuộc gọi của user hiện tại
+router.get("/calls/history", ChatController.getCallHistory);
+
 // Lấy role/quyền của user trong conversation
 router.get("/conversations/:conversationId/role", ChatController.getConversationRole);
 

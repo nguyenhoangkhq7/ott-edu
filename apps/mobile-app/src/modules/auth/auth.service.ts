@@ -1,5 +1,6 @@
 import {
   apiClient,
+  API_URL,
   clearAllTokens,
   getRefreshToken,
   setAccessToken,
@@ -103,6 +104,21 @@ type RefreshResponse = {
 };
 
 function toErrorMessage(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    const message = (error as { message: string }).message;
+    const hasNoResponse =
+      ("request" in error && !("response" in error)) || message.includes("Network Error");
+
+    if (hasNoResponse) {
+      return `Khong ket noi duoc den may chu (${API_URL}). Vui long kiem tra cung Wi-Fi va gateway 8088.`;
+    }
+  }
+
   if (typeof error === "object" && error !== null && "response" in error) {
     const maybeData = (error as { response?: { data?: { message?: string } | string } }).response?.data;
 

@@ -2,13 +2,23 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
+import { getAccessToken } from "@/services/api/token-store";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
 import { ForwardMessageModal } from "./ForwardMessageModal";
 import { ChatUserProfileModal } from "./ChatUserProfileModal";
 import { ChatGroupManageModal } from "./ChatGroupManageModal";
-import { ChatMode, Conversation, Message, User, Reaction } from "../types";
 import {
+  CallHistoryItem,
+  ChatMode,
+  Conversation,
+  Message,
+  Reaction,
+  User,
+} from "../types";
+import { useWebRTC } from "../hooks/useWebRTC";
+import {
+  fetchCallHistory,
   fetchConversations,
   fetchMessages,
   fetchConversationRole,
@@ -19,8 +29,43 @@ import {
   mapApiMessageToMessage,
 } from "../chatApi";
 
-const CHAT_SERVICE_URL =
-  process.env.NEXT_PUBLIC_CHAT_SERVICE_URL || "http://localhost:3001";
+function resolveSocketServerUrl(): string | undefined {
+  const configuredUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL?.trim();
+
+  const getGatewayOriginFromApiUrl = (): string | undefined => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+    if (!apiUrl) {
+      return undefined;
+    }
+
+    try {
+      return new URL(apiUrl).origin;
+    } catch {
+      return undefined;
+    }
+  };
+
+  if (!configuredUrl || configuredUrl.startsWith("/")) {
+    // If UI is served from Next dev server (:3000), same-origin /socket.io is 404.
+    // In that case, use the gateway origin from NEXT_PUBLIC_API_URL.
+    if (typeof window !== "undefined" && window.location.port === "3000") {
+      const gatewayOrigin = getGatewayOriginFromApiUrl();
+      if (gatewayOrigin && gatewayOrigin !== window.location.origin) {
+        return gatewayOrigin;
+      }
+    }
+
+    // Default: same-origin Socket.IO endpoint (proxied by gateway).
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(configuredUrl);
+    return parsed.origin;
+  } catch {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+}
 
 interface ChatLayoutProps {
   currentUserId: string;
@@ -38,7 +83,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [callHistory, setCallHistory] = useState<CallHistoryItem[]>([]);
+  const [isLoadingCallHistory, setIsLoadingCallHistory] = useState(false);
+  const [callHistoryPage, setCallHistoryPage] = useState(1);
+  const [callHistoryTotalPages, setCallHistoryTotalPages] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [forwardMessageTarget, setForwardMessageTarget] =
     useState<Message | null>(null);
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
@@ -64,6 +114,28 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const socketRef = useRef<Socket | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
 
+  const {
+    localStream,
+    remoteStream,
+    callStatus,
+    incomingCall,
+    activeCall,
+    isMicrophoneEnabled,
+    isCameraEnabled,
+    callError,
+    retryMediaPermission,
+    startVideoCall,
+    acceptIncomingCall,
+    declineIncomingCall,
+    endVideoCall,
+    toggleMicrophone,
+    toggleCamera,
+    clearCallError,
+  } = useWebRTC({
+    socket,
+    currentUserId,
+  });
+
   // Giữ ref luôn cập nhật để xài trong socket handler (tránh dependency bắt reconnect socket)
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -73,12 +145,32 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   useEffect(() => {
     if (!currentUserId) return;
 
-    const socket = io(CHAT_SERVICE_URL, {
-      auth: { userId: currentUserId },
-      query: { userId: currentUserId },
-    });
+    const socketServerUrl = resolveSocketServerUrl();
+    const accessToken = getAccessToken();
+    const socketAuth: { userId: string; token?: string } = {
+      userId: currentUserId,
+    };
+    const socketQuery: { userId: string; token?: string } = {
+      userId: currentUserId,
+    };
 
-    socketRef.current = socket;
+    if (accessToken) {
+      socketAuth.token = accessToken;
+      socketQuery.token = accessToken;
+    }
+
+    const socketOptions = {
+      auth: socketAuth,
+      query: socketQuery,
+      withCredentials: true,
+    };
+
+    const nextSocket = socketServerUrl
+      ? io(socketServerUrl, socketOptions)
+      : io(socketOptions);
+
+    socketRef.current = nextSocket;
+    setSocket(nextSocket);
 
     const handleUserStatusChanged = (data: {
       userId: string;
@@ -165,18 +257,41 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       );
     };
 
-    socket.on("newMessage", handleNewMessage);
-    socket.on("messageRevoked", handleMessageRevoked);
-    socket.on("userStatusChanged", handleUserStatusChanged);
+    nextSocket.on("newMessage", handleNewMessage);
+    nextSocket.on("newMessage", handleNewMessage);
+    nextSocket.on("messageRevoked", handleMessageRevoked);
+    nextSocket.on("userStatusChanged", handleUserStatusChanged);
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
-      socket.off("newMessage", handleNewMessage);
-      socket.off("messageRevoked", handleMessageRevoked);
-      socket.off("userStatusChanged", handleUserStatusChanged);
-      socket.disconnect();
+      nextSocket.off("newMessage", handleNewMessage);
+      nextSocket.off("messageRevoked", handleMessageRevoked);
+      nextSocket.off("userStatusChanged", handleUserStatusChanged);
+      nextSocket.disconnect();
+      socketRef.current = null;
+      setSocket(null);
     };
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (!incomingCall) {
+      return;
+    }
+
+    const privateConversation = conversations.find(
+      (conversation) =>
+        conversation.type === "private" &&
+        conversation.participants.some(
+          (participant) => participant.id === incomingCall.fromUserId,
+        ),
+    );
+
+    if (privateConversation && activeConversationId !== privateConversation.id) {
+      setCurrentMode("private");
+      setDraftReceiver(null);
+      setActiveConversationId(privateConversation.id);
+    }
+  }, [activeConversationId, conversations, incomingCall]);
 
   // Handle khi click đổi cuộc trò chuyện: Reset số đếm unread về 0
   const handleSelectConversation = useCallback((id: string) => {
@@ -321,6 +436,83 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     load();
   }, [activeConversationId]);
 
+  // ── Fetch call history cho private conversation hiện tại ────────────────
+  useEffect(() => {
+    const activeConversation = conversations.find((c) => c.id === activeConversationId);
+    const isPrivate = activeConversation?.type === "private";
+
+    if (!activeConversationId || !isPrivate) {
+      setCallHistory([]);
+      setCallHistoryPage(1);
+      setCallHistoryTotalPages(1);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadCallHistory = async () => {
+      setIsLoadingCallHistory(true);
+      try {
+        const response = await fetchCallHistory({
+          conversationId: activeConversationId,
+          limit: 5,
+          page: 1,
+        });
+
+        if (!mounted) {
+          return;
+        }
+
+        setCallHistory(response.items);
+        setCallHistoryPage(response.pagination.page);
+        setCallHistoryTotalPages(response.pagination.totalPages);
+      } catch (historyError) {
+        if (!mounted) {
+          return;
+        }
+        console.error("[ChatLayout] fetch call history error:", historyError);
+      } finally {
+        if (mounted) {
+          setIsLoadingCallHistory(false);
+        }
+      }
+    };
+
+    loadCallHistory();
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeConversationId, conversations]);
+
+  useEffect(() => {
+    if (callStatus !== "idle") {
+      return;
+    }
+
+    const activeConversation = conversations.find((c) => c.id === activeConversationId);
+    if (!activeConversation || activeConversation.type !== "private") {
+      return;
+    }
+
+    const refreshCallHistory = async () => {
+      try {
+        const response = await fetchCallHistory({
+          conversationId: activeConversation.id,
+          limit: 5,
+          page: 1,
+        });
+        setCallHistory(response.items);
+        setCallHistoryPage(response.pagination.page);
+        setCallHistoryTotalPages(response.pagination.totalPages);
+      } catch (historyError) {
+        console.error("[ChatLayout] refresh call history error:", historyError);
+      }
+    };
+
+    void refreshCallHistory();
+  }, [activeConversationId, callStatus, conversations]);
+
   // ── Gửi tin nhắn ─────────────────────────────────────────────────────────
   const handleSendMessage = async (
     text: string,
@@ -450,6 +642,59 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         }
       : null);
 
+  const activePrivatePeer =
+    activeConversation?.type === "private"
+      ? activeConversation.participants.find((participant) => participant.id !== currentUserId) || null
+      : null;
+
+  const isCallablePrivateConversation =
+    activeConversation !== null && !activeConversation.id.startsWith("draft_");
+
+  const canStartVideoCall =
+    Boolean(activePrivatePeer) &&
+    isCallablePrivateConversation &&
+    callStatus === "idle";
+
+  const handleStartVideoCall = useCallback(async () => {
+    if (!activeConversation || activeConversation.type !== "private") {
+      return;
+    }
+
+    if (activeConversation.id.startsWith("draft_")) {
+      return;
+    }
+
+    const targetPeer = activeConversation.participants.find(
+      (participant) => participant.id !== currentUserId,
+    );
+
+    if (!targetPeer) {
+      return;
+    }
+
+    await startVideoCall({
+      toUserId: targetPeer.id,
+      conversationId: activeConversation.id,
+    });
+  }, [activeConversation, currentUserId, startVideoCall]);
+
+  const incomingCaller = React.useMemo(() => {
+    if (!incomingCall) {
+      return null;
+    }
+
+    for (const conversation of conversations) {
+      const matched = conversation.participants.find(
+        (participant) => participant.id === incomingCall.fromUserId,
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return null;
+  }, [conversations, incomingCall]);
+
   const suggestedUsers = React.useMemo(() => {
     const privatePeerIds = new Set<string>();
     conversations
@@ -509,7 +754,29 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onSendMessage={handleSendMessage}
         isLoadingMessages={isLoadingMessages}
         isSending={isSending}
-        socket={socketRef.current}
+        socket={socket}
+        canStartVideoCall={canStartVideoCall}
+        onStartVideoCall={handleStartVideoCall}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        callStatus={callStatus}
+        incomingCall={incomingCall}
+        incomingCaller={incomingCaller}
+        activeCall={activeCall}
+        callHistory={callHistory}
+        isLoadingCallHistory={isLoadingCallHistory}
+        callHistoryPage={callHistoryPage}
+        callHistoryTotalPages={callHistoryTotalPages}
+        isMicrophoneEnabled={isMicrophoneEnabled}
+        isCameraEnabled={isCameraEnabled}
+        callError={callError}
+        onClearCallError={clearCallError}
+        onRetryMediaPermission={retryMediaPermission}
+        onAcceptIncomingCall={acceptIncomingCall}
+        onDeclineIncomingCall={declineIncomingCall}
+        onEndVideoCall={endVideoCall}
+        onToggleMicrophone={toggleMicrophone}
+        onToggleCamera={toggleCamera}
         onForwardMessage={setForwardMessageTarget}
         onOpenProfile={setProfileTarget}
         onOpenGroupManage={() => void handleOpenGroupManage()}

@@ -20,7 +20,7 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
   };
 }
 
-export type ChatAuthIdentity = { email: string; code?: string };
+type ChatAuthIdentity = { email: string; code?: string };
 
 export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
   return {
@@ -44,7 +44,7 @@ export function mapApiConversationToConversation(
   currentUserId: string
 ): Conversation {
   const participants = apiConv.participants.map(mapApiUserToUser);
-  const type = apiConv.type;
+  const type = apiConv.type === 'group' ? 'class' : apiConv.type;
   let name: string | null = apiConv.name || null;
   if (type === 'private') {
     const other = participants.find((p) => p.id !== currentUserId);

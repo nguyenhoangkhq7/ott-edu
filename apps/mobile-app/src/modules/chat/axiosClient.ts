@@ -1,10 +1,9 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 import { API_URL, getAccessToken } from '../api';
 
-// Nginx rewrites /api/chat/* → /* on chat-service
-// Chat-service mounts its router at /api, so routes are /api/conversations, /api/messages, etc.
-// Full path: API_URL/api/chat/api/conversations → chat-service gets /api/conversations ✓
-const CHAT_SERVICE_API_URL = `${API_URL.replace(/\/$/, "")}/api/chat/api`;
+// Gateway proxies /api/chat/* to chat-service /api/*.
+// Example: API_URL/api/chat/me -> chat-service /api/me
+const CHAT_SERVICE_API_URL = `${API_URL.replace(/\/$/, "")}/api/chat`;
 
 export const chatApiClient = axios.create({
   baseURL: CHAT_SERVICE_API_URL,
