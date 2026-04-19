@@ -19,6 +19,8 @@ interface ChatWindowProps {
   onBack: () => void;
   socket: Socket | null;
   onForwardMessage?: (message: Message) => void;
+  onOpenProfile?: (user: User) => void;
+  onOpenGroupManage?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -31,6 +33,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onBack,
   socket,
   onForwardMessage,
+  onOpenProfile,
+  onOpenGroupManage,
 }) => {
   const flatListRef = useRef<FlatList>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -144,6 +148,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const chatAvatar = conversation.avatarUrl || (isPrivate
     ? otherParticipant?.avatarUrl || `https://i.pravatar.cc/150?u=${otherParticipant?.id}`
     : `https://i.pravatar.cc/150?img=30`);
+  const headerUser = isPrivate ? otherParticipant || null : conversation.participants.find((p) => p.id === conversation.ownerId) || null;
 
   const invertedMessages = [...localMessages].reverse();
 
@@ -159,24 +164,63 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <Ionicons name="chevron-back" size={26} color="#0F172A" />
         </TouchableOpacity>
 
-        <View style={styles.headerAvatarWrap}>
+        <TouchableOpacity
+          style={styles.headerAvatarWrap}
+          activeOpacity={0.85}
+          onPress={() => {
+            if (isPrivate && headerUser) {
+              onOpenProfile?.(headerUser);
+              return;
+            }
+            if (!isPrivate) {
+              onOpenGroupManage?.();
+            }
+          }}
+        >
           <Image source={{ uri: chatAvatar }} style={styles.headerAvatar} />
           {isPrivate && otherParticipant?.isOnline && <View style={styles.onlineDot} />}
-        </View>
+        </TouchableOpacity>
 
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerName} numberOfLines={1}>{chatName}</Text>
-          <Text style={[
-            styles.headerStatus,
-            isPrivate && otherParticipant?.isOnline && styles.headerStatusOnline,
-          ]}>
-            {isPrivate
-              ? (otherParticipant?.isOnline ? '● Đang hoạt động' : 'Ngoại tuyến')
-              : `${conversation.participants.length} thành viên`}
+        <TouchableOpacity
+          style={styles.headerInfo}
+          activeOpacity={0.7}
+          onPress={() => {
+            if (isPrivate && headerUser) {
+              onOpenProfile?.(headerUser);
+              return;
+            }
+            if (!isPrivate) {
+              onOpenGroupManage?.();
+            }
+          }}
+        >
+          <Text style={styles.headerName} numberOfLines={1}>
+            {chatName}
           </Text>
-        </View>
+          <Text
+            style={[
+              styles.headerStatus,
+              isPrivate && otherParticipant?.isOnline && styles.headerStatusOnline,
+            ]}
+          >
+            {isPrivate
+              ? otherParticipant?.isOnline
+                ? '● Đang hoạt động'
+                : 'Ngoại tuyến'
+              : `${conversation?.participants?.length || 0} thành viên`}
+          </Text>
+        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.infoBtn}>
+        <TouchableOpacity
+          style={styles.infoBtn}
+          onPress={() => {
+            if (isPrivate && headerUser) {
+              onOpenProfile?.(headerUser);
+              return;
+            }
+            onOpenGroupManage?.();
+          }}
+        >
           <Ionicons name="ellipsis-horizontal" size={22} color="#94A3B8" />
         </TouchableOpacity>
       </View>
@@ -218,6 +262,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     onRevokeForAll={handleRevokeForAll}
                     onRevokeForMe={handleRevokeForMe}
                     onForward={onForwardMessage}
+                    onOpenProfile={onOpenProfile}
                     showAvatar={!isSelf && !isConsecutive}
                   />
                   {!isConsecutive && <View style={{ height: 6 }} />}
@@ -225,7 +270,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               );
             }}
             ListEmptyComponent={() => (
-              <View style={styles.emptyMessages}>
+              <View style={[styles.emptyMessages, { transform: [{ scaleY: -1 }] }]}>
                 <View style={styles.emptyMsgIcon}>
                   <Ionicons name="chatbubbles-outline" size={38} color="#93C5FD" />
                 </View>
