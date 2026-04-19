@@ -1,16 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Message, User } from "../types";
 import Image from "next/image";
-import { MoreVertical, Reply, Trash2, Smile } from "lucide-react";
+import {
+  MoreVertical,
+  Reply,
+  Trash2,
+  EyeOff,
+  Smile,
+  Clock,
+} from "lucide-react";
+
+/** Giới hạn thời gian cho phép thu hồi với tất cả - 15 phút */
+const REVOKE_FOR_ALL_LIMIT_MS = 15 * 60 * 1000;
 
 interface MessageBubbleProps {
   message: Message;
   isOwnMessage: boolean;
+  currentUserId?: string;
   sender?: User;
   onReply?: (message: Message) => void;
   onReact?: (messageId: string, emoji: string) => void;
+  onRevokeForAll?: (messageId: string) => void;
+  onRevokeForMe?: (messageId: string) => void;
+  onForward?: (message: Message) => void;
+  /** @deprecated Dùng onRevokeForAll thay thế */
   onRevoke?: (messageId: string) => void;
 }
 
@@ -19,13 +34,32 @@ const EMOJI_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isOwnMessage,
+  currentUserId,
   sender,
   onReply,
   onReact,
+  onRevokeForAll,
+  onRevokeForMe,
+  onForward,
   onRevoke,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    const updateNow = () => {
+      setNow(Date.now());
+    };
+
+    const initialTimerId = window.setTimeout(updateNow, 0);
+    const timerId = window.setInterval(updateNow, 60_000);
+
+    return () => {
+      window.clearTimeout(initialTimerId);
+      window.clearInterval(timerId);
+    };
+  }, []);
 
   const formatTime = (isoStr: string) => {
     const date = new Date(isoStr);
@@ -47,10 +81,31 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     setShowEmojiPicker(false);
   };
 
+  // Thời gian còn lại để thu hồi với tất cả (ms)
+  const ageMs = now - new Date(message.createdAt).getTime();
+  const canRevokeForAll = isOwnMessage && ageMs <= REVOKE_FOR_ALL_LIMIT_MS;
+  const remainingMinutes = Math.max(
+    0,
+    Math.ceil((REVOKE_FOR_ALL_LIMIT_MS - ageMs) / 60000),
+  );
+
+  // Thu hồi cho bản thân: kiểm tra userId trong revokedFor HOẶC marker __self__ từ API
+  const isSelfRevoked =
+    message.revokedFor?.includes("__self__") ||
+    (currentUserId != null && message.revokedFor?.includes(currentUserId));
+
+  // Mất hoàn toàn khỏi giao diện nếu user chọn "Ẩn với chỉ mình tôi"
+  if (isSelfRevoked) {
+    return null;
+  }
+
+  // Thu hồi chung với mọi người (Unsend for everyone) -> Hiện "Tin nhắn đã bị thu hồi"
   if (message.isRevoked) {
     return (
       <div
-        className={`flex w-full mb-4 ${isOwnMessage ? "justify-end" : "justify-start"}`}
+        className={`mb-4 flex w-full ${
+          isOwnMessage ? "justify-end" : "justify-start"
+        }`}
       >
         {!isOwnMessage && sender && (
           <Image
@@ -58,24 +113,27 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             alt={sender.name}
             width={32}
             height={32}
-            className="w-8 h-8 rounded-full mt-auto mr-2"
+            className="mr-2 mt-auto h-8 w-8 rounded-full ring-1 ring-slate-200"
           />
         )}
         <div
-          className={`flex flex-col max-w-[70%] ${isOwnMessage ? "items-end" : "items-start"}`}
+          className={`flex max-w-[70%] flex-col ${
+            isOwnMessage ? "items-end" : "items-start"
+          }`}
         >
           {!isOwnMessage && sender && (
-            <span className="text-xs text-gray-500 mb-1 ml-1">
+            <span className="mb-1 ml-1 text-xs text-slate-500">
               {sender.name}
             </span>
           )}
           <div
-            className={`px-4 py-2 rounded-2xl italic text-gray-400 ${
+            className={`flex items-center gap-1.5 rounded-2xl px-4 py-2 italic text-slate-400 ${
               isOwnMessage
-                ? "bg-gray-200 dark:bg-gray-700 rounded-br-sm"
-                : "bg-gray-100 dark:bg-gray-800 rounded-bl-sm"
+                ? "rounded-br-sm bg-slate-200"
+                : "rounded-bl-sm bg-slate-100"
             }`}
           >
+            <Trash2 size={12} />
             <p className="text-sm">Tin nhắn đã bị thu hồi</p>
           </div>
         </div>
@@ -85,7 +143,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div
-      className={`flex w-full mb-4 group ${isOwnMessage ? "justify-end" : "justify-start"}`}
+      className={`group mb-4 flex w-full ${isOwnMessage ? "justify-end" : "justify-start"}`}
     >
       {!isOwnMessage && sender && (
         <Image
@@ -93,22 +151,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           alt={sender.name}
           width={32}
           height={32}
-          className="w-8 h-8 rounded-full mt-auto mr-2"
+          className="mr-2 mt-auto h-8 w-8 rounded-full ring-1 ring-slate-200"
         />
       )}
 
       <div
-        className={`flex flex-col max-w-[70%] ${isOwnMessage ? "items-end" : "items-start"}`}
+        className={`flex max-w-[70%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}
       >
         {!isOwnMessage && sender && (
-          <span className="text-xs text-gray-500 mb-1 ml-1">{sender.name}</span>
+          <span className="mb-1 ml-1 text-xs text-slate-500">
+            {sender.name}
+          </span>
         )}
 
-        {/* Reply reference */}
         {message.replyTo && (
-          <div className="mb-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs border-l-2 border-blue-500 max-w-full">
-            <p className="text-gray-500 dark:text-gray-400 mb-1">Trả lời</p>
-            <p className="text-gray-700 dark:text-gray-300 truncate">
+          <div className="mb-2 max-w-full rounded-xl border-l-2 border-blue-500 bg-slate-100 px-3 py-2 text-xs">
+            <p className="mb-1 text-slate-500">Trả lời</p>
+            <p className="truncate text-slate-700">
               {message.replyTo.isRevoked
                 ? "Tin nhắn đã bị thu hồi"
                 : (message.replyTo.content || "(Tin nhắn trống)").substring(
@@ -119,17 +178,34 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        {/* Message content */}
+        {message.isForwarded && (
+          <div className="mb-1 flex items-center gap-1 text-[11px] text-slate-500 italic">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="15 17 20 12 15 7"></polyline>
+              <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
+            </svg>
+            Tin nhắn chuyển tiếp
+          </div>
+        )}
+
         <div
-          className={`px-4 py-2 rounded-2xl ${
+          className={`rounded-2xl px-4 py-2 ${
             isOwnMessage
-              ? "bg-blue-600 text-white rounded-br-sm"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-sm"
+              ? "rounded-br-sm bg-blue-600 text-white"
+              : "rounded-bl-sm bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
           }`}
         >
           <p className="text-sm">{message.content}</p>
 
-          {/* Attachments */}
           {message.attachments && message.attachments.length > 0 && (
             <div className="mt-3 space-y-2">
               {message.attachments.map((attachment, idx) => (
@@ -146,7 +222,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         alt={attachment.fileName}
                         width={200}
                         height={200}
-                        className="max-w-[200px] max-h-[200px] rounded-lg"
+                        className="max-h-[200px] max-w-[200px] rounded-lg object-cover"
                       />
                     </a>
                   ) : (
@@ -154,7 +230,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       href={attachment.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 bg-white dark:bg-gray-700 rounded px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:underline"
+                      className="flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1 text-sm text-slate-700 hover:underline"
                     >
                       <span>{getFileIcon(attachment.fileName)}</span>
                       <span className="truncate">{attachment.fileName}</span>
@@ -166,13 +242,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           )}
         </div>
 
-        {/* Time and reactions */}
-        <div className="flex items-center gap-2 mt-1">
-          <span className="text-[10px] text-gray-400 mx-1">
+        <div className="mt-1 flex items-center gap-2">
+          <span className="mx-1 text-[10px] text-slate-400">
             {formatTime(message.createdAt)}
           </span>
 
-          {/* Reactions display */}
           {message.reactions && message.reactions.length > 0 && (
             <div className="flex gap-1 flex-wrap">
               {Array.from(
@@ -184,13 +258,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 return (
                   <div
                     key={reaction.emoji}
-                    className="bg-gray-200 dark:bg-gray-700 rounded-full px-2 py-0.5 text-xs flex items-center gap-1 cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    className="flex cursor-pointer items-center gap-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs transition-colors hover:bg-slate-300"
                   >
                     <span>{reaction.emoji}</span>
                     {count > 1 && (
-                      <span className="text-gray-600 dark:text-gray-400">
-                        {count}
-                      </span>
+                      <span className="text-slate-600">{count}</span>
                     )}
                   </div>
                 );
@@ -200,35 +272,35 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
       </div>
 
-      {/* Action menu */}
       <div className="relative ml-2">
         <button
+          type="button"
           onClick={() => setShowMenu(!showMenu)}
-          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded transition-all"
+          className="rounded-full p-1 opacity-0 transition-all hover:bg-slate-200 group-hover:opacity-100"
         >
-          <MoreVertical size={16} className="text-gray-400" />
+          <MoreVertical size={16} className="text-slate-400" />
         </button>
 
-        {/* Menu dropdown */}
         {showMenu && (
-          <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
-            {/* Emoji picker button */}
+          <div className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-xl border border-slate-200 bg-white shadow-lg">
+            {/* Emoji reactions */}
             <button
+              type="button"
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2 rounded-t"
+              className="flex w-full items-center gap-2 rounded-t-xl px-3 py-2 text-left text-sm hover:bg-slate-100"
             >
               <Smile size={16} />
               Phản ứng
             </button>
 
-            {/* Emoji options */}
             {showEmojiPicker && (
-              <div className="border-t border-gray-200 dark:border-gray-700 px-2 py-2 flex gap-1">
+              <div className="flex gap-1 border-t border-slate-200 px-2 py-2">
                 {EMOJI_REACTIONS.map((emoji) => (
                   <button
                     key={emoji}
+                    type="button"
                     onClick={() => handleEmojiSelect(emoji)}
-                    className="text-lg hover:bg-gray-100 dark:hover:bg-gray-800 p-1 rounded"
+                    className="rounded-lg p-1 text-lg hover:bg-slate-100"
                   >
                     {emoji}
                   </button>
@@ -236,33 +308,87 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
 
-            {/* Reply button */}
-            {!isOwnMessage && (
+            {/* Reply (tất cả) */}
+            <button
+              type="button"
+              onClick={() => {
+                onReply?.(message);
+                setShowMenu(false);
+              }}
+              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-100"
+            >
+              <Reply size={16} />
+              Trả lời
+            </button>
+
+            {/* Cập nhật Forward (Chuyển tiếp) */}
+            <button
+              type="button"
+              onClick={() => {
+                onForward?.(message);
+                setShowMenu(false);
+              }}
+              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm hover:bg-slate-100"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-slate-600"
+              >
+                <polyline points="15 17 20 12 15 7"></polyline>
+                <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
+              </svg>
+              Chuyển tiếp
+            </button>
+
+            {/* Thu hồi với tất cả - chỉ trong 15 phút */}
+            {isOwnMessage && (
               <button
+                type="button"
+                disabled={!canRevokeForAll}
                 onClick={() => {
-                  onReply?.(message);
+                  if (!canRevokeForAll) return;
+                  (onRevokeForAll || onRevoke)?.(message.id);
                   setShowMenu(false);
                 }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"
+                className={`flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2 text-left text-sm ${
+                  canRevokeForAll
+                    ? "text-red-600 hover:bg-red-50"
+                    : "cursor-not-allowed text-slate-400"
+                }`}
               >
-                <Reply size={16} />
-                Trả lời
+                <Trash2 size={16} />
+                <span className="flex flex-col">
+                  <span>Thu hồi với mọi người</span>
+                  {canRevokeForAll ? (
+                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <Clock size={10} /> Còn {remainingMinutes} phút
+                    </span>
+                  ) : (
+                    <span className="text-xs">Đã quá 15 phút</span>
+                  )}
+                </span>
               </button>
             )}
 
-            {/* Revoke button */}
-            {isOwnMessage && (
-              <button
-                onClick={() => {
-                  onRevoke?.(message.id);
-                  setShowMenu(false);
-                }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2 rounded-b"
-              >
-                <Trash2 size={16} />
-                Thu hồi
-              </button>
-            )}
+            {/* Thu hồi về phía mình - không giới hạn thời gian */}
+            <button
+              type="button"
+              onClick={() => {
+                onRevokeForMe?.(message.id);
+                setShowMenu(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-b-xl border-t border-slate-100 px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100"
+            >
+              <EyeOff size={16} />
+              Ẩn với chỉ mình tôi
+            </button>
           </div>
         )}
       </div>
