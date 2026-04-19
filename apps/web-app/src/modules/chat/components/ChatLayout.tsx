@@ -235,6 +235,24 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       revokeType?: string;
       isRevoked?: boolean;
     }) => {
+      // Cập nhật tin nhắn trong danh sách chat
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== data.messageId) return msg;
+
+          if (data.revokeType === "self") {
+            return {
+              ...msg,
+              revokedFor: [...(msg.revokedFor || []), "__self__"],
+            };
+          }
+
+          // revokeForAll
+          return { ...msg, isRevoked: true };
+        }),
+      );
+
+      // Cập nhật lastMessage ở sidebar
       setConversations((prev) =>
         prev.map((c) => {
           if (c.lastMessage?.id === data.messageId) {
@@ -286,7 +304,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         ),
     );
 
-    if (privateConversation && activeConversationId !== privateConversation.id) {
+    if (
+      privateConversation &&
+      activeConversationId !== privateConversation.id
+    ) {
       setCurrentMode("private");
       setDraftReceiver(null);
       setActiveConversationId(privateConversation.id);
@@ -438,7 +459,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
   // ── Fetch call history cho private conversation hiện tại ────────────────
   useEffect(() => {
-    const activeConversation = conversations.find((c) => c.id === activeConversationId);
+    const activeConversation = conversations.find(
+      (c) => c.id === activeConversationId,
+    );
     const isPrivate = activeConversation?.type === "private";
 
     if (!activeConversationId || !isPrivate) {
@@ -490,7 +513,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       return;
     }
 
-    const activeConversation = conversations.find((c) => c.id === activeConversationId);
+    const activeConversation = conversations.find(
+      (c) => c.id === activeConversationId,
+    );
     if (!activeConversation || activeConversation.type !== "private") {
       return;
     }
@@ -644,7 +669,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
   const activePrivatePeer =
     activeConversation?.type === "private"
-      ? activeConversation.participants.find((participant) => participant.id !== currentUserId) || null
+      ? activeConversation.participants.find(
+          (participant) => participant.id !== currentUserId,
+        ) || null
       : null;
 
   const isCallablePrivateConversation =
