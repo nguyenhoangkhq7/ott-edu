@@ -13,7 +13,18 @@ import {
 } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
-import { Camera, CameraOff, Info, Mic, MicOff, Phone, PhoneOff, RefreshCw, Video, X } from "lucide-react";
+import {
+  Camera,
+  CameraOff,
+  Info,
+  Mic,
+  MicOff,
+  Phone,
+  PhoneOff,
+  RefreshCw,
+  Video,
+  X,
+} from "lucide-react";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
 import ConversationInfoSidebar from "@/shared/components/ConversationInfoSidebar";
@@ -91,47 +102,47 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onOpenProfile,
   onOpenGroupManage,
 }) => {
-    const formatCallDuration = (durationSec: number): string => {
-      if (!durationSec || durationSec <= 0) {
-        return "0s";
-      }
+  const formatCallDuration = (durationSec: number): string => {
+    if (!durationSec || durationSec <= 0) {
+      return "0s";
+    }
 
-      const minutes = Math.floor(durationSec / 60);
-      const seconds = durationSec % 60;
-      if (minutes === 0) {
-        return `${seconds}s`;
-      }
+    const minutes = Math.floor(durationSec / 60);
+    const seconds = durationSec % 60;
+    if (minutes === 0) {
+      return `${seconds}s`;
+    }
 
-      return `${minutes}m ${seconds}s`;
-    };
+    return `${minutes}m ${seconds}s`;
+  };
 
-    const formatCallStatus = (item: CallHistoryItem): string => {
-      switch (item.status) {
-        case "connected":
-        case "ended":
-          return "Da goi";
-        case "declined":
-          return "Bi tu choi";
-        case "unavailable":
-          return "Khong lien lac duoc";
-        case "failed":
-          return "Loi ket noi";
-        case "ringing":
-          return "Dang do chuong";
-        default:
-          return item.status;
-      }
-    };
+  const formatCallStatus = (item: CallHistoryItem): string => {
+    switch (item.status) {
+      case "connected":
+      case "ended":
+        return "Da goi";
+      case "declined":
+        return "Bi tu choi";
+      case "unavailable":
+        return "Khong lien lac duoc";
+      case "failed":
+        return "Loi ket noi";
+      case "ringing":
+        return "Dang do chuong";
+      default:
+        return item.status;
+    }
+  };
 
-    const formatCallTime = (isoDate: string): string => {
-      const date = new Date(isoDate);
-      return date.toLocaleString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        day: "2-digit",
-        month: "2-digit",
-      });
-    };
+  const formatCallTime = (isoDate: string): string => {
+    const date = new Date(isoDate);
+    return date.toLocaleString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+    });
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -273,7 +284,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   }, [callStatus]);
 
-  const incomingCallerName = incomingCaller?.name || incomingCall?.fromUserId || "Nguoi dung";
+  const incomingCallerName =
+    incomingCaller?.name || incomingCall?.fromUserId || "Nguoi dung";
   const showVideoPanel =
     callStatus !== "idle" ||
     Boolean(localStream) ||
@@ -319,7 +331,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {incomingCall && callStatus === "receiving" && (
           <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
-            <p className="font-semibold">{incomingCallerName} dang goi video cho ban</p>
+            <p className="font-semibold">
+              {incomingCallerName} dang goi video cho ban
+            </p>
             <div className="mt-2 flex items-center gap-2">
               <button
                 type="button"
@@ -353,7 +367,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
                   title={isMicrophoneEnabled ? "Tat micro" : "Bat micro"}
                 >
-                  {isMicrophoneEnabled ? <Mic size={14} /> : <MicOff size={14} />}
+                  {isMicrophoneEnabled ? (
+                    <Mic size={14} />
+                  ) : (
+                    <MicOff size={14} />
+                  )}
                 </button>
                 <button
                   type="button"
@@ -362,7 +380,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
                   title={isCameraEnabled ? "Tat camera" : "Bat camera"}
                 >
-                  {isCameraEnabled ? <Camera size={14} /> : <CameraOff size={14} />}
+                  {isCameraEnabled ? (
+                    <Camera size={14} />
+                  ) : (
+                    <CameraOff size={14} />
+                  )}
                 </button>
                 {(activeCall || callStatus !== "idle") && (
                   <button
@@ -385,7 +407,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   playsInline
                   className="h-44 w-full object-cover"
                   onError={() => {
-                    console.error("[ChatWindow] Remote video element failed to render stream.");
+                    console.error(
+                      "[ChatWindow] Remote video element failed to render stream.",
+                    );
                   }}
                 />
                 {!remoteStream && (
@@ -402,19 +426,24 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   playsInline
                   className="h-44 w-full object-cover"
                   onError={() => {
-                    console.error("[ChatWindow] Local video element failed to render stream.");
+                    console.error(
+                      "[ChatWindow] Local video element failed to render stream.",
+                    );
                   }}
                 />
                 {(!localStream || !isCameraEnabled) && (
                   <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-200">
-                    {isCameraEnabled ? "Dang khoi tao camera..." : "Ban da tat camera"}
+                    {isCameraEnabled
+                      ? "Dang khoi tao camera..."
+                      : "Ban da tat camera"}
                   </div>
                 )}
               </div>
             </div>
 
             <p className="mt-2 text-[11px] text-slate-500">
-              Camera/Microphone chi duoc cap quyen khi test tren localhost hoac HTTPS.
+              Camera/Microphone chi duoc cap quyen khi test tren localhost hoac
+              HTTPS.
             </p>
           </>
         )}
@@ -535,158 +564,177 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
-        <button
-          type="button"
-          onClick={() => {
-            if (conversation.type !== "private" || !currentUser) return;
-            const headerUser = conversation.participants.find(
-              (p) => p.id !== currentUser.id,
-            );
-            if (headerUser) onOpenProfile?.(headerUser);
-          }}
-          className={`flex items-center gap-3 text-left ${
-            conversation.type === "private" ? "cursor-pointer" : "cursor-default"
-          }`}
-        >
-          <Image
-            src={
-              displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
-            }
-            alt="Avatar"
-            width={40}
-            height={40}
-            className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
-          />
-
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">
-              {displayName || "Unknown"}
-            </h2>
-            <p className="text-xs text-slate-500">{subStatus}</p>
-          </div>
-        </button>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 text-slate-400">
+    <div className="flex h-full flex-1 flex-row overflow-hidden bg-white">
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
           <button
             type="button"
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
-          >
-            <Phone size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={onStartVideoCall}
-            disabled={!canStartVideoCall}
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-            title={canStartVideoCall ? "Goi video 1-1" : "Chi ho tro goi trong doan chat private"}
-          >
-            <Video size={20} />
-          </button>
-
-          {/* Info Button - Mở Sidebar */}
-          <button
-            type="button"
-            onClick={() => setIsInfoSidebarOpen(!isInfoSidebarOpen)}
-            className={`rounded-full p-2 transition-colors ${
-              isInfoSidebarOpen
-                ? "bg-blue-100 text-blue-500"
-                : "hover:bg-slate-100 hover:text-blue-500"
+            onClick={() => {
+              if (conversation.type !== "private" || !currentUser) return;
+              const headerUser = conversation.participants.find(
+                (p) => p.id !== currentUser.id,
+              );
+              if (headerUser) onOpenProfile?.(headerUser);
+            }}
+            className={`flex items-center gap-3 text-left ${
+              conversation.type === "private"
+                ? "cursor-pointer"
+                : "cursor-default"
             }`}
-            title="Thông tin hội thoại"
           >
-            <Info size={20} />
+            <Image
+              src={
+                displayAvatar ||
+                `https://i.pravatar.cc/150?u=${conversation.id}`
+              }
+              alt="Avatar"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+            />
+
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">
+                {displayName || "Unknown"}
+              </h2>
+              <p className="text-xs text-slate-500">{subStatus}</p>
+            </div>
           </button>
 
-          {/* Group Manage Button (chỉ hiện với class/group) */}
-          {conversation.type === "class" && onOpenGroupManage && (
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 text-slate-400">
             <button
               type="button"
-              onClick={onOpenGroupManage}
               className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
-              title="Quản lý nhóm"
             >
-              <Info size={20} /> {/* Bạn có thể thay bằng icon khác nếu muốn */}
+              <Phone size={20} />
             </button>
-          )}
-        </div>
-      </div>
+            <button
+              type="button"
+              onClick={onStartVideoCall}
+              disabled={!canStartVideoCall}
+              className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+              title={
+                canStartVideoCall
+                  ? "Goi video 1-1"
+                  : "Chi ho tro goi trong doan chat private"
+              }
+            >
+              <Video size={20} />
+            </button>
 
-      {renderVideoCallPanel()}
+            {/* Info Button - Mở Sidebar */}
+            <button
+              type="button"
+              onClick={() => setIsInfoSidebarOpen(!isInfoSidebarOpen)}
+              className={`rounded-full p-2 transition-colors ${
+                isInfoSidebarOpen
+                  ? "bg-blue-100 text-blue-500"
+                  : "hover:bg-slate-100 hover:text-blue-500"
+              }`}
+              title="Thông tin hội thoại"
+            >
+              <Info size={20} />
+            </button>
 
-      {conversation.type === "private" && (
-        <div className="border-b border-slate-200 bg-white px-5 py-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Lich su cuoc goi
-            </p>
-            <p className="text-[11px] text-slate-400">
-              Trang {callHistoryPage}/{callHistoryTotalPages}
-            </p>
+            {/* Group Manage Button (chỉ hiện với class/group) */}
+            {conversation.type === "class" && onOpenGroupManage && (
+              <button
+                type="button"
+                onClick={onOpenGroupManage}
+                className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+                title="Quản lý nhóm"
+              >
+                <Info size={20} />{" "}
+                {/* Bạn có thể thay bằng icon khác nếu muốn */}
+              </button>
+            )}
           </div>
+        </div>
 
-          {isLoadingCallHistory ? (
-            <div className="mt-2 text-xs text-slate-400">Dang tai lich su...</div>
-          ) : callHistory.length === 0 ? (
-            <div className="mt-2 text-xs text-slate-400">Chua co lich su cuoc goi.</div>
-          ) : (
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {callHistory.map((item) => (
-                <div
-                  key={item._id}
-                  className="min-w-45 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2"
-                >
-                  <p className="text-xs font-semibold text-slate-700">{formatCallStatus(item)}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">{formatCallTime(item.startedAt)}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    Thoi luong: {formatCallDuration(item.durationSec)}
-                  </p>
-                </div>
-              ))}
+        {renderVideoCallPanel()}
+
+        {conversation.type === "private" && (
+          <div className="border-b border-slate-200 bg-white px-5 py-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Lich su cuoc goi
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Trang {callHistoryPage}/{callHistoryTotalPages}
+              </p>
             </div>
-          )}
-        </div>
-      )}
 
-      <div className="flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white p-4">
-        {isLoadingMessages ? (
-          <div className="flex h-full items-center justify-center gap-2 text-slate-400">
-            <RefreshCw size={16} className="animate-spin" />
-            <span className="text-sm">Đang tải tin nhắn...</span>
+            {isLoadingCallHistory ? (
+              <div className="mt-2 text-xs text-slate-400">
+                Dang tai lich su...
+              </div>
+            ) : callHistory.length === 0 ? (
+              <div className="mt-2 text-xs text-slate-400">
+                Chua co lich su cuoc goi.
+              </div>
+            ) : (
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {callHistory.map((item) => (
+                  <div
+                    key={item._id}
+                    className="min-w-45 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2"
+                  >
+                    <p className="text-xs font-semibold text-slate-700">
+                      {formatCallStatus(item)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {formatCallTime(item.startedAt)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      Thoi luong: {formatCallDuration(item.durationSec)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ) : localMessages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
-            Hãy là người đầu tiên gửi tin nhắn! 👋
-          </div>
-        ) : (
-          localMessages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isOwnMessage={msg.senderId === currentUser?.id}
-              currentUserId={currentUser?.id}
-              sender={getSender(msg.senderId)}
-              onReply={setReplyingTo}
-              onReact={handleReact}
-              onRevokeForAll={handleRevokeForAll}
-              onRevokeForMe={handleRevokeForMe}
-              onForward={onForwardMessage}
-              onOpenProfile={onOpenProfile}
-            />
-          ))
         )}
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* ==================== MESSAGE INPUT ==================== */}
-      <MessageInput
-        onSendMessage={handleSendMessage}
-        isSending={isSending}
-        replyingTo={replyingTo}
-        onCancelReply={() => setReplyingTo(null)}
-      />
+        <div className="flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white p-4">
+          {isLoadingMessages ? (
+            <div className="flex h-full items-center justify-center gap-2 text-slate-400">
+              <RefreshCw size={16} className="animate-spin" />
+              <span className="text-sm">Đang tải tin nhắn...</span>
+            </div>
+          ) : localMessages.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              Hãy là người đầu tiên gửi tin nhắn! 👋
+            </div>
+          ) : (
+            localMessages.map((msg) => (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                isOwnMessage={msg.senderId === currentUser?.id}
+                currentUserId={currentUser?.id}
+                sender={getSender(msg.senderId)}
+                onReply={setReplyingTo}
+                onReact={handleReact}
+                onRevokeForAll={handleRevokeForAll}
+                onRevokeForMe={handleRevokeForMe}
+                onForward={onForwardMessage}
+                onOpenProfile={onOpenProfile}
+              />
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* ==================== MESSAGE INPUT ==================== */}
+        <MessageInput
+          onSendMessage={handleSendMessage}
+          isSending={isSending}
+          replyingTo={replyingTo}
+          onCancelReply={() => setReplyingTo(null)}
+        />
+      </div>
 
       {/* ==================== INFO SIDEBAR ==================== */}
       {isInfoSidebarOpen && (
