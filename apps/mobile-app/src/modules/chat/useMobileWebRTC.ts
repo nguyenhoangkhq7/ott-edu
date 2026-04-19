@@ -363,7 +363,7 @@ export function useMobileWebRTC({
       return;
     }
 
-    const videoTrack = stream.getVideoTracks()[0] as (MediaStreamTrack & {
+    const videoTrack = stream.getVideoTracks()[0] as (ReturnType<MediaStream["getVideoTracks"]>[number] & {
       _switchCamera?: () => void;
     }) | undefined;
 
