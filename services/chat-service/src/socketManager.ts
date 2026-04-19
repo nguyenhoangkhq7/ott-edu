@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import { Server, Socket } from "socket.io";
+import CallLog from "./model/CallLog.ts";
 import Conversation from "./model/Conversation.ts";
 import Message from "./model/Message.ts";
 
@@ -41,6 +42,7 @@ type CallSession = {
   calleeId: string;
   status: CallSessionStatus;
   createdAt: number;
+  connectedAt?: number;
 };
 
 class SocketManager {
@@ -98,6 +100,90 @@ class SocketManager {
     this.activeCallByUser.delete(session.calleeId);
   }
 
+  private mapReasonToCallStatus(reason: string): "ended" | "declined" | "unavailable" | "failed" {
+    switch (reason) {
+      case "declined":
+        return "declined";
+      case "callee-busy":
+      case "callee-offline":
+      case "peer-offline":
+      case "no-answer":
+        return "unavailable";
+      case "accept-failed":
+      case "offer-create-failed":
+      case "offer-handle-failed":
+      case "peer-disconnected":
+        return "failed";
+      default:
+        return "ended";
+    }
+  }
+
+  private async createCallLog(session: CallSession): Promise<void> {
+    try {
+      if (
+        !mongoose.Types.ObjectId.isValid(session.conversationId) ||
+        !mongoose.Types.ObjectId.isValid(session.callerId) ||
+        !mongoose.Types.ObjectId.isValid(session.calleeId)
+      ) {
+        return;
+      }
+
+      await CallLog.create({
+        callId: session.callId,
+        conversationId: new mongoose.Types.ObjectId(session.conversationId),
+        callerId: new mongoose.Types.ObjectId(session.callerId),
+        calleeId: new mongoose.Types.ObjectId(session.calleeId),
+        status: "ringing",
+        startedAt: new Date(session.createdAt),
+      });
+    } catch (error) {
+      console.error("[SocketManager] createCallLog error:", error);
+    }
+  }
+
+  private async markCallConnected(callId: string, connectedAt: number): Promise<void> {
+    try {
+      await CallLog.findOneAndUpdate(
+        { callId },
+        {
+          $set: {
+            status: "connected",
+            connectedAt: new Date(connectedAt),
+          },
+        },
+      );
+    } catch (error) {
+      console.error("[SocketManager] markCallConnected error:", error);
+    }
+  }
+
+  private async finalizeCallLog(callId: string, reason: string, endedAtMs?: number): Promise<void> {
+    try {
+      const endedAtDate = new Date(endedAtMs || Date.now());
+      const current = await CallLog.findOne({ callId }).select("startedAt").lean();
+
+      const startedAtMs = current?.startedAt
+        ? new Date(current.startedAt).getTime()
+        : endedAtDate.getTime();
+      const durationSec = Math.max(0, Math.round((endedAtDate.getTime() - startedAtMs) / 1000));
+
+      await CallLog.findOneAndUpdate(
+        { callId },
+        {
+          $set: {
+            status: this.mapReasonToCallStatus(reason),
+            endedAt: endedAtDate,
+            durationSec,
+            endReason: reason,
+          },
+        },
+      );
+    } catch (error) {
+      console.error("[SocketManager] finalizeCallLog error:", error);
+    }
+  }
+
   private endCallSession(
     callId: string,
     endedByUserId: string,
@@ -110,6 +196,7 @@ class SocketManager {
     }
 
     const peerUserId = this.getPeerId(session, endedByUserId);
+    void this.finalizeCallLog(callId, reason);
     this.clearCallSession(callId);
 
     if (notifyEndedByUser) {
@@ -353,6 +440,7 @@ class SocketManager {
           this.callSessions.set(callId, session);
           this.activeCallByUser.set(userId, callId);
           this.activeCallByUser.set(calleeUserId, callId);
+          void this.createCallLog(session);
 
           const incomingPayload = {
             callId,
@@ -434,6 +522,8 @@ class SocketManager {
         const session = this.callSessions.get(callId);
         if (session) {
           session.status = "connected";
+          session.connectedAt = Date.now();
+          void this.markCallConnected(callId, session.connectedAt);
         }
 
         this.relayWebRtcPayload(socket, userId, "webrtcAnswer", {

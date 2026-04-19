@@ -1,10 +1,98 @@
 import type { Request, Response } from "express";
+import mongoose from "mongoose";
 import { ChatService } from "../services/chat.service.ts";
+import CallLog from "../model/CallLog.ts";
 import S3Service from "../services/s3.service.ts";
 import socketManager from "../socketManager.ts";
 import User from "../model/User.ts";
 
 export class ChatController {
+  // API: GET /api/calls/history
+  static async getCallHistory(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      const conversationId = typeof req.query.conversationId === "string"
+        ? req.query.conversationId.trim()
+        : "";
+      const limitRaw = Number(req.query.limit);
+      const limit = Number.isFinite(limitRaw)
+        ? Math.min(Math.max(Math.floor(limitRaw), 1), 100)
+        : 30;
+      const pageRaw = Number(req.query.page);
+      const page = Number.isFinite(pageRaw)
+        ? Math.max(Math.floor(pageRaw), 1)
+        : 1;
+      const skip = (page - 1) * limit;
+
+      const statusRaw = typeof req.query.status === "string"
+        ? req.query.status.trim().toLowerCase()
+        : "";
+      const allowedStatuses = new Set([
+        "ringing",
+        "connected",
+        "ended",
+        "declined",
+        "unavailable",
+        "failed",
+      ] as const);
+      const statusValues = statusRaw
+        ? statusRaw
+            .split(",")
+            .map((value) => value.trim())
+            .filter((value): value is "ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed" =>
+              allowedStatuses.has(value as "ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed"),
+            )
+        : [];
+
+      const userObjectId = new mongoose.Types.ObjectId(userId);
+      const query: {
+        $or: Array<{ callerId: mongoose.Types.ObjectId } | { calleeId: mongoose.Types.ObjectId }>;
+        conversationId?: mongoose.Types.ObjectId;
+        status?: { $in: Array<"ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed"> };
+      } = {
+        $or: [{ callerId: userObjectId }, { calleeId: userObjectId }],
+      };
+
+      if (conversationId) {
+        if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+          return res.status(400).json({ error: "conversationId is invalid" });
+        }
+        query.conversationId = new mongoose.Types.ObjectId(conversationId);
+      }
+
+      if (statusValues.length > 0) {
+        query.status = { $in: statusValues };
+      }
+
+      const total = await CallLog.countDocuments(query);
+
+      const logs = await CallLog.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      return res.status(200).json({
+        data: logs,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+      });
+    } catch (error: any) {
+      console.error("[ChatController] getCallHistory error:", error);
+      return res
+        .status(500)
+        .json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
   // API: GET /api/me
   static async getCurrentChatUser(req: Request, res: Response) {
     try {

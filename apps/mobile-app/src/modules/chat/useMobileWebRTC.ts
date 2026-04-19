@@ -75,11 +75,17 @@ type UseMobileWebRTCReturn = {
   callStatus: VideoCallStatus;
   incomingCall: IncomingVideoCall | null;
   activeCall: ActiveVideoCall | null;
+  isMicrophoneEnabled: boolean;
+  isCameraEnabled: boolean;
+  cameraFacing: "front" | "back";
   callError: string | null;
   startVideoCall: (params: StartVideoCallParams) => Promise<void>;
   acceptIncomingCall: () => Promise<void>;
   declineIncomingCall: () => void;
   endVideoCall: (reason?: string) => void;
+  toggleMicrophone: () => void;
+  toggleCamera: () => void;
+  switchCamera: () => void;
   clearCallError: () => void;
 };
 
@@ -166,6 +172,9 @@ export function useMobileWebRTC({
   const [callStatus, setCallStatus] = useState<VideoCallStatus>("idle");
   const [incomingCall, setIncomingCall] = useState<IncomingVideoCall | null>(null);
   const [activeCall, setActiveCall] = useState<ActiveVideoCall | null>(null);
+  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(true);
+  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+  const [cameraFacing, setCameraFacing] = useState<"front" | "back">("front");
   const [callError, setCallError] = useState<string | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
@@ -281,6 +290,9 @@ export function useMobileWebRTC({
       setIncomingCall(null);
       setActiveCall(null);
       setCallStatus("idle");
+      setIsMicrophoneEnabled(true);
+      setIsCameraEnabled(true);
+      setCameraFacing("front");
 
       if (!options?.preserveError) {
         setCallError(null);
@@ -304,7 +316,63 @@ export function useMobileWebRTC({
 
     localStreamRef.current = stream;
     setLocalStream(stream);
+    setIsMicrophoneEnabled(stream.getAudioTracks().some((track) => track.enabled));
+    setIsCameraEnabled(stream.getVideoTracks().some((track) => track.enabled));
     return stream;
+  }, []);
+
+  const toggleMicrophone = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) {
+      return;
+    }
+
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      return;
+    }
+
+    const shouldEnable = audioTracks.some((track) => !track.enabled);
+    audioTracks.forEach((track) => {
+      track.enabled = shouldEnable;
+    });
+    setIsMicrophoneEnabled(shouldEnable);
+  }, []);
+
+  const toggleCamera = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) {
+      return;
+    }
+
+    const videoTracks = stream.getVideoTracks();
+    if (videoTracks.length === 0) {
+      return;
+    }
+
+    const shouldEnable = videoTracks.some((track) => !track.enabled);
+    videoTracks.forEach((track) => {
+      track.enabled = shouldEnable;
+    });
+    setIsCameraEnabled(shouldEnable);
+  }, []);
+
+  const switchCamera = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) {
+      return;
+    }
+
+    const videoTrack = stream.getVideoTracks()[0] as (MediaStreamTrack & {
+      _switchCamera?: () => void;
+    }) | undefined;
+
+    if (!videoTrack || typeof videoTrack._switchCamera !== "function") {
+      return;
+    }
+
+    videoTrack._switchCamera();
+    setCameraFacing((prev) => (prev === "front" ? "back" : "front"));
   }, []);
 
   const createPeerConnection = useCallback((call: ActiveVideoCall) => {
@@ -754,11 +822,17 @@ export function useMobileWebRTC({
     callStatus,
     incomingCall,
     activeCall,
+    isMicrophoneEnabled,
+    isCameraEnabled,
+    cameraFacing,
     callError,
     startVideoCall,
     acceptIncomingCall,
     declineIncomingCall,
     endVideoCall,
+    toggleMicrophone,
+    toggleCamera,
+    switchCamera,
     clearCallError,
   };
 }

@@ -64,6 +64,22 @@ export interface ActiveVideoCall {
   direction: "incoming" | "outgoing";
 }
 
+export interface CallHistoryItem {
+  _id: string;
+  callId: string;
+  conversationId: string;
+  callerId: string;
+  calleeId: string;
+  status: "ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed";
+  startedAt: string;
+  connectedAt?: string;
+  endedAt?: string;
+  durationSec: number;
+  endReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Raw API Response Types (từ backend MongoDB) ────────────────────────────
 
 export interface ApiUser {

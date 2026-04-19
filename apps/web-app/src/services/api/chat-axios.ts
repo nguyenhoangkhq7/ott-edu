@@ -6,8 +6,28 @@ import axios, {
 import { getAccessToken } from "./token-store";
 import { clearAccessToken, setAccessToken } from "./token-store";
 
-const CHAT_SERVICE_URL =
-  process.env.NEXT_PUBLIC_CHAT_SERVICE_URL || "http://localhost:3001";
+function resolveChatApiBaseUrl(): string {
+  const configuredUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL?.trim();
+
+  if (!configuredUrl) {
+    // Route through gateway by default to avoid mixed-content/CORS issues.
+    return "/api/chat";
+  }
+
+  const normalizedUrl = configuredUrl.replace(/\/+$/, "");
+
+  if (!/^https?:\/\//i.test(normalizedUrl)) {
+    return normalizedUrl;
+  }
+
+  if (normalizedUrl.endsWith("/api")) {
+    return normalizedUrl;
+  }
+
+  return `${normalizedUrl}/api`;
+}
+
+const CHAT_API_BASE_URL = resolveChatApiBaseUrl();
 
 type RefreshResponse = {
   accessToken: string;
@@ -20,7 +40,7 @@ declare module "axios" {
 }
 
 export const chatApiClient = axios.create({
-  baseURL: `${CHAT_SERVICE_URL}/api`,
+  baseURL: CHAT_API_BASE_URL,
   timeout: 10000,
   withCredentials: true,
   headers: {

@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState } from "react";
 import {
   ActiveVideoCall,
   Attachment,
+  CallHistoryItem,
   Conversation,
   IncomingVideoCall,
   Message,
@@ -13,7 +14,7 @@ import {
 } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
-import { Info, Phone, PhoneOff, RefreshCw, Video, X } from "lucide-react";
+import { Camera, CameraOff, Info, Mic, MicOff, Phone, PhoneOff, RefreshCw, Video, X } from "lucide-react";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
 
@@ -37,11 +38,20 @@ interface ChatWindowProps {
   incomingCall?: IncomingVideoCall | null;
   incomingCaller?: User | null;
   activeCall?: ActiveVideoCall | null;
+  callHistory?: CallHistoryItem[];
+  isLoadingCallHistory?: boolean;
+  callHistoryPage?: number;
+  callHistoryTotalPages?: number;
+  isMicrophoneEnabled?: boolean;
+  isCameraEnabled?: boolean;
   callError?: string | null;
   onClearCallError?: () => void;
+  onRetryMediaPermission?: () => Promise<void> | void;
   onAcceptIncomingCall?: () => void;
   onDeclineIncomingCall?: () => void;
   onEndVideoCall?: () => void;
+  onToggleMicrophone?: () => void;
+  onToggleCamera?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -60,12 +70,63 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   incomingCall = null,
   incomingCaller = null,
   activeCall = null,
+  callHistory = [],
+  isLoadingCallHistory = false,
+  callHistoryPage = 1,
+  callHistoryTotalPages = 1,
+  isMicrophoneEnabled = true,
+  isCameraEnabled = true,
   callError = null,
   onClearCallError,
+  onRetryMediaPermission,
   onAcceptIncomingCall,
   onDeclineIncomingCall,
   onEndVideoCall,
+  onToggleMicrophone,
+  onToggleCamera,
 }) => {
+    const formatCallDuration = (durationSec: number): string => {
+      if (!durationSec || durationSec <= 0) {
+        return "0s";
+      }
+
+      const minutes = Math.floor(durationSec / 60);
+      const seconds = durationSec % 60;
+      if (minutes === 0) {
+        return `${seconds}s`;
+      }
+
+      return `${minutes}m ${seconds}s`;
+    };
+
+    const formatCallStatus = (item: CallHistoryItem): string => {
+      switch (item.status) {
+        case "connected":
+        case "ended":
+          return "Da goi";
+        case "declined":
+          return "Bi tu choi";
+        case "unavailable":
+          return "Khong lien lac duoc";
+        case "failed":
+          return "Loi ket noi";
+        case "ringing":
+          return "Dang do chuong";
+        default:
+          return item.status;
+      }
+    };
+
+    const formatCallTime = (isoDate: string): string => {
+      const date = new Date(isoDate);
+      return date.toLocaleString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        day: "2-digit",
+        month: "2-digit",
+      });
+    };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -83,15 +144,60 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }, [localMessages]);
 
   useEffect(() => {
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream;
+    const localVideoElement = localVideoRef.current;
+    if (!localVideoElement) {
+      return;
     }
+
+    localVideoElement.srcObject = localStream;
+
+    if (!localStream) {
+      return;
+    }
+
+    if (localStream.getVideoTracks().length === 0) {
+      console.warn("[ChatWindow] Local stream has no video track.");
+      return;
+    }
+
+    const playLocalVideo = () => {
+      void localVideoElement.play().catch((error) => {
+        console.debug("[ChatWindow] Local video autoplay blocked:", error);
+      });
+    };
+
+    localVideoElement.onloadedmetadata = playLocalVideo;
+    playLocalVideo();
+
+    return () => {
+      localVideoElement.onloadedmetadata = null;
+    };
   }, [localStream]);
 
   useEffect(() => {
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    const remoteVideoElement = remoteVideoRef.current;
+    if (!remoteVideoElement) {
+      return;
     }
+
+    remoteVideoElement.srcObject = remoteStream;
+
+    if (!remoteStream) {
+      return;
+    }
+
+    const playRemoteVideo = () => {
+      void remoteVideoElement.play().catch((error) => {
+        console.debug("[ChatWindow] Remote video autoplay blocked:", error);
+      });
+    };
+
+    remoteVideoElement.onloadedmetadata = playRemoteVideo;
+    playRemoteVideo();
+
+    return () => {
+      remoteVideoElement.onloadedmetadata = null;
+    };
   }, [remoteStream]);
 
   // Setup socket listeners
@@ -138,7 +244,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const callStatusLabel = React.useMemo(() => {
     switch (callStatus) {
       case "calling":
-        return "Dang ket noi cuoc goi...";
+        return "Dang goi... cho doi phuong chap nhan";
       case "receiving":
         return "Ban co cuoc goi den";
       case "connected":
@@ -162,15 +268,29 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
 
     return (
-      <div className="border-b border-slate-200 bg-slate-950/95 px-4 py-3 text-white">
+      <div className="border-b border-slate-200 bg-linear-to-br from-sky-50 via-white to-cyan-50 px-4 py-3 text-slate-900">
         {callError && (
-          <div className="mb-3 flex items-start justify-between gap-3 rounded-lg border border-red-400/40 bg-red-500/20 px-3 py-2 text-xs text-red-100">
-            <p>{callError}</p>
+          <div className="mb-3 flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            <div className="min-w-0 flex-1">
+              <p>{callError}</p>
+              {onRetryMediaPermission && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void onRetryMediaPermission();
+                  }}
+                  className="mt-2 inline-flex items-center gap-1 rounded-md border border-rose-300 px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100"
+                >
+                  <RefreshCw size={12} />
+                  Xin quyen lai
+                </button>
+              )}
+            </div>
             {onClearCallError && (
               <button
                 type="button"
                 onClick={onClearCallError}
-                className="rounded p-1 text-red-100 transition hover:bg-red-400/30"
+                className="rounded p-1 text-rose-700 transition hover:bg-rose-100"
               >
                 <X size={14} />
               </button>
@@ -179,13 +299,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
 
         {incomingCall && callStatus === "receiving" && (
-          <div className="mb-3 rounded-lg border border-emerald-300/40 bg-emerald-500/20 px-3 py-3 text-sm">
+          <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
             <p className="font-semibold">{incomingCallerName} dang goi video cho ban</p>
             <div className="mt-2 flex items-center gap-2">
               <button
                 type="button"
                 onClick={onDeclineIncomingCall}
-                className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:bg-slate-700"
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
               >
                 Tu choi
               </button>
@@ -203,28 +323,51 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {(callStatus !== "idle" || localStream || remoteStream) && (
           <>
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-200">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 {callStatusLabel}
               </p>
-              {(activeCall || callStatus !== "idle") && (
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={onEndVideoCall}
-                  className="inline-flex items-center gap-1 rounded-md bg-red-500 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-red-400"
+                  onClick={onToggleMicrophone}
+                  disabled={!localStream}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  title={isMicrophoneEnabled ? "Tat micro" : "Bat micro"}
                 >
-                  <PhoneOff size={14} />
-                  Ket thuc
+                  {isMicrophoneEnabled ? <Mic size={14} /> : <MicOff size={14} />}
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={onToggleCamera}
+                  disabled={!localStream}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  title={isCameraEnabled ? "Tat camera" : "Bat camera"}
+                >
+                  {isCameraEnabled ? <Camera size={14} /> : <CameraOff size={14} />}
+                </button>
+                {(activeCall || callStatus !== "idle") && (
+                  <button
+                    type="button"
+                    onClick={() => onEndVideoCall?.()}
+                    className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-rose-400"
+                  >
+                    <PhoneOff size={14} />
+                    Ket thuc
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              <div className="relative overflow-hidden rounded-lg border border-white/20 bg-black/60">
+              <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
                 <video
                   ref={remoteVideoRef}
                   autoPlay
                   playsInline
-                  className="h-40 w-full object-cover"
+                  className="h-44 w-full object-cover"
+                  onError={() => {
+                    console.error("[ChatWindow] Remote video element failed to render stream.");
+                  }}
                 />
                 {!remoteStream && (
                   <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-200">
@@ -232,23 +375,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   </div>
                 )}
               </div>
-              <div className="relative overflow-hidden rounded-lg border border-white/20 bg-black/60">
+              <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
                 <video
                   ref={localVideoRef}
                   autoPlay
                   muted
                   playsInline
-                  className="h-40 w-full object-cover"
+                  className="h-44 w-full object-cover"
+                  onError={() => {
+                    console.error("[ChatWindow] Local video element failed to render stream.");
+                  }}
                 />
-                {!localStream && (
+                {(!localStream || !isCameraEnabled) && (
                   <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-200">
-                    Dang khoi tao camera...
+                    {isCameraEnabled ? "Dang khoi tao camera..." : "Ban da tat camera"}
                   </div>
                 )}
               </div>
             </div>
 
-            <p className="mt-2 text-[11px] text-slate-300">
+            <p className="mt-2 text-[11px] text-slate-500">
               Camera/Microphone chi duoc cap quyen khi test tren localhost hoac HTTPS.
             </p>
           </>
@@ -342,7 +488,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
         <div className="flex items-center gap-3">
           <Image
             src={
@@ -382,7 +528,41 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {renderVideoCallPanel()}
 
-      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-slate-50 to-white p-4">
+      {conversation.type === "private" && (
+        <div className="border-b border-slate-200 bg-white px-5 py-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Lich su cuoc goi
+            </p>
+            <p className="text-[11px] text-slate-400">
+              Trang {callHistoryPage}/{callHistoryTotalPages}
+            </p>
+          </div>
+
+          {isLoadingCallHistory ? (
+            <div className="mt-2 text-xs text-slate-400">Dang tai lich su...</div>
+          ) : callHistory.length === 0 ? (
+            <div className="mt-2 text-xs text-slate-400">Chua co lich su cuoc goi.</div>
+          ) : (
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {callHistory.map((item) => (
+                <div
+                  key={item._id}
+                  className="min-w-45 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2"
+                >
+                  <p className="text-xs font-semibold text-slate-700">{formatCallStatus(item)}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">{formatCallTime(item.startedAt)}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Thoi luong: {formatCallDuration(item.durationSec)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white p-4">
         {isLoadingMessages ? (
           <div className="flex h-full items-center justify-center gap-2 text-slate-400">
             <RefreshCw size={16} className="animate-spin" />

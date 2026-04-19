@@ -56,11 +56,17 @@ export default function ChatScreen() {
     callStatus,
     incomingCall,
     activeCall,
+    isMicrophoneEnabled,
+    isCameraEnabled,
+    cameraFacing,
     callError,
     startVideoCall,
     acceptIncomingCall,
     declineIncomingCall,
     endVideoCall,
+    toggleMicrophone,
+    toggleCamera,
+    switchCamera,
     clearCallError,
   } = useMobileWebRTC({
     socket,
@@ -336,6 +342,47 @@ export default function ChatScreen() {
           </Pressable>
         </View>
 
+        <View style={styles.callActionsRowSecondary}>
+          <Pressable
+            onPress={toggleMicrophone}
+            disabled={!localStreamUrl}
+            style={[
+              styles.secondaryButton,
+              !localStreamUrl ? styles.buttonDisabled : null,
+            ]}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {isMicrophoneEnabled ? "Tat Mic" : "Bat Mic"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={toggleCamera}
+            disabled={!localStreamUrl}
+            style={[
+              styles.secondaryButton,
+              !localStreamUrl ? styles.buttonDisabled : null,
+            ]}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {isCameraEnabled ? "Tat Cam" : "Bat Cam"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={switchCamera}
+            disabled={!localStreamUrl}
+            style={[
+              styles.secondaryButton,
+              !localStreamUrl ? styles.buttonDisabled : null,
+            ]}
+          >
+            <Text style={styles.secondaryButtonText}>
+              Doi Cam ({cameraFacing === "front" ? "Truoc" : "Sau"})
+            </Text>
+          </Pressable>
+        </View>
+
         <Text style={styles.permissionHint}>
           Luu y: Goi video can Expo Development Build (khong ho tro Expo Go).
         </Text>
@@ -416,7 +463,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f7fb",
+    backgroundColor: "#f8fbff",
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
@@ -433,25 +480,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   headerCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#ffffff",
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#dbeafe",
   },
   headerTitle: {
-    color: "#f8fafc",
+    color: "#0f172a",
     fontSize: 18,
     fontWeight: "700",
   },
   headerSubTitle: {
     marginTop: 4,
-    color: "#cbd5e1",
+    color: "#334155",
     fontSize: 13,
   },
   envHint: {
     marginTop: 2,
-    color: "#94a3b8",
+    color: "#64748b",
     fontSize: 11,
   },
   sectionCard: {
@@ -507,6 +556,11 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 6,
   },
+  callActionsRowSecondary: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
   primaryButton: {
     flex: 1,
     borderRadius: 10,
@@ -529,6 +583,20 @@ const styles = StyleSheet.create({
   dangerButtonText: {
     color: "#ffffff",
     fontSize: 13,
+    fontWeight: "700",
+  },
+  secondaryButton: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    backgroundColor: "#eff6ff",
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    color: "#1d4ed8",
+    fontSize: 12,
     fontWeight: "700",
   },
   buttonDisabled: {

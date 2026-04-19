@@ -14,11 +14,22 @@ const app: Application = express();
 
 connectDB();
 
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:8000",
-  process.env.WEB_APP_URL || "http://localhost:3000",
-].filter(Boolean);
+function buildAllowedOrigins(): string[] {
+  const defaults = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    process.env.WEB_APP_URL || "http://localhost:3000",
+  ].filter(Boolean) as string[];
+
+  const fromEnv = (process.env.APP_CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set([...defaults, ...fromEnv]));
+}
+
+const allowedOrigins = buildAllowedOrigins();
 
 app.use(cors({
   origin: allowedOrigins,

@@ -2,19 +2,56 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
+import { getAccessToken } from "@/services/api/token-store";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
-import { ChatMode, Conversation, Message, User } from "../types";
+import { CallHistoryItem, ChatMode, Conversation, Message, User } from "../types";
 import { useWebRTC } from "../hooks/useWebRTC";
 import {
+  fetchCallHistory,
   fetchConversations,
   fetchMessages,
   sendMessage,
   mapApiMessageToMessage,
 } from "../chatApi";
 
-const CHAT_SERVICE_URL =
-  process.env.NEXT_PUBLIC_CHAT_SERVICE_URL || "http://localhost:3001";
+function resolveSocketServerUrl(): string | undefined {
+  const configuredUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL?.trim();
+
+  const getGatewayOriginFromApiUrl = (): string | undefined => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+    if (!apiUrl) {
+      return undefined;
+    }
+
+    try {
+      return new URL(apiUrl).origin;
+    } catch {
+      return undefined;
+    }
+  };
+
+  if (!configuredUrl || configuredUrl.startsWith("/")) {
+    // If UI is served from Next dev server (:3000), same-origin /socket.io is 404.
+    // In that case, use the gateway origin from NEXT_PUBLIC_API_URL.
+    if (typeof window !== "undefined" && window.location.port === "3000") {
+      const gatewayOrigin = getGatewayOriginFromApiUrl();
+      if (gatewayOrigin && gatewayOrigin !== window.location.origin) {
+        return gatewayOrigin;
+      }
+    }
+
+    // Default: same-origin Socket.IO endpoint (proxied by gateway).
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(configuredUrl);
+    return parsed.origin;
+  } catch {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+}
 
 interface ChatLayoutProps {
   currentUserId: string;
@@ -32,6 +69,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [callHistory, setCallHistory] = useState<CallHistoryItem[]>([]);
+  const [isLoadingCallHistory, setIsLoadingCallHistory] = useState(false);
+  const [callHistoryPage, setCallHistoryPage] = useState(1);
+  const [callHistoryTotalPages, setCallHistoryTotalPages] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
 
@@ -60,11 +101,16 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     callStatus,
     incomingCall,
     activeCall,
+    isMicrophoneEnabled,
+    isCameraEnabled,
     callError,
+    retryMediaPermission,
     startVideoCall,
     acceptIncomingCall,
     declineIncomingCall,
     endVideoCall,
+    toggleMicrophone,
+    toggleCamera,
     clearCallError,
   } = useWebRTC({
     socket,
@@ -80,10 +126,29 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   useEffect(() => {
     if (!currentUserId) return;
 
-    const nextSocket = io(CHAT_SERVICE_URL, {
-      auth: { userId: currentUserId },
-      query: { userId: currentUserId },
-    });
+    const socketServerUrl = resolveSocketServerUrl();
+    const accessToken = getAccessToken();
+    const socketAuth: { userId: string; token?: string } = {
+      userId: currentUserId,
+    };
+    const socketQuery: { userId: string; token?: string } = {
+      userId: currentUserId,
+    };
+
+    if (accessToken) {
+      socketAuth.token = accessToken;
+      socketQuery.token = accessToken;
+    }
+
+    const socketOptions = {
+      auth: socketAuth,
+      query: socketQuery,
+      withCredentials: true,
+    };
+
+    const nextSocket = socketServerUrl
+      ? io(socketServerUrl, socketOptions)
+      : io(socketOptions);
 
     socketRef.current = nextSocket;
     setSocket(nextSocket);
@@ -212,6 +277,83 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
     load();
   }, [activeConversationId]);
+
+  // ── Fetch call history cho private conversation hiện tại ────────────────
+  useEffect(() => {
+    const activeConversation = conversations.find((c) => c.id === activeConversationId);
+    const isPrivate = activeConversation?.type === "private";
+
+    if (!activeConversationId || !isPrivate) {
+      setCallHistory([]);
+      setCallHistoryPage(1);
+      setCallHistoryTotalPages(1);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadCallHistory = async () => {
+      setIsLoadingCallHistory(true);
+      try {
+        const response = await fetchCallHistory({
+          conversationId: activeConversationId,
+          limit: 5,
+          page: 1,
+        });
+
+        if (!mounted) {
+          return;
+        }
+
+        setCallHistory(response.items);
+        setCallHistoryPage(response.pagination.page);
+        setCallHistoryTotalPages(response.pagination.totalPages);
+      } catch (historyError) {
+        if (!mounted) {
+          return;
+        }
+        console.error("[ChatLayout] fetch call history error:", historyError);
+      } finally {
+        if (mounted) {
+          setIsLoadingCallHistory(false);
+        }
+      }
+    };
+
+    loadCallHistory();
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeConversationId, conversations]);
+
+  useEffect(() => {
+    if (callStatus !== "idle") {
+      return;
+    }
+
+    const activeConversation = conversations.find((c) => c.id === activeConversationId);
+    if (!activeConversation || activeConversation.type !== "private") {
+      return;
+    }
+
+    const refreshCallHistory = async () => {
+      try {
+        const response = await fetchCallHistory({
+          conversationId: activeConversation.id,
+          limit: 5,
+          page: 1,
+        });
+        setCallHistory(response.items);
+        setCallHistoryPage(response.pagination.page);
+        setCallHistoryTotalPages(response.pagination.totalPages);
+      } catch (historyError) {
+        console.error("[ChatLayout] refresh call history error:", historyError);
+      }
+    };
+
+    void refreshCallHistory();
+  }, [activeConversationId, callStatus, conversations]);
 
   // ── Gửi tin nhắn ─────────────────────────────────────────────────────────
   const handleSendMessage = async (
@@ -426,7 +568,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, [conversations, currentUserId, searchQuery]);
 
   return (
-    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
+    <div className="flex h-[calc(100vh-220px)] min-h-155 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
       <Sidebar
         currentMode={currentMode}
         onModeChange={setCurrentMode}
@@ -457,11 +599,20 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         incomingCall={incomingCall}
         incomingCaller={incomingCaller}
         activeCall={activeCall}
+        callHistory={callHistory}
+        isLoadingCallHistory={isLoadingCallHistory}
+        callHistoryPage={callHistoryPage}
+        callHistoryTotalPages={callHistoryTotalPages}
+        isMicrophoneEnabled={isMicrophoneEnabled}
+        isCameraEnabled={isCameraEnabled}
         callError={callError}
         onClearCallError={clearCallError}
+        onRetryMediaPermission={retryMediaPermission}
         onAcceptIncomingCall={acceptIncomingCall}
         onDeclineIncomingCall={declineIncomingCall}
         onEndVideoCall={endVideoCall}
+        onToggleMicrophone={toggleMicrophone}
+        onToggleCamera={toggleCamera}
       />
     </div>
   );

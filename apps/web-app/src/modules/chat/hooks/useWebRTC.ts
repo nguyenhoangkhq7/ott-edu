@@ -67,11 +67,16 @@ type UseWebRTCReturn = {
   callStatus: VideoCallStatus;
   incomingCall: IncomingVideoCall | null;
   activeCall: ActiveVideoCall | null;
+  isMicrophoneEnabled: boolean;
+  isCameraEnabled: boolean;
   callError: string | null;
+  retryMediaPermission: () => Promise<void>;
   startVideoCall: (params: StartVideoCallParams) => Promise<void>;
   acceptIncomingCall: () => Promise<void>;
   declineIncomingCall: () => void;
   endVideoCall: (reason?: string) => void;
+  toggleMicrophone: () => void;
+  toggleCamera: () => void;
   clearCallError: () => void;
 };
 
@@ -99,31 +104,331 @@ function toFriendlyEndedReason(reason?: string): string | null {
       return "Doi phuong dang ban.";
     case "declined":
       return "Doi phuong da tu choi cuoc goi.";
+    case "no-answer":
+      return "Doi phuong chua chap nhan cuoc goi.";
     default:
       return null;
   }
 }
 
-function toFriendlyMediaError(error: unknown): string {
+function getMediaErrorName(error: unknown): string | null {
   if (
     typeof error === "object" &&
     error !== null &&
     "name" in error &&
-    (error as { name?: string }).name === "NotAllowedError"
+    typeof (error as { name?: unknown }).name === "string"
   ) {
-    return "Can cap quyen Camera/Microphone de goi video. Trinh duyet chi cap quyen tren localhost hoac HTTPS.";
+    return (error as { name: string }).name;
   }
 
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "name" in error &&
-    (error as { name?: string }).name === "NotFoundError"
-  ) {
-    return "Khong tim thay camera hoac microphone tren thiet bi.";
+  return null;
+}
+
+type LegacyGetUserMediaFn = (
+  constraints: MediaStreamConstraints,
+  onSuccess: (stream: MediaStream) => void,
+  onError: (error: DOMException | Error) => void,
+) => void;
+
+type NavigatorWithLegacyGetUserMedia = Navigator & {
+  getUserMedia?: LegacyGetUserMediaFn;
+  webkitGetUserMedia?: LegacyGetUserMediaFn;
+  mozGetUserMedia?: LegacyGetUserMediaFn;
+  msGetUserMedia?: LegacyGetUserMediaFn;
+};
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]";
+}
+
+function buildGetUserMediaUnavailableError(): Error {
+  if (typeof window !== "undefined") {
+    const isSecureOrigin = window.isSecureContext;
+    const isLoopback = isLoopbackHostname(window.location.hostname);
+
+    if (!isSecureOrigin && !isLoopback) {
+      return new Error(
+        "Trinh duyet tren thiet bi nay chi cho phep camera/microphone qua HTTPS. Hay mo app bang HTTPS (hoac localhost).",
+      );
+    }
+  }
+
+  return new Error(
+    "Trinh duyet khong ho tro getUserMedia. Hay dung Chrome/Edge/Safari ban moi nhat va mo bang trinh duyet goc (khong dung in-app browser).",
+  );
+}
+
+function getLegacyGetUserMedia(): LegacyGetUserMediaFn | null {
+  if (typeof navigator === "undefined") {
+    return null;
+  }
+
+  const legacyNavigator = navigator as NavigatorWithLegacyGetUserMedia;
+  return (
+    legacyNavigator.getUserMedia ||
+    legacyNavigator.webkitGetUserMedia ||
+    legacyNavigator.mozGetUserMedia ||
+    legacyNavigator.msGetUserMedia ||
+    null
+  );
+}
+
+async function requestUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream> {
+  if (typeof navigator === "undefined") {
+    throw new Error("Khong tim thay trinh duyet de truy cap camera.");
+  }
+
+  if (navigator.mediaDevices?.getUserMedia) {
+    return navigator.mediaDevices.getUserMedia(constraints);
+  }
+
+  const legacyGetUserMedia = getLegacyGetUserMedia();
+  if (!legacyGetUserMedia) {
+    throw buildGetUserMediaUnavailableError();
+  }
+
+  return new Promise<MediaStream>((resolve, reject) => {
+    legacyGetUserMedia.call(
+      navigator as unknown as NavigatorWithLegacyGetUserMedia,
+      constraints,
+      resolve,
+      reject,
+    );
+  });
+}
+
+function isMobileUserAgent(): boolean {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  return /Android|iPhone|iPad|iPod|Mobile|webOS/i.test(navigator.userAgent);
+}
+
+const DESKTOP_CAMERA_PREFER_PATTERNS: RegExp[] = [/integrated/i, /webcam/i, /camera/i, /hd/i];
+
+const DESKTOP_CAMERA_AVOID_PATTERNS: RegExp[] = [
+  /mobile/i,
+  /phone/i,
+  /phone link/i,
+  /mobile device camera/i,
+  /continuity/i,
+  /pzinh/i,
+  /droidcam/i,
+  /iriun/i,
+  /epoccam/i,
+  /camo/i,
+  /android/i,
+  /iphone/i,
+  /ip camera/i,
+];
+
+const DESKTOP_CAMERA_STORAGE_KEY = "chat_preferred_desktop_camera_device_id";
+
+function getDesktopCameraScore(label?: string): number {
+  if (!label) {
+    return 0;
+  }
+
+  const normalized = label.toLowerCase();
+  let score = 0;
+
+  if (DESKTOP_CAMERA_PREFER_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    score += 10;
+  }
+
+  if (DESKTOP_CAMERA_AVOID_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    score -= 100;
+  }
+
+  if (normalized.includes("virtual")) {
+    score -= 30;
+  }
+
+  return score;
+}
+
+function isLikelyMobileCameraLabel(label?: string): boolean {
+  if (!label) {
+    return false;
+  }
+
+  return DESKTOP_CAMERA_AVOID_PATTERNS.some((pattern) => pattern.test(label));
+}
+
+function pickDesktopCameraCandidates(videoInputs: MediaDeviceInfo[]): MediaDeviceInfo[] {
+  if (videoInputs.length === 0) {
+    return [];
+  }
+
+  const namedInputs = videoInputs.filter((device) => device.label.trim().length > 0);
+  if (namedInputs.length === 0) {
+    return videoInputs;
+  }
+
+  const nonMobileNamedInputs = namedInputs.filter(
+    (device) => !isLikelyMobileCameraLabel(device.label),
+  );
+
+  if (nonMobileNamedInputs.length > 0) {
+    return nonMobileNamedInputs;
+  }
+
+  return namedInputs;
+}
+
+function getStoredDesktopCameraDeviceId(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const stored = window.localStorage.getItem(DESKTOP_CAMERA_STORAGE_KEY)?.trim();
+  return stored && stored.length > 0 ? stored : null;
+}
+
+function setStoredDesktopCameraDeviceId(deviceId?: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!deviceId) {
+    window.localStorage.removeItem(DESKTOP_CAMERA_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(DESKTOP_CAMERA_STORAGE_KEY, deviceId);
+}
+
+async function findPreferredDesktopCameraDeviceId(options?: {
+  avoidDeviceId?: string;
+}): Promise<string | null> {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
+    return null;
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const videoInputs = devices.filter(
+    (device) =>
+      device.kind === "videoinput" &&
+      Boolean(device.deviceId) &&
+      device.deviceId !== options?.avoidDeviceId,
+  );
+
+  if (videoInputs.length === 0) {
+    return null;
+  }
+
+  const prioritizedInputs = pickDesktopCameraCandidates(videoInputs);
+  const sortedByScore = [...prioritizedInputs].sort(
+    (left, right) => getDesktopCameraScore(right.label) - getDesktopCameraScore(left.label),
+  );
+
+  return sortedByScore[0]?.deviceId || videoInputs[0]?.deviceId || null;
+}
+
+async function listPreferredDesktopCameraDeviceIds(options?: {
+  avoidDeviceId?: string;
+}): Promise<string[]> {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
+    return [];
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const videoInputs = devices.filter(
+    (device) =>
+      device.kind === "videoinput" &&
+      Boolean(device.deviceId) &&
+      device.deviceId !== options?.avoidDeviceId,
+  );
+
+  const prioritizedInputs = pickDesktopCameraCandidates(videoInputs).sort(
+    (left, right) =>
+      getDesktopCameraScore(right.label) - getDesktopCameraScore(left.label),
+  );
+
+  const sortedIds = prioritizedInputs.map((device) => device.deviceId);
+  const storedId = getStoredDesktopCameraDeviceId();
+
+  if (!storedId) {
+    return sortedIds;
+  }
+
+  const index = sortedIds.indexOf(storedId);
+  if (index <= 0) {
+    return sortedIds;
+  }
+
+  sortedIds.splice(index, 1);
+  sortedIds.unshift(storedId);
+  return sortedIds;
+}
+
+function buildPreferredMediaConstraints(preferredDesktopDeviceId?: string): MediaStreamConstraints {
+  const audioConstraints: MediaTrackConstraints = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  };
+
+  const videoConstraints: MediaTrackConstraints = {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30 },
+  };
+
+  if (isMobileUserAgent()) {
+    return {
+      audio: audioConstraints,
+      video: {
+        ...videoConstraints,
+        facingMode: "user",
+      },
+    };
+  }
+
+  if (preferredDesktopDeviceId) {
+    return {
+      audio: audioConstraints,
+      video: {
+        ...videoConstraints,
+        deviceId: { exact: preferredDesktopDeviceId },
+      },
+    };
+  }
+
+  return {
+    audio: audioConstraints,
+    video: videoConstraints,
+  };
+}
+
+function toFriendlyMediaError(error: unknown): string {
+  const errorName = getMediaErrorName(error);
+
+  switch (errorName) {
+    case "NotAllowedError":
+      return "Quyen Camera/Microphone dang bi chan. Bam bieu tuong camera bi gach tren thanh dia chi, chuyen sang Allow roi thu lai.";
+    case "NotFoundError":
+      return "Khong tim thay camera hoac microphone tren thiet bi.";
+    case "NotReadableError":
+      return "Camera hoac microphone dang bi ung dung khac su dung, hoac desktop dang chon camera dien thoai. Hay doi Camera ve Integrated Webcam/USB Camera, tat app dang chiem camera, roi thu lai.";
+    case "SecurityError":
+      return "Trinh duyet chan truy cap camera/microphone vi ly do bao mat. Hay dung localhost hoac HTTPS.";
+    case "OverconstrainedError":
+      return "Thiet bi khong ho tro cau hinh camera hien tai. Da thu cau hinh mac dinh.";
+    default:
+      break;
   }
 
   if (error instanceof Error && error.message) {
+    const normalizedMessage = error.message.toLowerCase();
+    if (
+      normalizedMessage.includes("mobile device camera") ||
+      normalizedMessage.includes("continuity")
+    ) {
+      return "Desktop dang chon camera dien thoai. Hay doi camera ve webcam laptop trong cai dat camera cua trinh duyet va thu lai.";
+    }
+
     return error.message;
   }
 
@@ -136,6 +441,8 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
   const [callStatus, setCallStatus] = useState<VideoCallStatus>("idle");
   const [incomingCall, setIncomingCall] = useState<IncomingVideoCall | null>(null);
   const [activeCall, setActiveCall] = useState<ActiveVideoCall | null>(null);
+  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(true);
+  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
   const [callError, setCallError] = useState<string | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
@@ -240,6 +547,8 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       setIncomingCall(null);
       setActiveCall(null);
       setCallStatus("idle");
+      setIsMicrophoneEnabled(true);
+      setIsCameraEnabled(true);
 
       if (!options?.preserveError) {
         setCallError(null);
@@ -254,20 +563,265 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       return existingStream;
     }
 
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error(
-        "Trinh duyet khong ho tro getUserMedia. Hay thu tren localhost hoac HTTPS.",
-      );
+    if (!navigator.mediaDevices?.getUserMedia && !getLegacyGetUserMedia()) {
+      throw buildGetUserMediaUnavailableError();
     }
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
+    const attachLocalStream = (stream: MediaStream): MediaStream => {
+      const hasVideoTrack = stream.getVideoTracks().length > 0;
+      if (!hasVideoTrack) {
+        stopMediaStream(stream);
+        throw new Error("Khong lay duoc luong video tu camera.");
+      }
+
+      const selectedVideoTrack = stream.getVideoTracks()[0];
+      if (
+        !isMobileUserAgent() &&
+        selectedVideoTrack?.getSettings().deviceId &&
+        !isLikelyMobileCameraLabel(selectedVideoTrack.label)
+      ) {
+        setStoredDesktopCameraDeviceId(selectedVideoTrack.getSettings().deviceId);
+      }
+
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      setIsMicrophoneEnabled(stream.getAudioTracks().some((track) => track.enabled));
+      setIsCameraEnabled(stream.getVideoTracks().some((track) => track.enabled));
+      return stream;
+    };
+
+    const tryDesktopCameraCandidates = async (options?: {
+      avoidDeviceId?: string;
+      rejectMobileLabels?: boolean;
+    }): Promise<MediaStream | null> => {
+      if (isMobileUserAgent()) {
+        return null;
+      }
+
+      const preferredDesktopDeviceIds = await listPreferredDesktopCameraDeviceIds({
+        avoidDeviceId: options?.avoidDeviceId,
+      });
+
+      for (const deviceId of preferredDesktopDeviceIds) {
+        try {
+          const stream = await requestUserMedia(
+            buildPreferredMediaConstraints(deviceId),
+          );
+
+          if (options?.rejectMobileLabels) {
+            const track = stream.getVideoTracks()[0];
+            if (track && isLikelyMobileCameraLabel(track.label)) {
+              stopMediaStream(stream);
+              continue;
+            }
+          }
+
+          return stream;
+        } catch (candidateError) {
+          console.warn("[useWebRTC] Desktop camera candidate failed:", candidateError);
+        }
+      }
+
+      return null;
+    };
+
+    const ensureDesktopCameraLabelsVisible = async (): Promise<void> => {
+      if (
+        isMobileUserAgent() ||
+        !navigator.mediaDevices?.enumerateDevices
+      ) {
+        return;
+      }
+
+      const currentDevices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = currentDevices.filter(
+        (device) => device.kind === "videoinput" && Boolean(device.deviceId),
+      );
+
+      const hasNamedCamera = videoInputs.some((device) => device.label.trim().length > 0);
+      if (hasNamedCamera || videoInputs.length <= 1) {
+        return;
+      }
+
+      try {
+        const probeStream = await requestUserMedia({
+          audio: true,
+          video: false,
+        });
+        stopMediaStream(probeStream);
+      } catch (probeError) {
+        console.warn("[useWebRTC] Desktop camera label probe failed:", probeError);
+      }
+    };
+
+    const replaceMobileDesktopCameraIfNeeded = async (
+      stream: MediaStream,
+    ): Promise<MediaStream> => {
+      if (isMobileUserAgent()) {
+        return stream;
+      }
+
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        console.info("[useWebRTC] Desktop selected camera track:", videoTrack.label || "(hidden label)");
+      }
+
+      if (!videoTrack || !isLikelyMobileCameraLabel(videoTrack.label)) {
+        return stream;
+      }
+
+      const currentDeviceId = videoTrack.getSettings().deviceId;
+      const alternativeDeviceId = await findPreferredDesktopCameraDeviceId({
+        avoidDeviceId: currentDeviceId,
+      });
+
+      if (!alternativeDeviceId) {
+        return stream;
+      }
+
+      const replacementStream = await tryDesktopCameraCandidates({
+        avoidDeviceId: currentDeviceId,
+        rejectMobileLabels: true,
+      });
+
+      if (replacementStream) {
+        stopMediaStream(stream);
+        return replacementStream;
+      }
+
+      return stream;
+    };
+
+    const isDesktopMobileCameraError = (error: unknown): boolean => {
+      if (isMobileUserAgent() || !(error instanceof Error)) {
+        return false;
+      }
+
+      const normalizedMessage = error.message.toLowerCase();
+      return (
+        normalizedMessage.includes("mobile device camera") ||
+        normalizedMessage.includes("continuity") ||
+        normalizedMessage.includes("phone link") ||
+        normalizedMessage.includes("resend permission") ||
+        normalizedMessage.includes("pzinh")
+      );
+    };
+
+    const acquireStreamWithDesktopFallback = async (): Promise<MediaStream> => {
+      if (isMobileUserAgent()) {
+        return requestUserMedia(buildPreferredMediaConstraints());
+      }
+
+      await ensureDesktopCameraLabelsVisible();
+
+      const streamFromCandidates = await tryDesktopCameraCandidates({
+        rejectMobileLabels: true,
+      });
+
+      if (streamFromCandidates) {
+        return streamFromCandidates;
+      }
+
+      return requestUserMedia(buildPreferredMediaConstraints());
+    };
+
+    try {
+      const stream = await acquireStreamWithDesktopFallback();
+      const stableStream = await replaceMobileDesktopCameraIfNeeded(stream);
+      return attachLocalStream(stableStream);
+    } catch (error) {
+      if (!isMobileUserAgent() && getMediaErrorName(error) !== "NotAllowedError") {
+        setStoredDesktopCameraDeviceId();
+        const recoveredDesktopStream = await tryDesktopCameraCandidates({
+          rejectMobileLabels: true,
+        });
+
+        if (recoveredDesktopStream) {
+          const stableRecoveredStream = await replaceMobileDesktopCameraIfNeeded(
+            recoveredDesktopStream,
+          );
+          return attachLocalStream(stableRecoveredStream);
+        }
+      }
+
+      if (isDesktopMobileCameraError(error)) {
+        setStoredDesktopCameraDeviceId();
+        const recoveredDesktopStream = await tryDesktopCameraCandidates({
+          rejectMobileLabels: true,
+        });
+
+        if (recoveredDesktopStream) {
+          const stableRecoveredStream = await replaceMobileDesktopCameraIfNeeded(
+            recoveredDesktopStream,
+          );
+          return attachLocalStream(stableRecoveredStream);
+        }
+      }
+
+      if (getMediaErrorName(error) !== "OverconstrainedError") {
+        throw error;
+      }
+
+      const fallbackStream = await requestUserMedia({
+        video: true,
+        audio: true,
+      });
+      const stableFallbackStream = await replaceMobileDesktopCameraIfNeeded(
+        fallbackStream,
+      );
+      return attachLocalStream(stableFallbackStream);
+    }
+  }, [stopMediaStream]);
+
+  const retryMediaPermission = useCallback(async () => {
+    try {
+      setCallError(null);
+      stopMediaStream(localStreamRef.current);
+      localStreamRef.current = null;
+      setLocalStream(null);
+
+      await ensureLocalStream();
+    } catch (error) {
+      setCallError(toFriendlyMediaError(error));
+    }
+  }, [ensureLocalStream, stopMediaStream]);
+
+  const toggleMicrophone = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) {
+      return;
+    }
+
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      return;
+    }
+
+    const shouldEnable = audioTracks.some((track) => !track.enabled);
+    audioTracks.forEach((track) => {
+      track.enabled = shouldEnable;
     });
 
-    localStreamRef.current = stream;
-    setLocalStream(stream);
-    return stream;
+    setIsMicrophoneEnabled(shouldEnable);
+  }, []);
+
+  const toggleCamera = useCallback(() => {
+    const stream = localStreamRef.current;
+    if (!stream) {
+      return;
+    }
+
+    const videoTracks = stream.getVideoTracks();
+    if (videoTracks.length === 0) {
+      return;
+    }
+
+    const shouldEnable = videoTracks.some((track) => !track.enabled);
+    videoTracks.forEach((track) => {
+      track.enabled = shouldEnable;
+    });
+
+    setIsCameraEnabled(shouldEnable);
   }, []);
 
   const createPeerConnection = useCallback(
@@ -444,11 +998,16 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
 
   const endVideoCall = useCallback(
     (reason = "ended") => {
+      const safeReason =
+        typeof reason === "string" && reason.trim().length > 0
+          ? reason
+          : "ended";
+
       const currentCall = activeCallRef.current;
       if (currentCall && socketRef.current) {
         socketRef.current.emit("endVideoCall", {
           callId: currentCall.callId,
-          reason,
+          reason: safeReason,
         });
       }
 
@@ -531,9 +1090,9 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
 
       const currentCall = activeCallRef.current;
       if (!currentCall) {
-        if (incomingCallRef.current?.callId === payload.callId) {
-          pendingOfferRef.current = payload;
-        }
+        // Offer can arrive before incomingVideoCall due to event ordering.
+        // Keep the latest offer so callee can apply it after accepting.
+        pendingOfferRef.current = payload;
         return;
       }
 
@@ -698,6 +1257,36 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
   ]);
 
   useEffect(() => {
+    if (
+      !activeCall ||
+      activeCall.direction !== "outgoing" ||
+      callStatus !== "calling" ||
+      Boolean(remoteStream)
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const latestActiveCall = activeCallRef.current;
+      if (!latestActiveCall || latestActiveCall.callId !== activeCall.callId) {
+        return;
+      }
+
+      socketRef.current?.emit("endVideoCall", {
+        callId: activeCall.callId,
+        reason: "no-answer",
+      });
+
+      setCallError("Doi phuong chua chap nhan cuoc goi.");
+      resetCallState({ preserveError: true });
+    }, 20000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeCall, callStatus, remoteStream, resetCallState]);
+
+  useEffect(() => {
     return () => {
       const active = activeCallRef.current;
       if (active && socketRef.current) {
@@ -717,11 +1306,16 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
     callStatus,
     incomingCall,
     activeCall,
+    isMicrophoneEnabled,
+    isCameraEnabled,
     callError,
     startVideoCall,
     acceptIncomingCall,
     declineIncomingCall,
     endVideoCall,
+    toggleMicrophone,
+    toggleCamera,
+    retryMediaPermission,
     clearCallError,
   };
 }
