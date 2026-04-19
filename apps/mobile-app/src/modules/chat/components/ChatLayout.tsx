@@ -366,6 +366,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       attachments: attachments || [],
       replyTo: undefined, // simplify logic for now
       isRevoked: false,
+      revokedFor: [],
       reactions: [],
     };
     setMessages((prev) => [...prev, optimisticMessage]);
