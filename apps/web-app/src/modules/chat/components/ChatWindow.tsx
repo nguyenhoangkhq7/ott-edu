@@ -66,6 +66,7 @@ interface ChatWindowProps {
   onForwardMessage?: (message: Message) => void;
   onOpenProfile?: (user: User) => void;
   onOpenGroupManage?: () => void;
+  onConversationInfoRefreshTick?: number;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -101,6 +102,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onForwardMessage,
   onOpenProfile,
   onOpenGroupManage,
+  onConversationInfoRefreshTick,
 }) => {
   const formatCallDuration = (durationSec: number): string => {
     if (!durationSec || durationSec <= 0) {
@@ -731,6 +733,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           onClose={() => setIsInfoSidebarOpen(false)}
           onOpenGroupManage={onOpenGroupManage}
           conversationType={conversation.type}
+          refreshSignal={onConversationInfoRefreshTick}
         />
       )}
     </div>

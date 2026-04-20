@@ -24,7 +24,12 @@ import {
   fetchConversationRole,
   dissolveGroup,
   leaveGroup,
+  setGroupDeputy,
   removeGroupMember,
+  updateGroupJoinPolicy,
+  requestOrAddGroupMember,
+  approveGroupMemberRequest,
+  rejectGroupMemberRequest,
   sendMessage,
   mapApiMessageToMessage,
 } from "../chatApi";
@@ -94,6 +99,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
   const [showGroupManageModal, setShowGroupManageModal] = useState(false);
   const [groupOwnerTarget, setGroupOwnerTarget] = useState<User | null>(null);
+  const [groupDeputyTarget, setGroupDeputyTarget] = useState<User | null>(null);
+  const [groupInfoRefreshTick, setGroupInfoRefreshTick] = useState(0);
+
+  const refreshGroupInfoSidebar = useCallback(() => {
+    setGroupInfoRefreshTick((prev) => prev + 1);
+  }, []);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
   const currentUser: User | null =
@@ -350,26 +361,82 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       if (!activeConversationId) return;
       await removeGroupMember(activeConversationId, memberId);
       await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
       setShowGroupManageModal(false);
     },
-    [activeConversationId, refreshAfterGroupChange],
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
   );
 
   const handleDissolveGroup = useCallback(async () => {
     if (!activeConversationId) return;
     await dissolveGroup(activeConversationId);
     await refreshAfterGroupChange();
+    refreshGroupInfoSidebar();
     setShowGroupManageModal(false);
-  }, [activeConversationId, refreshAfterGroupChange]);
+  }, [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar]);
+
+  const handleUpdateJoinPolicy = useCallback(
+    async (joinPolicy: "open" | "approval") => {
+      if (!activeConversationId) return;
+      await updateGroupJoinPolicy(activeConversationId, joinPolicy);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleInviteGroupMember = useCallback(
+    async (email: string) => {
+      if (!activeConversationId) return;
+      const result = await requestOrAddGroupMember(activeConversationId, { email });
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      return result.mode;
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleApproveGroupMemberRequest = useCallback(
+    async (requestId: string) => {
+      if (!activeConversationId) return;
+      await approveGroupMemberRequest(activeConversationId, requestId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleRejectGroupMemberRequest = useCallback(
+    async (requestId: string) => {
+      if (!activeConversationId) return;
+      await rejectGroupMemberRequest(activeConversationId, requestId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleSetGroupDeputy = useCallback(
+    async (deputyId: string | null) => {
+      if (!activeConversationId) return;
+      await setGroupDeputy(activeConversationId, deputyId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
 
   const handleLeaveGroup = useCallback(
     async (newOwnerId?: string) => {
       if (!activeConversationId) return;
       await leaveGroup(activeConversationId, newOwnerId);
       await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
       setShowGroupManageModal(false);
     },
-    [activeConversationId, refreshAfterGroupChange],
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
   );
 
   const handleOpenGroupManage = useCallback(async () => {
@@ -388,13 +455,19 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       const owner = currentConversation.participants.find(
         (participant) => participant.id === roleData.ownerId,
       );
+      const deputy = currentConversation.participants.find(
+        (participant) => participant.id === roleData.deputyId,
+      );
       setGroupOwnerTarget(owner || null);
+      setGroupDeputyTarget(deputy || null);
       setConversations((prev) =>
         prev.map((conversation) =>
           conversation.id === currentConversation.id
             ? {
                 ...conversation,
                 ownerId: roleData.ownerId,
+                deputyId: roleData.deputyId,
+                joinPolicy: roleData.joinPolicy,
                 myRole: roleData.myRole,
                 canManageGroup: roleData.canManageGroup,
               }
@@ -407,6 +480,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         currentConversation.ownerId
           ? currentConversation.participants.find(
               (participant) => participant.id === currentConversation.ownerId,
+            ) || null
+          : null,
+      );
+      setGroupDeputyTarget(
+        currentConversation.deputyId
+          ? currentConversation.participants.find(
+              (participant) => participant.id === currentConversation.deputyId,
             ) || null
           : null,
       );
@@ -807,6 +887,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onForwardMessage={setForwardMessageTarget}
         onOpenProfile={setProfileTarget}
         onOpenGroupManage={() => void handleOpenGroupManage()}
+        onConversationInfoRefreshTick={groupInfoRefreshTick}
       />
       {forwardMessageTarget && (
         <ForwardMessageModal
@@ -832,7 +913,15 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           onClose={() => setShowGroupManageModal(false)}
           onOpenProfile={setProfileTarget}
           ownerUser={groupOwnerTarget}
+          deputyUser={groupDeputyTarget}
+          joinPolicy={activeConversation.joinPolicy || "open"}
+          pendingMemberRequests={activeConversation.pendingMemberRequests || []}
           onRemoveMember={handleRemoveGroupMember}
+          onSetDeputy={handleSetGroupDeputy}
+          onUpdateJoinPolicy={handleUpdateJoinPolicy}
+          onInviteMember={handleInviteGroupMember}
+          onApproveMemberRequest={handleApproveGroupMemberRequest}
+          onRejectMemberRequest={handleRejectGroupMemberRequest}
           onDissolveGroup={handleDissolveGroup}
           onLeaveGroup={handleLeaveGroup}
         />
