@@ -316,6 +316,74 @@ export class ConversationInfoService {
   }
 
   /**
+   * Lấy danh sách common groups (nhóm chung) giữa 2 users
+   * Dùng cho private chat info sidebar
+   */
+  static async getCommonGroups(
+    conversationId: string,
+    userId: string
+  ): Promise<Array<{ _id: string; name: string; participantCount: number }>> {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(conversationId) ||
+          !mongoose.Types.ObjectId.isValid(userId)) {
+        throw new Error("Invalid IDs");
+      }
+
+      // Lấy conversation để biết who is the other participant
+      const conversation = await Conversation.findById(conversationId)
+        .select("participants type")
+        .lean();
+
+      if (!conversation) {
+        throw new Error("Conversation not found");
+      }
+
+      if (conversation.type !== "private") {
+        throw new Error("Not a private conversation");
+      }
+
+      // Lấy other user ID
+      const otherUserId = (conversation.participants as any[]).find(
+        (p) => p.toString() !== userId
+      );
+
+      if (!otherUserId) {
+        throw new Error("Other user not found");
+      }
+
+      // Tìm tất cả class conversations mà cả 2 users đều là member
+      const commonGroups = await Conversation.aggregate([
+        {
+          $match: {
+            type: "class",
+            participants: {
+              $all: [
+                new mongoose.Types.ObjectId(userId),
+                new mongoose.Types.ObjectId(otherUserId),
+              ],
+            },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            participantCount: { $size: "$participants" },
+          },
+        },
+        {
+          $sort: { _id: -1 },
+        },
+      ]);
+
+      return commonGroups;
+    } catch (error: any) {
+      console.error("[ConversationInfoService] getCommonGroups error:", error);
+      throw new Error(`Failed to get common groups: ${error.message}`);
+    }
+  }
+
+  /**
    * Helper: Extract domain từ URL
    */
   private static extractDomain(url: string): string {

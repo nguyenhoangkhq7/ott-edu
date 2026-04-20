@@ -171,4 +171,46 @@ export class ConversationInfoController {
         .json({ error: "Internal server error", detail: error.message });
     }
   }
+
+  /**
+   * API: GET /api/chat/info/:conversationId/common-groups
+   * Lấy danh sách nhóm chung (cho private chat)
+   */
+  static async getCommonGroups(req: Request, res: Response) {
+    try {
+      const { conversationId } = req.params;
+      const userId = (req as any).user?._id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "Missing conversationId" });
+      }
+
+      // Kiểm tra xem user có phải thành viên không
+      const isMember = await ConversationInfoService.isUserMemberOfConversation(
+        conversationId as string,
+        userId as string
+      );
+      if (!isMember) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      const groups = await ConversationInfoService.getCommonGroups(
+        conversationId as string,
+        userId as string
+      );
+      return res.status(200).json({ data: groups });
+    } catch (error: any) {
+      console.error(
+        "[ConversationInfoController] getCommonGroups error:",
+        error
+      );
+      return res
+        .status(500)
+        .json({ error: "Internal server error", detail: error.message });
+    }
+  }
 }
