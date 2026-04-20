@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Conversation from "../model/Conversation.ts";
 import Message from "../model/Message.ts";
 import User from "../model/User.ts";
+import type { GroupJoinPolicy } from "../model/Conversation.ts";
 
 export interface MediaItem {
   url: string;
@@ -37,6 +38,9 @@ export interface ConversationInfoDTO {
   name: string;
   avatarUrl: string;
   type: "private" | "class";
+  ownerId: string | null;
+  deputyId: string | null;
+  joinPolicy: GroupJoinPolicy;
   participants: Array<{
     _id: string;
     fullName: string;
@@ -75,6 +79,9 @@ export class ConversationInfoService {
             .join(", "),
         avatarUrl: conversation.avatarUrl || "",
         type: conversation.type,
+        ownerId: conversation.ownerId ? conversation.ownerId.toString() : null,
+        deputyId: conversation.deputyId ? conversation.deputyId.toString() : null,
+        joinPolicy: conversation.joinPolicy === "approval" ? "approval" : "open",
         participants: (conversation.participants as any[]).map((p: any) => ({
           _id: p._id.toString(),
           fullName: p.fullName,

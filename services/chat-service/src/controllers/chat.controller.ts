@@ -162,6 +162,40 @@ export class ChatController {
     }
   }
 
+  // API: POST /api/conversations/:conversationId/deputy
+  static async setGroupDeputy(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const deputyId = typeof req.body?.deputyId === "string"
+        ? req.body.deputyId
+        : req.body?.deputyId === null
+          ? null
+          : undefined;
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
+      const conversation = await ChatService.setGroupDeputy(
+        requesterId,
+        conversationId,
+        deputyId,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] setGroupDeputy error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
   // API: GET /api/messages/:conversationId
   static async getMessagesInConversation(req: Request, res: Response) {
     try {
@@ -373,7 +407,7 @@ export class ChatController {
   static async createGroup(req: Request, res: Response) {
     try {
       const creatorId = (req as any).user?._id;
-      const { name, participants, avatarUrl, metadata } = req.body;
+      const { name, participants, avatarUrl, metadata, joinPolicy } = req.body;
 
       if (!creatorId) {
         return res.status(401).json({ error: "Unauthorized access" });
@@ -391,6 +425,7 @@ export class ChatController {
         participants,
         avatarUrl,
         metadata,
+        joinPolicy === "approval" ? "approval" : "open",
       );
 
       return res.status(201).json({ data: conversation });
@@ -399,6 +434,128 @@ export class ChatController {
       return res
         .status(500)
         .json({ error: "Internal server error", detail: error.message });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/join-policy
+  static async updateJoinPolicy(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const joinPolicy = req.body?.joinPolicy === "approval" ? "approval" : "open";
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
+      const conversation = await ChatService.updateJoinPolicy(
+        requesterId,
+        conversationId,
+        joinPolicy,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] updateJoinPolicy error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/members
+  static async requestOrAddGroupMember(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const targetEmail = typeof req.body?.email === "string" ? req.body.email : undefined;
+      const targetAccountId = typeof req.body?.accountId === "string" ? req.body.accountId : undefined;
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
+      const result = await ChatService.requestOrAddGroupMember(
+        requesterId,
+        conversationId,
+        targetEmail,
+        targetAccountId,
+      );
+
+      return res.status(200).json({ data: result });
+    } catch (error: any) {
+      console.error("[ChatController] requestOrAddGroupMember error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/member-requests/:requestId/approve
+  static async approveGroupMemberRequest(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const requestId = typeof req.params.requestId === "string" ? req.params.requestId : "";
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId || !requestId) {
+        return res.status(400).json({ error: "conversationId and requestId are required" });
+      }
+
+      const conversation = await ChatService.approveGroupMemberRequest(
+        requesterId,
+        conversationId,
+        requestId,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] approveGroupMemberRequest error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // API: POST /api/conversations/:conversationId/member-requests/:requestId/reject
+  static async rejectGroupMemberRequest(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const requestId = typeof req.params.requestId === "string" ? req.params.requestId : "";
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId || !requestId) {
+        return res.status(400).json({ error: "conversationId and requestId are required" });
+      }
+
+      const conversation = await ChatService.rejectGroupMemberRequest(
+        requesterId,
+        conversationId,
+        requestId,
+      );
+
+      return res.status(200).json({ data: conversation });
+    } catch (error: any) {
+      console.error("[ChatController] rejectGroupMemberRequest error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
     }
   }
 
