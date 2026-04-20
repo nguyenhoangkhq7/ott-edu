@@ -107,20 +107,23 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, []);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
-  const currentUser: User | null =
-    conversations.length > 0
-      ? conversations[0].participants.find((p) => p.id === currentUserId) || {
-          id: currentUserId,
-          name: "Bạn",
-          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
-          isOnline: true,
-        }
-      : {
-          id: currentUserId,
-          name: "Bạn",
-          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
-          isOnline: true,
-        };
+  const currentUser: User | null = React.useMemo(
+    () =>
+      conversations.length > 0
+        ? conversations[0].participants.find((p) => p.id === currentUserId) || {
+            id: currentUserId,
+            name: "Bạn",
+            avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+            isOnline: true,
+          }
+        : {
+            id: currentUserId,
+            name: "Bạn",
+            avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+            isOnline: true,
+          },
+    [conversations, currentUserId],
+  );
 
   const socketRef = useRef<Socket | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
@@ -389,7 +392,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const handleInviteGroupMember = useCallback(
     async (email: string) => {
       if (!activeConversationId) return;
-      const result = await requestOrAddGroupMember(activeConversationId, { email });
+      const result = await requestOrAddGroupMember(activeConversationId, {
+        email,
+      });
       await refreshAfterGroupChange();
       refreshGroupInfoSidebar();
       return result.mode;
@@ -733,19 +738,22 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     }
   };
 
-  const activeConversation =
-    conversations.find((c) => c.id === activeConversationId) ||
-    (draftReceiver
-      ? {
-          id: `draft_${draftReceiver.id}`,
-          name: draftReceiver.name,
-          type: "private" as const,
-          participants: [currentUser as User, draftReceiver],
-          lastMessage: null,
-          unreadCount: 0,
-          avatarUrl: draftReceiver.avatarUrl,
-        }
-      : null);
+  const activeConversation = React.useMemo(
+    () =>
+      conversations.find((c) => c.id === activeConversationId) ||
+      (draftReceiver
+        ? {
+            id: `draft_${draftReceiver.id}`,
+            name: draftReceiver.name,
+            type: "private" as const,
+            participants: [currentUser as User, draftReceiver],
+            lastMessage: null,
+            unreadCount: 0,
+            avatarUrl: draftReceiver.avatarUrl,
+          }
+        : null),
+    [conversations, activeConversationId, draftReceiver, currentUser],
+  );
 
   const activePrivatePeer =
     activeConversation?.type === "private"
