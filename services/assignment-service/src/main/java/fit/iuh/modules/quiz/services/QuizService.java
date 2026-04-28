@@ -25,10 +25,10 @@ public class QuizService {
     private SubmissionRepository submissionRepository;
 
     /**
-     * Lấy danh sách bài kiểm tra theo teamId
+     * Lấy danh sách bài kiểm tra theo teamId (active assignments only)
      */
     public List<AssignmentSummaryDto> getAssignmentsByTeam(Long teamId) {
-        return assignmentRepository.findByTeamId(teamId)
+        return assignmentRepository.findActiveByTeamId(teamId)
                 .stream()
                 .map(this::toSummaryDto)
                 .collect(Collectors.toList());
