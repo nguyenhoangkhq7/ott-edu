@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Assignment } from '@/shared/types/quiz';
+import React, { useState } from 'react';
 import AssignmentCard from './AssignmentCard';
 import CreateAssignmentModal from './CreateAssignmentModal';
 import { AssignmentSkeletonList } from './AssignmentSkeleton';

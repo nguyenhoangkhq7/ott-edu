@@ -82,7 +82,7 @@ export default function CreateAssignmentModal({
       if (error instanceof Error) {
         message = error.message;
       } else if (typeof error === 'object' && error !== null && 'response' in error) {
-        const response = (error as any).response?.data;
+        const response = (error as Record<string, unknown>).response?.data;
         if (typeof response === 'string') {
           message = response;
         } else if (response?.message) {

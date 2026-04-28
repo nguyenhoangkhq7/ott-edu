@@ -4,6 +4,13 @@ import { useState, useCallback, useEffect } from 'react';
 import axiosClient from '@/services/api/axiosClient';
 import { Assignment } from '@/shared/types/quiz';
 
+interface PaginatedResponse<T> {
+  content: T[];
+  totalElements?: number;
+  totalPages?: number;
+  [key: string]: unknown;
+}
+
 export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,7 +31,7 @@ export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
 
       if (role === 'STUDENT') {
         // Students: Get assignments for their team with pagination
-        const response = await axiosClient.get<any>(
+        const response = await axiosClient.get<PaginatedResponse<Assignment> | Assignment[]>(
           `/api/v1/assignments/team/${teamId}?page=0&size=50`
         );
         // Handle both direct array and paginated response
@@ -33,7 +40,7 @@ export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
           : (response.data?.content || []);
       } else {
         // Teachers: Get their own assignments, then filter by teamId
-        const response = await axiosClient.get<any>(
+        const response = await axiosClient.get<PaginatedResponse<Assignment> | Assignment[]>(
           `/api/v1/assignments/my-assignments?page=0&size=50`
         );
         const allAssignments = Array.isArray(response.data)
@@ -52,7 +59,7 @@ export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
       if (err instanceof Error) {
         message = err.message;
       } else if (typeof err === 'object' && err !== null && 'response' in err) {
-        const response = (err as any).response?.data;
+        const response = (err as Record<string, unknown>).response?.data;
         if (typeof response === 'string') {
           message = response;
         } else if (response?.message) {
