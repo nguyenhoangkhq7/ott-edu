@@ -14,7 +14,7 @@ export default function AssignmentSkeleton() {
             <div className="h-3 bg-slate-100 rounded animate-pulse w-1/2" />
           </div>
         </div>
-        <div className="h-6 bg-slate-200 rounded-full animate-pulse w-16 flex-shrink-0" />
+        <div className="h-6 bg-slate-200 rounded-full animate-pulse w-16 shrink-0" />
       </div>
 
       {/* Description */}

@@ -57,7 +57,7 @@ export default function AssignmentCard({ assignment, role }: AssignmentCardProps
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3 flex-1">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
@@ -87,7 +87,7 @@ export default function AssignmentCard({ assignment, role }: AssignmentCardProps
       {/* Meta Information */}
       <div className="flex flex-col gap-2 mb-4 text-sm">
         <div className="flex items-center gap-2 text-slate-600">
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -100,7 +100,7 @@ export default function AssignmentCard({ assignment, role }: AssignmentCardProps
           </span>
         </div>
         <div className="flex items-center gap-2 text-slate-600">
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
