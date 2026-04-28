@@ -1,6 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import * as mediasoupClient from "mediasoup-client";
+import type {
+  Consumer,
+  Device,
+  Producer,
+  Transport,
+  RtpCapabilities,
+} from "mediasoup-client/lib/types";
 import type { Socket } from "socket.io-client";
 import type { ActiveVideoCall, IncomingVideoCall, VideoCallStatus } from "../types";
 
@@ -56,6 +64,24 @@ type VideoCallErrorPayload = {
   message?: string;
 };
 
+type MediaProducerInfo = {
+  producerId: string;
+  kind: "audio" | "video";
+  userId: string;
+};
+
+type JoinMediaRoomResponse = {
+  rtpCapabilities: RtpCapabilities;
+  existingProducers: MediaProducerInfo[];
+};
+
+type WebRtcTransportParams = {
+  id: string;
+  iceParameters: unknown;
+  iceCandidates: unknown[];
+  dtlsParameters: unknown;
+};
+
 type UseWebRTCParams = {
   socket: Socket | null;
   currentUserId: string;
@@ -64,11 +90,13 @@ type UseWebRTCParams = {
 type UseWebRTCReturn = {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  remoteStreams: Map<string, MediaStream>;
   callStatus: VideoCallStatus;
   incomingCall: IncomingVideoCall | null;
   activeCall: ActiveVideoCall | null;
   isMicrophoneEnabled: boolean;
   isCameraEnabled: boolean;
+  isScreenSharing: boolean;
   callError: string | null;
   retryMediaPermission: () => Promise<void>;
   startVideoCall: (params: StartVideoCallParams) => Promise<void>;
@@ -77,40 +105,26 @@ type UseWebRTCReturn = {
   endVideoCall: (reason?: string) => void;
   toggleMicrophone: () => void;
   toggleCamera: () => void;
+  toggleScreenShare: () => Promise<void>;
   clearCallError: () => void;
+  loadDevice: (conversationId: string) => Promise<Device>;
+  connectSendTransport: (conversationId: string) => Promise<Transport>;
+  connectRecvTransport: (conversationId: string) => Promise<Transport>;
+  produce: (params: {
+    kind: "audio" | "video";
+    track: MediaStreamTrack;
+    appData?: Record<string, unknown>;
+  }) => Promise<Producer>;
+  consume: (params: {
+    conversationId: string;
+    producerId: string;
+    userId?: string;
+    kind?: "audio" | "video";
+  }) => Promise<Consumer | null>;
 };
 
-function resolveIceServers(): RTCIceServer[] {
-  const fallback: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
-  const raw = process.env.NEXT_PUBLIC_WEBRTC_ICE_SERVERS?.trim();
-
-  if (!raw) {
-    return fallback;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return fallback;
-    }
-
-    const normalized = parsed.filter(
-      (item): item is RTCIceServer =>
-        typeof item === "object" &&
-        item !== null &&
-        "urls" in item &&
-        (typeof (item as { urls?: unknown }).urls === "string" ||
-          Array.isArray((item as { urls?: unknown }).urls)),
-    );
-
-    return normalized.length > 0 ? normalized : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 const RTC_CONFIGURATION: RTCConfiguration = {
-  iceServers: resolveIceServers(),
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
 function toFriendlyUnavailableReason(reason?: string): string {
@@ -467,23 +481,39 @@ function toFriendlyMediaError(error: unknown): string {
 export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTCReturn {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [callStatus, setCallStatus] = useState<VideoCallStatus>("idle");
   const [incomingCall, setIncomingCall] = useState<IncomingVideoCall | null>(null);
   const [activeCall, setActiveCall] = useState<ActiveVideoCall | null>(null);
   const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(true);
   const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const callStatusRef = useRef<VideoCallStatus>("idle");
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
   const incomingCallRef = useRef<IncomingVideoCall | null>(null);
   const activeCallRef = useRef<ActiveVideoCall | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const signalingPeerRef = useRef<RTCPeerConnection | null>(null);
   const pendingOutgoingRef = useRef<StartVideoCallParams | null>(null);
   const pendingOfferRef = useRef<WebRtcOfferPayload | null>(null);
   const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+
+  const deviceRef = useRef<Device | null>(null);
+  const sendTransportRef = useRef<Transport | null>(null);
+  const recvTransportRef = useRef<Transport | null>(null);
+  const producersRef = useRef<Map<"audio" | "video", Producer>>(new Map());
+  const consumersRef = useRef<Map<string, Consumer>>(new Map());
+  const producerOwnerRef = useRef<Map<string, string>>(new Map());
+  const consumerMetaRef = useRef<Map<string, { producerId: string; userId: string }>>(
+    new Map(),
+  );
+  const currentConversationIdRef = useRef<string | null>(null);
+  const mediaSessionActiveRef = useRef(false);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     socketRef.current = socket;
@@ -498,8 +528,10 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
   }, [localStream]);
 
   useEffect(() => {
-    remoteStreamRef.current = remoteStream;
-  }, [remoteStream]);
+    remoteStreamsRef.current = remoteStreams;
+    const firstStream = remoteStreams.values().next().value || null;
+    setRemoteStream(firstStream);
+  }, [remoteStreams]);
 
   useEffect(() => {
     incomingCallRef.current = incomingCall;
@@ -521,50 +553,65 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
     stream.getTracks().forEach((track) => track.stop());
   }, []);
 
-  const queueIceCandidate = useCallback((callId: string, candidate: RTCIceCandidateInit) => {
-    const queued = pendingIceCandidatesRef.current.get(callId) || [];
-    queued.push(candidate);
-    pendingIceCandidatesRef.current.set(callId, queued);
-  }, []);
-
-  const flushQueuedIceCandidates = useCallback(async (callId: string, pc: RTCPeerConnection) => {
-    const queued = pendingIceCandidatesRef.current.get(callId);
-    if (!queued || queued.length === 0) {
+  const resetSignalingPeer = useCallback(() => {
+    const peer = signalingPeerRef.current;
+    if (!peer) {
       return;
     }
 
-    for (const candidate of queued) {
+    peer.onicecandidate = null;
+    peer.onconnectionstatechange = null;
+    peer.ontrack = null;
+    peer.close();
+    signalingPeerRef.current = null;
+  }, []);
+
+  const resetMediaSession = useCallback(() => {
+    consumersRef.current.forEach((consumer) => {
       try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        consumer.close();
       } catch (error) {
-        console.error("[useWebRTC] addIceCandidate error:", error);
+        console.warn("[useWebRTC] consumer close error:", error);
       }
-    }
+    });
+    consumersRef.current.clear();
+    consumerMetaRef.current.clear();
 
-    pendingIceCandidatesRef.current.delete(callId);
-  }, []);
+    producersRef.current.forEach((producer) => {
+      try {
+        producer.close();
+      } catch (error) {
+        console.warn("[useWebRTC] producer close error:", error);
+      }
+    });
+    producersRef.current.clear();
 
-  const resetPeerConnection = useCallback(() => {
-    const peerConnection = peerConnectionRef.current;
-    if (!peerConnection) {
-      return;
-    }
+    sendTransportRef.current?.close();
+    recvTransportRef.current?.close();
+    sendTransportRef.current = null;
+    recvTransportRef.current = null;
 
-    peerConnection.ontrack = null;
-    peerConnection.onicecandidate = null;
-    peerConnection.onconnectionstatechange = null;
-    peerConnection.close();
-    peerConnectionRef.current = null;
+    deviceRef.current = null;
+    producerOwnerRef.current.clear();
+    currentConversationIdRef.current = null;
+    mediaSessionActiveRef.current = false;
+
+    setRemoteStreams(new Map());
+    setRemoteStream(null);
+    setIsScreenSharing(false);
   }, []);
 
   const resetCallState = useCallback(
     (options?: { preserveError?: boolean }) => {
-      resetPeerConnection();
-      stopMediaStream(localStreamRef.current);
-      stopMediaStream(remoteStreamRef.current);
+      resetSignalingPeer();
+      resetMediaSession();
 
+      stopMediaStream(screenStreamRef.current);
+      screenStreamRef.current = null;
+      stopMediaStream(cameraStreamRef.current);
+      cameraStreamRef.current = null;
       localStreamRef.current = null;
-      remoteStreamRef.current = null;
+
       incomingCallRef.current = null;
       activeCallRef.current = null;
       pendingOutgoingRef.current = null;
@@ -572,22 +619,69 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       pendingIceCandidatesRef.current.clear();
 
       setLocalStream(null);
-      setRemoteStream(null);
       setIncomingCall(null);
       setActiveCall(null);
       setCallStatus("idle");
       setIsMicrophoneEnabled(true);
       setIsCameraEnabled(true);
+      setIsScreenSharing(false);
 
       if (!options?.preserveError) {
         setCallError(null);
       }
     },
-    [resetPeerConnection, stopMediaStream],
+    [resetMediaSession, resetSignalingPeer, stopMediaStream],
+  );
+
+  const updateRemoteStreams = useCallback((updater: (next: Map<string, MediaStream>) => void) => {
+    setRemoteStreams((prev) => {
+      const next = new Map(prev);
+      updater(next);
+      remoteStreamsRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const emitWithAck = useCallback(
+    <T,>(eventName: string, payload: unknown): Promise<T> =>
+      new Promise((resolve, reject) => {
+        const activeSocket = socketRef.current;
+        if (!activeSocket) {
+          reject(new Error("Socket chua ket noi."));
+          return;
+        }
+
+        activeSocket.emit(
+          eventName,
+          payload,
+          (response: { ok: boolean; data?: T; error?: { message?: string } }) => {
+            if (response?.ok) {
+              resolve(response.data as T);
+              return;
+            }
+
+            reject(new Error(response?.error?.message || "Yeu cau that bai."));
+          },
+        );
+      }),
+    [],
+  );
+
+  const buildPreviewStream = useCallback(
+    (videoTrack: MediaStreamTrack | null, audioTrack: MediaStreamTrack | null) => {
+      const preview = new MediaStream();
+      if (audioTrack) {
+        preview.addTrack(audioTrack);
+      }
+      if (videoTrack) {
+        preview.addTrack(videoTrack);
+      }
+      return preview;
+    },
   );
 
   const ensureLocalStream = useCallback(async (): Promise<MediaStream> => {
-    const existingStream = localStreamRef.current;
+    const existingStream = cameraStreamRef.current;
     if (existingStream) {
       return existingStream;
     }
@@ -612,8 +706,12 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
         setStoredDesktopCameraDeviceId(selectedVideoTrack.getSettings().deviceId);
       }
 
-      localStreamRef.current = stream;
-      setLocalStream(stream);
+      cameraStreamRef.current = stream;
+      if (!screenStreamRef.current) {
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+      }
+
       setIsMicrophoneEnabled(stream.getAudioTracks().some((track) => track.enabled));
       setIsCameraEnabled(stream.getVideoTracks().some((track) => track.enabled));
       return stream;
@@ -805,9 +903,12 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
   const retryMediaPermission = useCallback(async () => {
     try {
       setCallError(null);
-      stopMediaStream(localStreamRef.current);
-      localStreamRef.current = null;
-      setLocalStream(null);
+      stopMediaStream(cameraStreamRef.current);
+      cameraStreamRef.current = null;
+      if (!screenStreamRef.current) {
+        localStreamRef.current = null;
+        setLocalStream(null);
+      }
 
       await ensureLocalStream();
     } catch (error) {
@@ -853,65 +954,410 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
     setIsCameraEnabled(shouldEnable);
   }, []);
 
-  const createPeerConnection = useCallback(
-    (call: ActiveVideoCall) => {
-      const peerConnection = new RTCPeerConnection(RTC_CONFIGURATION);
-      const stream = localStreamRef.current;
+  const loadDevice = useCallback(async (conversationId: string): Promise<Device> => {
+    if (deviceRef.current) {
+      return deviceRef.current;
+    }
 
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          peerConnection.addTrack(track, stream);
+    const routerRtpCapabilities = await emitWithAck<RtpCapabilities>(
+      "getRtpCapabilities",
+      conversationId,
+    );
+
+    const device = new mediasoupClient.Device();
+    await device.load({ routerRtpCapabilities });
+    deviceRef.current = device;
+    return device;
+  }, [emitWithAck]);
+
+  const connectSendTransport = useCallback(
+    async (conversationId: string): Promise<Transport> => {
+      if (sendTransportRef.current) {
+        return sendTransportRef.current;
+      }
+
+      const device = await loadDevice(conversationId);
+      const transportData = await emitWithAck<WebRtcTransportParams>(
+        "createWebRtcTransport",
+        {
+          conversationId,
+          direction: "send",
+        },
+      );
+
+      const sendTransport = device.createSendTransport(transportData as any);
+
+      sendTransport.on("connect", ({ dtlsParameters }, callback, errback) => {
+        emitWithAck("connectTransport", {
+          conversationId,
+          transportId: sendTransport.id,
+          dtlsParameters,
+        })
+          .then(() => callback())
+          .catch((error) => errback(error));
+      });
+
+      sendTransport.on("produce", ({ kind, rtpParameters, appData }, callback, errback) => {
+        emitWithAck<{ producerId: string }>("produce", {
+          conversationId,
+          transportId: sendTransport.id,
+          kind,
+          rtpParameters,
+          appData,
+        })
+          .then((data) => callback({ id: data.producerId }))
+          .catch((error) => errback(error));
+      });
+
+      sendTransportRef.current = sendTransport;
+      return sendTransport;
+    },
+    [emitWithAck, loadDevice],
+  );
+
+  const connectRecvTransport = useCallback(
+    async (conversationId: string): Promise<Transport> => {
+      if (recvTransportRef.current) {
+        return recvTransportRef.current;
+      }
+
+      const device = await loadDevice(conversationId);
+      const transportData = await emitWithAck<WebRtcTransportParams>(
+        "createWebRtcTransport",
+        {
+          conversationId,
+          direction: "recv",
+        },
+      );
+
+      const recvTransport = device.createRecvTransport(transportData as any);
+
+      recvTransport.on("connect", ({ dtlsParameters }, callback, errback) => {
+        emitWithAck("connectTransport", {
+          conversationId,
+          transportId: recvTransport.id,
+          dtlsParameters,
+        })
+          .then(() => callback())
+          .catch((error) => errback(error));
+      });
+
+      recvTransportRef.current = recvTransport;
+      return recvTransport;
+    },
+    [emitWithAck, loadDevice],
+  );
+
+  const produce = useCallback(
+    async (params: {
+      kind: "audio" | "video";
+      track: MediaStreamTrack;
+      appData?: Record<string, unknown>;
+    }): Promise<Producer> => {
+      const conversationId = currentConversationIdRef.current;
+      if (!conversationId) {
+        throw new Error("Chua co conversationId.");
+      }
+
+      const transport = await connectSendTransport(conversationId);
+      const existingProducer = producersRef.current.get(params.kind);
+      if (existingProducer) {
+        await existingProducer.replaceTrack({ track: params.track });
+        return existingProducer;
+      }
+
+      const producer = await transport.produce({
+        track: params.track,
+        appData: params.appData,
+      });
+
+      producersRef.current.set(params.kind, producer);
+
+      producer.on("transportclose", () => {
+        producersRef.current.delete(params.kind);
+      });
+
+      producer.on("trackended", () => {
+        producersRef.current.delete(params.kind);
+      });
+
+      return producer;
+    },
+    [connectSendTransport],
+  );
+
+  const removeConsumer = useCallback(
+    (consumerId: string) => {
+      const consumer = consumersRef.current.get(consumerId);
+      if (!consumer) {
+        return;
+      }
+
+      const meta = consumerMetaRef.current.get(consumerId);
+      try {
+        consumer.close();
+      } catch (error) {
+        console.warn("[useWebRTC] consumer close error:", error);
+      }
+
+      consumersRef.current.delete(consumerId);
+      consumerMetaRef.current.delete(consumerId);
+
+      if (meta) {
+        updateRemoteStreams((next) => {
+          const existing = next.get(meta.userId);
+          if (!existing) {
+            return;
+          }
+
+          const remainingTracks = existing
+            .getTracks()
+            .filter((track) => track.id !== consumer.track.id);
+
+          if (remainingTracks.length === 0) {
+            next.delete(meta.userId);
+            return;
+          }
+
+          const updatedStream = new MediaStream();
+          remainingTracks.forEach((track) => updatedStream.addTrack(track));
+          next.set(meta.userId, updatedStream);
+        });
+      }
+    },
+    [updateRemoteStreams],
+  );
+
+  const consume = useCallback(
+    async (params: {
+      conversationId: string;
+      producerId: string;
+      userId?: string;
+      kind?: "audio" | "video";
+    }): Promise<Consumer | null> => {
+      const device = await loadDevice(params.conversationId);
+      const recvTransport = await connectRecvTransport(params.conversationId);
+
+      const consumerData = await emitWithAck<{ id: string; producerId: string; kind: "audio" | "video"; rtpParameters: unknown }>(
+        "consume",
+        {
+          conversationId: params.conversationId,
+          transportId: recvTransport.id,
+          producerId: params.producerId,
+          rtpCapabilities: device.rtpCapabilities,
+        },
+      );
+
+      const consumer = await recvTransport.consume({
+        id: consumerData.id,
+        producerId: consumerData.producerId,
+        kind: consumerData.kind,
+        rtpParameters: consumerData.rtpParameters as any,
+      });
+
+      const resolvedUserId =
+        params.userId || producerOwnerRef.current.get(params.producerId) || "unknown";
+
+      consumersRef.current.set(consumer.id, consumer);
+      consumerMetaRef.current.set(consumer.id, {
+        producerId: params.producerId,
+        userId: resolvedUserId,
+      });
+      producerOwnerRef.current.set(params.producerId, resolvedUserId);
+
+      consumer.on("transportclose", () => removeConsumer(consumer.id));
+      consumer.on("producerclose", () => removeConsumer(consumer.id));
+
+      await emitWithAck("resume", {
+        conversationId: params.conversationId,
+        consumerId: consumer.id,
+      });
+
+      updateRemoteStreams((next) => {
+        const existing = next.get(resolvedUserId) || new MediaStream();
+        const updatedStream = new MediaStream();
+        existing.getTracks().forEach((track) => updatedStream.addTrack(track));
+        updatedStream.addTrack(consumer.track);
+        next.set(resolvedUserId, updatedStream);
+      });
+
+      return consumer;
+    },
+    [connectRecvTransport, emitWithAck, loadDevice, removeConsumer, updateRemoteStreams],
+  );
+
+  const startMediaSession = useCallback(
+    async (conversationId: string) => {
+      if (mediaSessionActiveRef.current && currentConversationIdRef.current === conversationId) {
+        return;
+      }
+
+      currentConversationIdRef.current = conversationId;
+
+      const device = await loadDevice(conversationId);
+      const joinData = await emitWithAck<JoinMediaRoomResponse>("joinMediaRoom", {
+        conversationId,
+        rtpCapabilities: device.rtpCapabilities,
+      });
+
+      await connectSendTransport(conversationId);
+      await connectRecvTransport(conversationId);
+
+      const cameraStream = await ensureLocalStream();
+      const audioTrack = cameraStream.getAudioTracks()[0] || null;
+      const videoTrack = cameraStream.getVideoTracks()[0] || null;
+
+      if (audioTrack) {
+        await produce({ kind: "audio", track: audioTrack });
+      }
+
+      if (videoTrack) {
+        await produce({ kind: "video", track: videoTrack });
+      }
+
+      for (const producer of joinData.existingProducers || []) {
+        producerOwnerRef.current.set(producer.producerId, producer.userId);
+        await consume({
+          conversationId,
+          producerId: producer.producerId,
+          userId: producer.userId,
+          kind: producer.kind as "audio" | "video",
         });
       }
 
-      peerConnection.onicecandidate = (event) => {
-        if (!event.candidate || !socketRef.current) {
-          return;
-        }
-
-        socketRef.current.emit("webrtcIceCandidate", {
-          callId: call.callId,
-          toUserId: call.peerUserId,
-          candidate: event.candidate,
-        });
-      };
-
-      peerConnection.ontrack = (event) => {
-        const [streamFromEvent] = event.streams;
-        if (streamFromEvent) {
-          remoteStreamRef.current = streamFromEvent;
-          setRemoteStream(streamFromEvent);
-          return;
-        }
-
-        const mergedStream = remoteStreamRef.current || new MediaStream();
-        mergedStream.addTrack(event.track);
-        remoteStreamRef.current = mergedStream;
-        setRemoteStream(mergedStream);
-      };
-
-      peerConnection.onconnectionstatechange = () => {
-        console.debug("[useWebRTC] Peer connection state:", peerConnection.connectionState);
-
-        if (peerConnection.connectionState === "connected") {
-          setCallStatus("connected");
-          setCallError(null);
-        }
-
-        if (peerConnection.connectionState === "failed") {
-          setCallError("Ket noi WebRTC that bai. Vui long thu lai.");
-        }
-
-        if (peerConnection.connectionState === "disconnected") {
-          setCallError("Ket noi tam thoi bi gian doan.");
-        }
-      };
-
-      peerConnectionRef.current = peerConnection;
-      return peerConnection;
+      mediaSessionActiveRef.current = true;
     },
-    [],
+    [
+      connectRecvTransport,
+      connectSendTransport,
+      consume,
+      emitWithAck,
+      ensureLocalStream,
+      loadDevice,
+      produce,
+    ],
   );
+
+  const stopMediaSession = useCallback(() => {
+    const conversationId = currentConversationIdRef.current;
+    if (conversationId && socketRef.current) {
+      socketRef.current.emit("leaveMediaRoom", conversationId);
+    }
+    resetMediaSession();
+  }, [resetMediaSession]);
+
+  const toggleScreenShare = useCallback(async () => {
+    if (!currentConversationIdRef.current) {
+      setCallError("Can bat dau cuoc goi truoc khi chia se man hinh.");
+      return;
+    }
+
+    const cameraStream = await ensureLocalStream();
+    const audioTrack = cameraStream.getAudioTracks()[0] || null;
+
+    if (screenStreamRef.current) {
+      stopMediaStream(screenStreamRef.current);
+      screenStreamRef.current = null;
+      setIsScreenSharing(false);
+
+      const cameraTrack = cameraStream.getVideoTracks()[0] || null;
+      if (cameraTrack) {
+        await produce({ kind: "video", track: cameraTrack });
+      }
+
+      localStreamRef.current = cameraStream;
+      setLocalStream(cameraStream);
+      return;
+    }
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+      });
+
+      const screenTrack = screenStream.getVideoTracks()[0];
+      if (!screenTrack) {
+        stopMediaStream(screenStream);
+        return;
+      }
+
+      screenStreamRef.current = screenStream;
+      setIsScreenSharing(true);
+
+      await produce({ kind: "video", track: screenTrack });
+
+      const preview = buildPreviewStream(screenTrack, audioTrack);
+      localStreamRef.current = preview;
+      setLocalStream(preview);
+
+      screenTrack.onended = () => {
+        if (screenStreamRef.current) {
+          stopMediaStream(screenStreamRef.current);
+          screenStreamRef.current = null;
+        }
+
+        setIsScreenSharing(false);
+
+        const fallbackTrack = cameraStream.getVideoTracks()[0] || null;
+        if (fallbackTrack) {
+          void produce({ kind: "video", track: fallbackTrack });
+        }
+
+        localStreamRef.current = cameraStream;
+        setLocalStream(cameraStream);
+      };
+    } catch (error) {
+      console.warn("[useWebRTC] Screen share failed:", error);
+      setCallError("Khong the chia se man hinh luc nay.");
+    }
+  }, [buildPreviewStream, ensureLocalStream, produce, stopMediaStream]);
+
+  const queueIceCandidate = useCallback((callId: string, candidate: RTCIceCandidateInit) => {
+    const queued = pendingIceCandidatesRef.current.get(callId) || [];
+    queued.push(candidate);
+    pendingIceCandidatesRef.current.set(callId, queued);
+  }, []);
+
+  const flushQueuedIceCandidates = useCallback(async (callId: string, pc: RTCPeerConnection) => {
+    const queued = pendingIceCandidatesRef.current.get(callId);
+    if (!queued || queued.length === 0) {
+      return;
+    }
+
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error("[useWebRTC] addIceCandidate error:", error);
+      }
+    }
+
+    pendingIceCandidatesRef.current.delete(callId);
+  }, []);
+
+  const createSignalingPeer = useCallback((call: ActiveVideoCall) => {
+    const peerConnection = new RTCPeerConnection(RTC_CONFIGURATION);
+    peerConnection.createDataChannel("call-signal");
+
+    peerConnection.onicecandidate = (event) => {
+      if (!event.candidate || !socketRef.current) {
+        return;
+      }
+
+      socketRef.current.emit("webrtcIceCandidate", {
+        callId: call.callId,
+        toUserId: call.peerUserId,
+        candidate: event.candidate,
+      });
+    };
+
+    peerConnection.onconnectionstatechange = () => {
+      console.debug("[useWebRTC] Signaling peer state:", peerConnection.connectionState);
+    };
+
+    signalingPeerRef.current = peerConnection;
+    return peerConnection;
+  }, []);
 
   const applyIncomingOfferAndAnswer = useCallback(
     async (payload: WebRtcOfferPayload, callOverride?: ActiveVideoCall) => {
@@ -920,9 +1366,9 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
         return;
       }
 
-      let peerConnection = peerConnectionRef.current;
+      let peerConnection = signalingPeerRef.current;
       if (!peerConnection) {
-        peerConnection = createPeerConnection(currentCall);
+        peerConnection = createSignalingPeer(currentCall);
       }
 
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
@@ -937,7 +1383,7 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
         answer,
       });
     },
-    [createPeerConnection, flushQueuedIceCandidates],
+    [createSignalingPeer, flushQueuedIceCandidates],
   );
 
   const startVideoCall = useCallback(
@@ -994,7 +1440,7 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       setActiveCall(nextActiveCall);
       setCallStatus("calling");
 
-      createPeerConnection(nextActiveCall);
+      createSignalingPeer(nextActiveCall);
 
       const pendingOffer = pendingOfferRef.current;
       if (pendingOffer && pendingOffer.callId === call.callId) {
@@ -1010,7 +1456,7 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       });
       resetCallState({ preserveError: true });
     }
-  }, [applyIncomingOfferAndAnswer, createPeerConnection, ensureLocalStream, resetCallState]);
+  }, [applyIncomingOfferAndAnswer, createSignalingPeer, ensureLocalStream, resetCallState]);
 
   const declineIncomingCall = useCallback(() => {
     const call = incomingCallRef.current;
@@ -1044,9 +1490,10 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
         });
       }
 
+      stopMediaSession();
       resetCallState();
     },
-    [resetCallState],
+    [resetCallState, stopMediaSession],
   );
 
   useEffect(() => {
@@ -1096,8 +1543,7 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       setActiveCall(nextActiveCall);
 
       try {
-        await ensureLocalStream();
-        const peerConnection = createPeerConnection(nextActiveCall);
+        const peerConnection = createSignalingPeer(nextActiveCall);
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
 
@@ -1123,8 +1569,6 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
 
       const currentCall = activeCallRef.current;
       if (!currentCall) {
-        // Offer can arrive before incomingVideoCall due to event ordering.
-        // Keep the latest offer so callee can apply it after accepting.
         pendingOfferRef.current = payload;
         return;
       }
@@ -1156,7 +1600,7 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       }
 
       const currentCall = activeCallRef.current;
-      const peerConnection = peerConnectionRef.current;
+      const peerConnection = signalingPeerRef.current;
       if (!currentCall || !peerConnection) {
         return;
       }
@@ -1182,9 +1626,9 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
         return;
       }
 
-      const candidate = payload.candidate;
+      const candidate = payload.candidate as RTCIceCandidateInit | undefined;
       const currentCall = activeCallRef.current;
-      const peerConnection = peerConnectionRef.current;
+      const peerConnection = signalingPeerRef.current;
 
       if (!candidate) {
         return;
@@ -1223,6 +1667,7 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
         setCallError(endedReason);
       }
 
+      stopMediaSession();
       resetCallState({ preserveError: Boolean(endedReason) });
     };
 
@@ -1254,6 +1699,66 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
 
     const handleVideoCallConnected = () => {
       setCallStatus("connected");
+      const conversationId = activeCallRef.current?.conversationId;
+      if (conversationId) {
+        void startMediaSession(conversationId).catch((error) => {
+          console.error("[useWebRTC] Media session failed:", error);
+          setCallError("Khong the ket noi truyen thong media.");
+        });
+      }
+    };
+
+    const handleNewProducer = (payload: MediaProducerInfo) => {
+      if (!payload?.producerId || !payload.userId) {
+        return;
+      }
+
+      if (payload.userId === currentUserId) {
+        return;
+      }
+
+      const conversationId = currentConversationIdRef.current;
+      if (!conversationId) {
+        return;
+      }
+
+      producerOwnerRef.current.set(payload.producerId, payload.userId);
+      void consume({
+        conversationId,
+        producerId: payload.producerId,
+        userId: payload.userId,
+        kind: payload.kind,
+      });
+    };
+
+    const handleProducerClosed = (payload: { producerId: string }) => {
+      const consumerIds: string[] = [];
+      consumerMetaRef.current.forEach((meta, consumerId) => {
+        if (meta.producerId === payload.producerId) {
+          consumerIds.push(consumerId);
+        }
+      });
+
+      consumerIds.forEach((consumerId) => removeConsumer(consumerId));
+    };
+
+    const handleMediaPeerLeft = (payload: { userId: string }) => {
+      if (!payload?.userId) {
+        return;
+      }
+
+      const consumerIds: string[] = [];
+      consumerMetaRef.current.forEach((meta, consumerId) => {
+        if (meta.userId === payload.userId) {
+          consumerIds.push(consumerId);
+        }
+      });
+
+      consumerIds.forEach((consumerId) => removeConsumer(consumerId));
+
+      updateRemoteStreams((next) => {
+        next.delete(payload.userId);
+      });
     };
 
     socket.on("incomingVideoCall", handleIncomingVideoCall);
@@ -1265,6 +1770,9 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
     socket.on("videoCallUnavailable", handleVideoCallUnavailable);
     socket.on("videoCallError", handleVideoCallError);
     socket.on("videoCallConnected", handleVideoCallConnected);
+    socket.on("newProducer", handleNewProducer);
+    socket.on("producerClosed", handleProducerClosed);
+    socket.on("mediaPeerLeft", handleMediaPeerLeft);
 
     return () => {
       socket.off("incomingVideoCall", handleIncomingVideoCall);
@@ -1276,25 +1784,27 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
       socket.off("videoCallUnavailable", handleVideoCallUnavailable);
       socket.off("videoCallError", handleVideoCallError);
       socket.off("videoCallConnected", handleVideoCallConnected);
+      socket.off("newProducer", handleNewProducer);
+      socket.off("producerClosed", handleProducerClosed);
+      socket.off("mediaPeerLeft", handleMediaPeerLeft);
     };
   }, [
     applyIncomingOfferAndAnswer,
-    createPeerConnection,
+    consume,
+    createSignalingPeer,
     currentUserId,
-    ensureLocalStream,
     flushQueuedIceCandidates,
     queueIceCandidate,
+    removeConsumer,
     resetCallState,
     socket,
+    startMediaSession,
+    stopMediaSession,
+    updateRemoteStreams,
   ]);
 
   useEffect(() => {
-    if (
-      !activeCall ||
-      activeCall.direction !== "outgoing" ||
-      callStatus !== "calling" ||
-      Boolean(remoteStream)
-    ) {
+    if (!activeCall || activeCall.direction !== "outgoing" || callStatus !== "calling") {
       return;
     }
 
@@ -1316,7 +1826,7 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [activeCall, callStatus, remoteStream, resetCallState]);
+  }, [activeCall, callStatus, resetCallState]);
 
   useEffect(() => {
     return () => {
@@ -1335,11 +1845,13 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
   return {
     localStream,
     remoteStream,
+    remoteStreams,
     callStatus,
     incomingCall,
     activeCall,
     isMicrophoneEnabled,
     isCameraEnabled,
+    isScreenSharing,
     callError,
     startVideoCall,
     acceptIncomingCall,
@@ -1347,7 +1859,13 @@ export function useWebRTC({ socket, currentUserId }: UseWebRTCParams): UseWebRTC
     endVideoCall,
     toggleMicrophone,
     toggleCamera,
+    toggleScreenShare,
     retryMediaPermission,
     clearCallError,
+    loadDevice,
+    connectSendTransport,
+    connectRecvTransport,
+    produce,
+    consume,
   };
 }

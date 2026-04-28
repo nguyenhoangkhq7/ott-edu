@@ -131,11 +131,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const {
     localStream,
     remoteStream,
+    remoteStreams,
     callStatus,
     incomingCall,
     activeCall,
     isMicrophoneEnabled,
     isCameraEnabled,
+    isScreenSharing,
     callError,
     retryMediaPermission,
     startVideoCall,
@@ -144,6 +146,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     endVideoCall,
     toggleMicrophone,
     toggleCamera,
+    toggleScreenShare,
     clearCallError,
   } = useWebRTC({
     socket,
@@ -874,6 +877,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onStartVideoCall={handleStartVideoCall}
         localStream={localStream}
         remoteStream={remoteStream}
+        remoteStreams={remoteStreams}
         callStatus={callStatus}
         incomingCall={incomingCall}
         incomingCaller={incomingCaller}
@@ -884,6 +888,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         callHistoryTotalPages={callHistoryTotalPages}
         isMicrophoneEnabled={isMicrophoneEnabled}
         isCameraEnabled={isCameraEnabled}
+        isScreenSharing={isScreenSharing}
         callError={callError}
         onClearCallError={clearCallError}
         onRetryMediaPermission={retryMediaPermission}
@@ -892,6 +897,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onEndVideoCall={endVideoCall}
         onToggleMicrophone={toggleMicrophone}
         onToggleCamera={toggleCamera}
+        onToggleScreenShare={toggleScreenShare}
         onForwardMessage={setForwardMessageTarget}
         onOpenProfile={setProfileTarget}
         onOpenGroupManage={() => void handleOpenGroupManage()}
