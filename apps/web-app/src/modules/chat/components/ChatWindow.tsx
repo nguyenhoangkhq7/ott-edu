@@ -66,6 +66,7 @@ interface ChatWindowProps {
   onForwardMessage?: (message: Message) => void;
   onOpenProfile?: (user: User) => void;
   onOpenGroupManage?: () => void;
+  typingUsers?: Set<string>;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -101,6 +102,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onForwardMessage,
   onOpenProfile,
   onOpenGroupManage,
+  typingUsers = new Set(),
 }) => {
   const formatCallDuration = (durationSec: number): string => {
     if (!durationSec || durationSec <= 0) {
@@ -714,12 +716,67 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
+        {/* ==================== TYPING INDICATOR ==================== */}
+        {typingUsers && typingUsers.size > 0 && (
+          <div className="px-4 py-2 text-xs font-medium flex items-center gap-1"
+            style={{ color: "#072D84" }}>
+
+          <span>
+            {Array.from(typingUsers)
+              .map((userId) => {
+                const typingUser = conversation?.participants?.find(
+                  (p) => p.id === userId
+                );
+                return typingUser?.name || userId;
+              })
+              .join(", ")}
+          </span>
+
+          <span>đang soạn tin nhắn</span>
+
+          <span className="flex items-end ml-1" style={{ gap: "3px" }}>
+            {[0, 0.15, 0.3].map((delay, i) => (
+              <span
+                key={i}
+                style={{
+                  width: "4px",
+                  height: "4px",
+                  backgroundColor: "#7C3AED",
+                  borderRadius: "9999px",
+                  display: "inline-block",
+                  animation: `wave 1.2s ease-in-out infinite`,
+                  animationDelay: `${delay}s`,
+                }}
+              />
+            ))}
+          </span>
+
+          {/* Inject keyframes */}
+          <style>
+            {`
+              @keyframes wave {
+                0%, 60%, 100% {
+                  transform: translateY(0);
+                  opacity: 0.6;
+                }
+                30% {
+                  transform: translateY(-5px);
+                  opacity: 1;
+                }
+              }
+            `}
+          </style>
+        </div>
+        )}
+
         {/* ==================== MESSAGE INPUT ==================== */}
         <MessageInput
           onSendMessage={handleSendMessage}
           isSending={isSending}
           replyingTo={replyingTo}
           onCancelReply={() => setReplyingTo(null)}
+          socket={socket}
+          conversationId={conversation?.id}
         />
       </div>
 

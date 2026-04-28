@@ -788,6 +788,26 @@ class SocketManager {
           }
         },
       );
+
+      // ── Xử lý typing indicator ──────────────────────────────────────────
+      socket.on("userTyping", (data: { conversationId: string }) => {
+        if (!userId || !data.conversationId) return;
+        // Broadcast tới tất cả trong room EXCEPT chính socket này
+        socket.broadcast.to(data.conversationId).emit("userTyping", {
+          userId,
+          conversationId: data.conversationId,
+          timestamp: Date.now(),
+        });
+      });
+
+      socket.on("userStoppedTyping", (data: { conversationId: string }) => {
+        if (!userId || !data.conversationId) return;
+        // Broadcast tới tất cả trong room EXCEPT chính socket này
+        socket.broadcast.to(data.conversationId).emit("userStoppedTyping", {
+          userId,
+          conversationId: data.conversationId,
+        });
+      });
     });
   }
 

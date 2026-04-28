@@ -22,6 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { chatApiClient } from "@/services/api";
+import AddTeamMemberModal from "@/modules/teams/AddTeamMemberModal";
 
 interface Participant {
   _id: string;
@@ -149,6 +150,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   const [commonGroups, setCommonGroups] = useState<Array<{ _id: string; name: string; participantCount: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
 
   // Determine if this is a private or class conversation
   const isPrivateChat = conversationInfo?.type === "private" || conversationType === "private";
@@ -387,6 +389,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             </button>
             {!isPrivateChat && (
               <button
+                onClick={() => setIsAddMemberModalOpen(true)}
                 className="flex flex-col items-center gap-1 p-2 hover:bg-gray-200 rounded-lg transition"
                 title="Thêm thành viên"
               >
@@ -661,6 +664,15 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
           </Accordion>
         </div>
       )}
+
+      {/* Add Team Member Modal */}
+      <AddTeamMemberModal
+        teamId={Number(conversationId)}
+        teamName={conversationInfo?.name || ""}
+        isOpen={isAddMemberModalOpen}
+        onClose={() => setIsAddMemberModalOpen(false)}
+        onSuccess={fetchConversationInfo}
+      />
     </div>
   );
 };
