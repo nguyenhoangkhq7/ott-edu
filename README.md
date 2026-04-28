@@ -156,12 +156,18 @@ The mobile app is **not** in Docker to allow for easier device testing/emulation
 
 | Component      | URL / Port                        | Description                     |
 | :------------- | :-------------------------------- | :------------------------------ |
-| **Gateway**    | `http://localhost:8000`           | Unified entry point.            |
-| **Web App**    | `http://localhost:8000`           | Accessible via Gateway.         |
+| **Gateway**    | `https://localhost:8000`          | Unified secure entry point.     |
+| **Gateway HTTP (Compat)** | `http://localhost:8088` | HTTP dev compatibility endpoint (useful for mobile/Expo). |
+| **Web App**    | `https://localhost:8000`          | Accessible via Gateway.         |
 | **Mobile App** | `exp://<your-ip>:8081`            | Access via Expo Go or Emulator. |
 | **Core API**   | `http://localhost:8000/api/core/` | Spring Boot Swagger/API.        |
 | **Chat API**   | `http://localhost:8000/api/chat/` | Chat Service API.               |
 | **Socket.io**  | `ws://localhost:8000`             | Path: `/socket.io/`             |
+
+For LAN video call testing from other laptops, use HTTPS via `https://<LAN-IP>:8000` so browser camera permission is available in secure context.
+
+See [gateway/README.md](gateway/README.md) for complete gateway setup/troubleshooting on any host.
+See [gateway/certs/README.md](gateway/certs/README.md) for mkcert setup and trust steps.
 
 ---
 

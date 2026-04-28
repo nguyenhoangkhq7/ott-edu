@@ -13,6 +13,25 @@ router.get("/me", ChatController.getCurrentChatUser);
 // Lấy danh sách hộp thoại của user hiện tại
 router.get("/conversations", ChatController.getMyConversations);
 
+// Lấy lịch sử cuộc gọi của user hiện tại
+router.get("/calls/history", ChatController.getCallHistory);
+
+// Lấy role/quyền của user trong conversation
+router.get("/conversations/:conversationId/role", ChatController.getConversationRole);
+
+// Cấp / gỡ quyền phó nhóm
+router.post("/conversations/:conversationId/deputy", ChatController.setGroupDeputy);
+
+// Đổi chế độ công khai / riêng tư của nhóm
+router.post("/conversations/:conversationId/join-policy", ChatController.updateJoinPolicy);
+
+// Mời thành viên hoặc tạo yêu cầu chờ duyệt
+router.post("/conversations/:conversationId/members", ChatController.requestOrAddGroupMember);
+
+// Duyệt / từ chối yêu cầu vào nhóm
+router.post("/conversations/:conversationId/member-requests/:requestId/approve", ChatController.approveGroupMemberRequest);
+router.post("/conversations/:conversationId/member-requests/:requestId/reject", ChatController.rejectGroupMemberRequest);
+
 // Lấy toàn bộ lịch sử tin nhắn của một cuộc trò chuyện
 router.get(
   "/messages/:conversationId",
@@ -34,5 +53,20 @@ router.post("/messages", ChatController.sendMessage);
 
 // Tạo nhóm (Group Chat) mới
 router.post("/conversations/group", ChatController.createGroup);
+
+// Xóa thành viên khỏi nhóm
+router.post(
+  "/conversations/:conversationId/members/:memberId/remove",
+  ChatController.removeGroupMember,
+);
+
+// Giải tán nhóm
+router.post("/conversations/:conversationId/dissolve", ChatController.dissolveGroup);
+
+// Rời khỏi nhóm, owner có thể chuyển quyền cho member khác trước khi rời
+router.post("/conversations/:conversationId/leave", ChatController.leaveGroup);
+
+// Đồng bộ conversation của class từ core-service
+router.post("/conversations/class", ChatController.syncClassConversation);
 
 export default router;

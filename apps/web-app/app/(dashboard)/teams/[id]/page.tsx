@@ -198,8 +198,8 @@ export default function TeamDetailPage() {
           <div className="max-w-6xl mx-auto flex gap-8">
             
             {activeTab === 'posts' && <TeamPostsTab teamId={teamId} />}
-            {activeTab === 'files' && <TeamFilesTab />}
-            {activeTab === 'members' && <TeamMembersTab teamId={teamId} />}
+            {activeTab === 'files' && <TeamFilesTab teamId={teamId} />}
+            {activeTab === 'members' && <TeamMembersTab teamId={teamId} teamName={team?.name} />}
             {activeTab === 'quizzes' && <div className="w-full"><AssignmentsPage teamId={teamId} /></div>}
 
           </div>

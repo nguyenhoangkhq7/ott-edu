@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   mysql-db:
     image: mysql:8.0
@@ -45,6 +43,16 @@ services:
       - mongo_data:/data/db
     ports:
       - "${MONGO_PORT}:27017"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --username \"$${MONGO_INITDB_ROOT_USERNAME}\" --password \"$${MONGO_INITDB_ROOT_PASSWORD}\" --authenticationDatabase admin --eval \"db.adminCommand({ ping: 1 }).ok\" | grep 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
     networks:
       - app-network
 
@@ -58,6 +66,7 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo-db:27017/${MONGO_DB_NAME}?authSource=admin
+      CHAT_SERVICE_BASE_URL: http://chat-service:3001/api
       SPRING_JPA_HIBERNATE_DDL_AUTO: none
       SPRING_FLYWAY_ENABLED: "true"
       SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
@@ -76,7 +85,7 @@ services:
     restart: on-failure
     env_file: .env
     ports:
-      - "${ASSIGNMENT_PORT}:8080"
+      - "${ASSIGNMENT_PORT:-8081}:8080"
     depends_on:
       mysql-db:
         condition: service_healthy
@@ -96,13 +105,16 @@ services:
     restart: on-failure
     command: npm run dev
     env_file: .env
+    environment:
+      MONGO_CHAT_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo-db:27017/${MONGO_DB_NAME}?authSource=admin
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
     ports:
       - "${CHAT_PORT}:3001"
     depends_on:
-      - mongo-db
+      mongo-db:
+        condition: service_healthy
     networks:
       - app-network
 
@@ -112,7 +124,7 @@ services:
       target: deps
     container_name: web-app
     restart: always
-    command: npm run dev
+    command: npm run dev -- --webpack
     env_file: .env
     environment:
       - WATCHPACK_POLLING=true
@@ -131,8 +143,10 @@ services:
     restart: always
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf
+      - ./gateway/certs:/etc/nginx/certs:ro
     ports:
-      - "${GATEWAY_PORT}:80"
+      - "${GATEWAY_PORT:-8000}:443"
+      - "${GATEWAY_COMPAT_HTTP_PORT:-8088}:80"
     networks:
       - app-network
 

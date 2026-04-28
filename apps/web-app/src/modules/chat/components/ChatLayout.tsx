@@ -2,18 +2,75 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
+import { getAccessToken } from "@/services/api/token-store";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
-import { ChatMode, Conversation, Message, User } from "../types";
+import { ForwardMessageModal } from "./ForwardMessageModal";
+import { ChatUserProfileModal } from "./ChatUserProfileModal";
+import { ChatGroupManageModal } from "./ChatGroupManageModal";
 import {
+  CallHistoryItem,
+  ChatMode,
+  Conversation,
+  Message,
+  Reaction,
+  User,
+} from "../types";
+import { useWebRTC } from "../hooks/useWebRTC";
+import {
+  fetchCallHistory,
   fetchConversations,
   fetchMessages,
+  fetchConversationRole,
+  dissolveGroup,
+  leaveGroup,
+  setGroupDeputy,
+  removeGroupMember,
+  updateGroupJoinPolicy,
+  requestOrAddGroupMember,
+  approveGroupMemberRequest,
+  rejectGroupMemberRequest,
   sendMessage,
   mapApiMessageToMessage,
 } from "../chatApi";
 
-const CHAT_SERVICE_URL =
-  process.env.NEXT_PUBLIC_CHAT_SERVICE_URL || "http://localhost:3001";
+function resolveSocketServerUrl(): string | undefined {
+  const configuredUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL?.trim();
+
+  const getGatewayOriginFromApiUrl = (): string | undefined => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+    if (!apiUrl) {
+      return undefined;
+    }
+
+    try {
+      return new URL(apiUrl).origin;
+    } catch {
+      return undefined;
+    }
+  };
+
+  if (!configuredUrl || configuredUrl.startsWith("/")) {
+    // If UI is served from Next dev server (:3000), same-origin /socket.io is 404.
+    // In that case, use the gateway origin from NEXT_PUBLIC_API_URL.
+    if (typeof window !== "undefined" && window.location.port === "3000") {
+      const gatewayOrigin = getGatewayOriginFromApiUrl();
+      if (gatewayOrigin && gatewayOrigin !== window.location.origin) {
+        return gatewayOrigin;
+      }
+    }
+
+    // Default: same-origin Socket.IO endpoint (proxied by gateway).
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(configuredUrl);
+    return parsed.origin;
+  } catch {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+}
 
 interface ChatLayoutProps {
   currentUserId: string;
@@ -31,26 +88,67 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [callHistory, setCallHistory] = useState<CallHistoryItem[]>([]);
+  const [isLoadingCallHistory, setIsLoadingCallHistory] = useState(false);
+  const [callHistoryPage, setCallHistoryPage] = useState(1);
+  const [callHistoryTotalPages, setCallHistoryTotalPages] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [forwardMessageTarget, setForwardMessageTarget] =
+    useState<Message | null>(null);
+  const [profileTarget, setProfileTarget] = useState<User | null>(null);
+  const [showGroupManageModal, setShowGroupManageModal] = useState(false);
+  const [groupOwnerTarget, setGroupOwnerTarget] = useState<User | null>(null);
+  const [groupDeputyTarget, setGroupDeputyTarget] = useState<User | null>(null);
+  const [groupInfoRefreshTick, setGroupInfoRefreshTick] = useState(0);
+
+  const refreshGroupInfoSidebar = useCallback(() => {
+    setGroupInfoRefreshTick((prev) => prev + 1);
+  }, []);
 
   // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
-  const currentUser: User | null =
-    conversations.length > 0
-      ? conversations[0].participants.find((p) => p.id === currentUserId) || {
-          id: currentUserId,
-          name: "Bạn",
-          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
-          isOnline: true,
-        }
-      : {
-          id: currentUserId,
-          name: "Bạn",
-          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
-          isOnline: true,
-        };
+  const currentUser: User | null = React.useMemo(
+    () =>
+      conversations.length > 0
+        ? conversations[0].participants.find((p) => p.id === currentUserId) || {
+            id: currentUserId,
+            name: "Bạn",
+            avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+            isOnline: true,
+          }
+        : {
+            id: currentUserId,
+            name: "Bạn",
+            avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+            isOnline: true,
+          },
+    [conversations, currentUserId],
+  );
 
   const socketRef = useRef<Socket | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
+
+  const {
+    localStream,
+    remoteStream,
+    callStatus,
+    incomingCall,
+    activeCall,
+    isMicrophoneEnabled,
+    isCameraEnabled,
+    callError,
+    retryMediaPermission,
+    startVideoCall,
+    acceptIncomingCall,
+    declineIncomingCall,
+    endVideoCall,
+    toggleMicrophone,
+    toggleCamera,
+    clearCallError,
+  } = useWebRTC({
+    socket,
+    currentUserId,
+  });
 
   // Giữ ref luôn cập nhật để xài trong socket handler (tránh dependency bắt reconnect socket)
   useEffect(() => {
@@ -61,12 +159,54 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   useEffect(() => {
     if (!currentUserId) return;
 
-    const socket = io(CHAT_SERVICE_URL, {
-      auth: { userId: currentUserId },
-      query: { userId: currentUserId },
-    });
+    const socketServerUrl = resolveSocketServerUrl();
+    const accessToken = getAccessToken();
+    const socketAuth: { userId: string; token?: string } = {
+      userId: currentUserId,
+    };
+    const socketQuery: { userId: string; token?: string } = {
+      userId: currentUserId,
+    };
 
-    socketRef.current = socket;
+    if (accessToken) {
+      socketAuth.token = accessToken;
+      socketQuery.token = accessToken;
+    }
+
+    const socketOptions = {
+      auth: socketAuth,
+      query: socketQuery,
+      withCredentials: true,
+    };
+
+    const nextSocket = socketServerUrl
+      ? io(socketServerUrl, socketOptions)
+      : io(socketOptions);
+
+    socketRef.current = nextSocket;
+    setSocket(nextSocket);
+
+    const handleUserStatusChanged = (data: {
+      userId: string;
+      isOnline: boolean;
+    }) => {
+      setConversations((prev) =>
+        prev.map((conv) => ({
+          ...conv,
+          participants: conv.participants.map((participant) =>
+            participant.id === data.userId
+              ? { ...participant, isOnline: data.isOnline }
+              : participant,
+          ),
+        })),
+      );
+
+      setProfileTarget((prev) =>
+        prev && prev.id === data.userId
+          ? { ...prev, isOnline: data.isOnline }
+          : prev,
+      );
+    };
 
     // Nhận tin nhắn mới từ server real-time
     const handleNewMessage = (rawMessage: unknown) => {
@@ -85,16 +225,63 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         });
       }
 
+      // Cập nhật lastMessage ở sidebar và đưa lên đầu danh sách
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.id === incoming.conversationId);
+        if (index === -1) return prev;
+
+        const shouldIncrement = !isActive && !isSelf;
+        const updatedConv = {
+          ...prev[index],
+          lastMessage: incoming,
+          unreadCount: shouldIncrement
+            ? prev[index].unreadCount + 1
+            : prev[index].unreadCount,
+        };
+
+        const otherConvs = prev.filter((_, i) => i !== index);
+        return [updatedConv, ...otherConvs];
+      });
+    };
+
+    const handleMessageRevoked = (data: {
+      messageId: string;
+      revokeType?: string;
+      isRevoked?: boolean;
+    }) => {
+      // Cập nhật tin nhắn trong danh sách chat
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id !== data.messageId) return msg;
+
+          if (data.revokeType === "self") {
+            return {
+              ...msg,
+              revokedFor: [...(msg.revokedFor || []), "__self__"],
+            };
+          }
+
+          // revokeForAll
+          return { ...msg, isRevoked: true };
+        }),
+      );
+
       // Cập nhật lastMessage ở sidebar
       setConversations((prev) =>
         prev.map((c) => {
-          if (c.id === incoming.conversationId) {
-            // Không tăng biến đếm nếu đang mở khung chat đó hoặc tự mình gửi
-            const shouldIncrement = !isActive && !isSelf;
+          if (c.lastMessage?.id === data.messageId) {
+            if (data.revokeType === "self") {
+              return {
+                ...c,
+                lastMessage: {
+                  ...c.lastMessage,
+                  revokedFor: [...(c.lastMessage.revokedFor || []), "__self__"],
+                },
+              };
+            }
             return {
               ...c,
-              lastMessage: incoming,
-              unreadCount: shouldIncrement ? c.unreadCount + 1 : c.unreadCount,
+              lastMessage: { ...c.lastMessage, isRevoked: true },
             };
           }
           return c;
@@ -102,14 +289,44 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       );
     };
 
-    socket.on("newMessage", handleNewMessage);
+    nextSocket.on("newMessage", handleNewMessage);
+    nextSocket.on("newMessage", handleNewMessage);
+    nextSocket.on("messageRevoked", handleMessageRevoked);
+    nextSocket.on("userStatusChanged", handleUserStatusChanged);
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
-      socket.off("newMessage", handleNewMessage);
-      socket.disconnect();
+      nextSocket.off("newMessage", handleNewMessage);
+      nextSocket.off("messageRevoked", handleMessageRevoked);
+      nextSocket.off("userStatusChanged", handleUserStatusChanged);
+      nextSocket.disconnect();
+      socketRef.current = null;
+      setSocket(null);
     };
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (!incomingCall) {
+      return;
+    }
+
+    const privateConversation = conversations.find(
+      (conversation) =>
+        conversation.type === "private" &&
+        conversation.participants.some(
+          (participant) => participant.id === incomingCall.fromUserId,
+        ),
+    );
+
+    if (
+      privateConversation &&
+      activeConversationId !== privateConversation.id
+    ) {
+      setCurrentMode("private");
+      setDraftReceiver(null);
+      setActiveConversationId(privateConversation.id);
+    }
+  }, [activeConversationId, conversations, incomingCall]);
 
   // Handle khi click đổi cuộc trò chuyện: Reset số đếm unread về 0
   const handleSelectConversation = useCallback((id: string) => {
@@ -126,6 +343,160 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setActiveConversationId(null);
     setMessages([]);
   }, []);
+
+  const refreshAfterGroupChange = useCallback(async () => {
+    const refreshed = await fetchConversations(currentUserId);
+    setConversations(refreshed);
+
+    if (activeConversationId) {
+      const stillExists = refreshed.some(
+        (conv) => conv.id === activeConversationId,
+      );
+      if (!stillExists) {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    }
+  }, [activeConversationId, currentUserId]);
+
+  const handleRemoveGroupMember = useCallback(
+    async (memberId: string) => {
+      if (!activeConversationId) return;
+      await removeGroupMember(activeConversationId, memberId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleDissolveGroup = useCallback(async () => {
+    if (!activeConversationId) return;
+    await dissolveGroup(activeConversationId);
+    await refreshAfterGroupChange();
+    refreshGroupInfoSidebar();
+    setShowGroupManageModal(false);
+  }, [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar]);
+
+  const handleUpdateJoinPolicy = useCallback(
+    async (joinPolicy: "open" | "approval") => {
+      if (!activeConversationId) return;
+      await updateGroupJoinPolicy(activeConversationId, joinPolicy);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleInviteGroupMember = useCallback(
+    async (email: string) => {
+      if (!activeConversationId) return;
+      const result = await requestOrAddGroupMember(activeConversationId, {
+        email,
+      });
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      return result.mode;
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleApproveGroupMemberRequest = useCallback(
+    async (requestId: string) => {
+      if (!activeConversationId) return;
+      await approveGroupMemberRequest(activeConversationId, requestId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleRejectGroupMemberRequest = useCallback(
+    async (requestId: string) => {
+      if (!activeConversationId) return;
+      await rejectGroupMemberRequest(activeConversationId, requestId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleSetGroupDeputy = useCallback(
+    async (deputyId: string | null) => {
+      if (!activeConversationId) return;
+      await setGroupDeputy(activeConversationId, deputyId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleLeaveGroup = useCallback(
+    async (newOwnerId?: string) => {
+      if (!activeConversationId) return;
+      await leaveGroup(activeConversationId, newOwnerId);
+      await refreshAfterGroupChange();
+      refreshGroupInfoSidebar();
+      setShowGroupManageModal(false);
+    },
+    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+  );
+
+  const handleOpenGroupManage = useCallback(async () => {
+    const currentConversation = conversations.find(
+      (conversation) => conversation.id === activeConversationId,
+    );
+
+    if (!currentConversation) return;
+
+    setShowGroupManageModal(true);
+
+    if (currentConversation.type !== "class") return;
+
+    try {
+      const roleData = await fetchConversationRole(currentConversation.id);
+      const owner = currentConversation.participants.find(
+        (participant) => participant.id === roleData.ownerId,
+      );
+      const deputy = currentConversation.participants.find(
+        (participant) => participant.id === roleData.deputyId,
+      );
+      setGroupOwnerTarget(owner || null);
+      setGroupDeputyTarget(deputy || null);
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === currentConversation.id
+            ? {
+                ...conversation,
+                ownerId: roleData.ownerId,
+                deputyId: roleData.deputyId,
+                joinPolicy: roleData.joinPolicy,
+                myRole: roleData.myRole,
+                canManageGroup: roleData.canManageGroup,
+              }
+            : conversation,
+        ),
+      );
+    } catch (error) {
+      console.error("[ChatLayout] fetchConversationRole error:", error);
+      setGroupOwnerTarget(
+        currentConversation.ownerId
+          ? currentConversation.participants.find(
+              (participant) => participant.id === currentConversation.ownerId,
+            ) || null
+          : null,
+      );
+      setGroupDeputyTarget(
+        currentConversation.deputyId
+          ? currentConversation.participants.find(
+              (participant) => participant.id === currentConversation.deputyId,
+            ) || null
+          : null,
+      );
+    }
+  }, [activeConversationId, conversations]);
 
   // ── Fetch Conversations ──────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
@@ -171,6 +542,87 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     load();
   }, [activeConversationId]);
 
+  // ── Fetch call history cho private conversation hiện tại ────────────────
+  useEffect(() => {
+    const activeConversation = conversations.find(
+      (c) => c.id === activeConversationId,
+    );
+    const isPrivate = activeConversation?.type === "private";
+
+    if (!activeConversationId || !isPrivate) {
+      setCallHistory([]);
+      setCallHistoryPage(1);
+      setCallHistoryTotalPages(1);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadCallHistory = async () => {
+      setIsLoadingCallHistory(true);
+      try {
+        const response = await fetchCallHistory({
+          conversationId: activeConversationId,
+          limit: 5,
+          page: 1,
+        });
+
+        if (!mounted) {
+          return;
+        }
+
+        setCallHistory(response.items);
+        setCallHistoryPage(response.pagination.page);
+        setCallHistoryTotalPages(response.pagination.totalPages);
+      } catch (historyError) {
+        if (!mounted) {
+          return;
+        }
+        console.error("[ChatLayout] fetch call history error:", historyError);
+      } finally {
+        if (mounted) {
+          setIsLoadingCallHistory(false);
+        }
+      }
+    };
+
+    loadCallHistory();
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeConversationId, conversations]);
+
+  useEffect(() => {
+    if (callStatus !== "idle") {
+      return;
+    }
+
+    const activeConversation = conversations.find(
+      (c) => c.id === activeConversationId,
+    );
+    if (!activeConversation || activeConversation.type !== "private") {
+      return;
+    }
+
+    const refreshCallHistory = async () => {
+      try {
+        const response = await fetchCallHistory({
+          conversationId: activeConversation.id,
+          limit: 5,
+          page: 1,
+        });
+        setCallHistory(response.items);
+        setCallHistoryPage(response.pagination.page);
+        setCallHistoryTotalPages(response.pagination.totalPages);
+      } catch (historyError) {
+        console.error("[ChatLayout] refresh call history error:", historyError);
+      }
+    };
+
+    void refreshCallHistory();
+  }, [activeConversationId, callStatus, conversations]);
+
   // ── Gửi tin nhắn ─────────────────────────────────────────────────────────
   const handleSendMessage = async (
     text: string,
@@ -203,9 +655,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       createdAt: new Date().toISOString(),
       status: "sent",
       attachments: attachments || [],
-      replyTo: undefined,
+      replyTo: null,
       isRevoked: false,
-      reactions: [],
+      revokedFor: [] as string[],
+      reactions: [] as Reaction[],
     };
     setMessages((prev) => [...prev, optimisticMessage]);
 
@@ -247,15 +700,20 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         }
       });
 
-      // Cập nhật lastMessage của conversation trong danh sách
+      // Cập nhật lastMessage của conversation trong danh sách và đưa lên đầu
       if (activeConversationId) {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeConversationId
-              ? { ...c, lastMessage: savedMessage }
-              : c,
-          ),
-        );
+        setConversations((prev) => {
+          const index = prev.findIndex((c) => c.id === activeConversationId);
+          if (index === -1) return prev;
+
+          const updatedConv = {
+            ...prev[index],
+            lastMessage: savedMessage,
+          };
+
+          const otherConvs = prev.filter((_, i) => i !== index);
+          return [updatedConv, ...otherConvs];
+        });
       } else if (targetReceiver) {
         const refreshed = await fetchConversations(currentUserId);
         setConversations(refreshed);
@@ -280,19 +738,77 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     }
   };
 
-  const activeConversation =
-    conversations.find((c) => c.id === activeConversationId) ||
-    (draftReceiver
-      ? {
-          id: `draft_${draftReceiver.id}`,
-          name: draftReceiver.name,
-          type: "private" as const,
-          participants: [currentUser as User, draftReceiver],
-          lastMessage: null,
-          unreadCount: 0,
-          avatarUrl: draftReceiver.avatarUrl,
-        }
-      : null);
+  const activeConversation = React.useMemo(
+    () =>
+      conversations.find((c) => c.id === activeConversationId) ||
+      (draftReceiver
+        ? {
+            id: `draft_${draftReceiver.id}`,
+            name: draftReceiver.name,
+            type: "private" as const,
+            participants: [currentUser as User, draftReceiver],
+            lastMessage: null,
+            unreadCount: 0,
+            avatarUrl: draftReceiver.avatarUrl,
+          }
+        : null),
+    [conversations, activeConversationId, draftReceiver, currentUser],
+  );
+
+  const activePrivatePeer =
+    activeConversation?.type === "private"
+      ? activeConversation.participants.find(
+          (participant) => participant.id !== currentUserId,
+        ) || null
+      : null;
+
+  const isCallablePrivateConversation =
+    activeConversation !== null && !activeConversation.id.startsWith("draft_");
+
+  const canStartVideoCall =
+    Boolean(activePrivatePeer) &&
+    isCallablePrivateConversation &&
+    callStatus === "idle";
+
+  const handleStartVideoCall = useCallback(async () => {
+    if (!activeConversation || activeConversation.type !== "private") {
+      return;
+    }
+
+    if (activeConversation.id.startsWith("draft_")) {
+      return;
+    }
+
+    const targetPeer = activeConversation.participants.find(
+      (participant) => participant.id !== currentUserId,
+    );
+
+    if (!targetPeer) {
+      return;
+    }
+
+    await startVideoCall({
+      toUserId: targetPeer.id,
+      conversationId: activeConversation.id,
+    });
+  }, [activeConversation, currentUserId, startVideoCall]);
+
+  const incomingCaller = React.useMemo(() => {
+    if (!incomingCall) {
+      return null;
+    }
+
+    for (const conversation of conversations) {
+      const matched = conversation.participants.find(
+        (participant) => participant.id === incomingCall.fromUserId,
+      );
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return null;
+  }, [conversations, incomingCall]);
 
   const suggestedUsers = React.useMemo(() => {
     const privatePeerIds = new Set<string>();
@@ -331,7 +847,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, [conversations, currentUserId, searchQuery]);
 
   return (
-    <div className="flex h-[calc(100vh-220px)] min-h-[620px] w-full overflow-hidden rounded-xl border border-slate-200 bg-white font-sans shadow-sm">
+    <div className="flex h-[calc(100vh-220px)] min-h-155 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 font-sans shadow-sm">
       <Sidebar
         currentMode={currentMode}
         onModeChange={setCurrentMode}
@@ -353,8 +869,71 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onSendMessage={handleSendMessage}
         isLoadingMessages={isLoadingMessages}
         isSending={isSending}
-        socket={socketRef.current}
+        socket={socket}
+        canStartVideoCall={canStartVideoCall}
+        onStartVideoCall={handleStartVideoCall}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        callStatus={callStatus}
+        incomingCall={incomingCall}
+        incomingCaller={incomingCaller}
+        activeCall={activeCall}
+        callHistory={callHistory}
+        isLoadingCallHistory={isLoadingCallHistory}
+        callHistoryPage={callHistoryPage}
+        callHistoryTotalPages={callHistoryTotalPages}
+        isMicrophoneEnabled={isMicrophoneEnabled}
+        isCameraEnabled={isCameraEnabled}
+        callError={callError}
+        onClearCallError={clearCallError}
+        onRetryMediaPermission={retryMediaPermission}
+        onAcceptIncomingCall={acceptIncomingCall}
+        onDeclineIncomingCall={declineIncomingCall}
+        onEndVideoCall={endVideoCall}
+        onToggleMicrophone={toggleMicrophone}
+        onToggleCamera={toggleCamera}
+        onForwardMessage={setForwardMessageTarget}
+        onOpenProfile={setProfileTarget}
+        onOpenGroupManage={() => void handleOpenGroupManage()}
+        onConversationInfoRefreshTick={groupInfoRefreshTick}
       />
+      {forwardMessageTarget && (
+        <ForwardMessageModal
+          message={forwardMessageTarget}
+          conversations={conversations}
+          currentUserId={currentUserId}
+          onClose={() => setForwardMessageTarget(null)}
+          onSuccess={() => {
+            // Có thể thêm Toast notification "Chuyển tiếp thành công" tại đây nếu muốn
+          }}
+        />
+      )}
+      {profileTarget && (
+        <ChatUserProfileModal
+          user={profileTarget}
+          onClose={() => setProfileTarget(null)}
+        />
+      )}
+      {showGroupManageModal && activeConversation && currentUser && (
+        <ChatGroupManageModal
+          conversation={activeConversation}
+          currentUser={currentUser}
+          onClose={() => setShowGroupManageModal(false)}
+          onOpenProfile={setProfileTarget}
+          ownerUser={groupOwnerTarget}
+          deputyUser={groupDeputyTarget}
+          joinPolicy={activeConversation.joinPolicy || "open"}
+          pendingMemberRequests={activeConversation.pendingMemberRequests || []}
+          onRemoveMember={handleRemoveGroupMember}
+          onSetDeputy={handleSetGroupDeputy}
+          onUpdateJoinPolicy={handleUpdateJoinPolicy}
+          onInviteMember={handleInviteGroupMember}
+          onApproveMemberRequest={handleApproveGroupMemberRequest}
+          onRejectMemberRequest={handleRejectGroupMemberRequest}
+          onDissolveGroup={handleDissolveGroup}
+          onLeaveGroup={handleLeaveGroup}
+        />
+      )}
     </div>
   );
 };

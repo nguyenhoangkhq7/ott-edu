@@ -85,14 +85,14 @@ export default function CheckEmailPage() {
 
           <button
             onClick={handleOpenEmail}
-            className="mb-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            className="mb-4 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
           >
             Open Email App
           </button>
 
           <button
             onClick={handleGoToVerify}
-            className="mb-4 w-full rounded-lg border border-blue-600 px-4 py-2.5 text-sm font-medium text-blue-600 transition-colors hover:bg-blue-50"
+            className="mb-4 w-full rounded-lg border border-indigo-600 px-4 py-2.5 text-sm font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
           >
             I already have the code
           </button>
@@ -108,7 +108,7 @@ export default function CheckEmailPage() {
               Didn&apos;t receive the email?{" "}
               <button
                 onClick={handleResendLink}
-                className="font-medium text-blue-600 hover:text-blue-700"
+                className="font-medium text-indigo-600 hover:text-indigo-700"
               >
                 Resend link
               </button>
@@ -118,7 +118,7 @@ export default function CheckEmailPage() {
           <div className="mt-6 text-center">
             <button
               onClick={handleBackToLogin}
-              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 transition-colors hover:text-blue-700"
+              className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-700"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
                 <line x1="19" y1="12" x2="5" y2="12" />

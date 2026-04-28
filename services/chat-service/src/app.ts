@@ -9,16 +9,31 @@ import mongoose from "mongoose";
 import connectDB from "./config/db.ts";
 import User from "./model/User.ts";
 import chatRoutes from "./routes/chat.routes.ts";
+import conversationInfoRoutes from "./routes/conversation-info.routes.ts";
 
 const app: Application = express();
 
 connectDB();
 
-app.use(cors({
-  origin: [
+function buildAllowedOrigins(): string[] {
+  const defaults = [
     "http://localhost:3000",
+    "http://localhost:8000",
     process.env.WEB_APP_URL || "http://localhost:3000",
-  ],
+  ].filter(Boolean) as string[];
+
+  const fromEnv = (process.env.APP_CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set([...defaults, ...fromEnv]));
+}
+
+const allowedOrigins = buildAllowedOrigins();
+
+app.use(cors({
+  origin: allowedOrigins,
   credentials: true,
 }));
 app.use(express.json());
@@ -57,12 +72,25 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
       let user = await User.findOne({ email: rawUserEmail });
 
       if (!user) {
-        user = await User.create({
+        const newUser: {
+          email: string;
+          fullName: string;
+          avatarUrl?: string;
+          code?: string;
+        } = {
           email: rawUserEmail,
           fullName: rawUserName || fallbackFullNameFromEmail(rawUserEmail),
-          avatarUrl: rawAvatarUrl || undefined,
-          code: rawUserCode || undefined,
-        });
+        };
+
+        if (rawAvatarUrl) {
+          newUser.avatarUrl = rawAvatarUrl;
+        }
+
+        if (rawUserCode) {
+          newUser.code = rawUserCode;
+        }
+
+        user = await User.create(newUser);
       } else {
         const nextCode = rawUserCode || user.code || "";
         const nextName = rawUserName || user.fullName;
@@ -72,7 +100,7 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
           nextName !== user.fullName ||
           nextAvatar !== user.avatarUrl
         ) {
-          user.code = nextCode || undefined;
+          user.code = nextCode;
           user.fullName = nextName;
           user.avatarUrl = nextAvatar;
           await user.save();
@@ -101,6 +129,9 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
 
 // Đăng ký chat routes vào path /api
 app.use("/api", chatRoutes);
+
+// Đăng ký conversation info routes vào path /api/chat/info
+app.use("/api/chat/info", conversationInfoRoutes);
 
 app.get("/", (req: Request, res: Response) => {
   res.send("API is running...");
