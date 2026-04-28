@@ -86,6 +86,7 @@ export type SubmissionResult = {
   feedback: string;
   totalQuestions: number;
   answeredQuestions: number;
+  correctQuestions?: number | null;
 };
 
 // Local state for tracking selected answers during quiz
