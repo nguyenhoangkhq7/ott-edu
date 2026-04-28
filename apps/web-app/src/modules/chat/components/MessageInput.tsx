@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Send, Paperclip, Smile, X, AlertCircle } from "lucide-react";
 import { Message, Attachment } from "../types";
 import { uploadFileToChatService } from "../chatApi";
+import { Socket } from "socket.io-client";
 
 interface MessageInputProps {
   onSendMessage: (
@@ -14,6 +15,8 @@ interface MessageInputProps {
   isSending?: boolean;
   replyingTo?: Message | null;
   onCancelReply?: () => void;
+  socket?: Socket | null;
+  conversationId?: string;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -21,6 +24,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   isSending = false,
   replyingTo,
   onCancelReply,
+  socket,
+  conversationId,
 }) => {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -32,11 +37,78 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const textInputRef = useRef<HTMLInputElement>(null);
   const inputToolsRef = useRef<HTMLDivElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null); // 👈 Ref cho drop zone
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef = useRef(false);
   const EMOJIS = ["😀", "😄", "😁", "😂", "😊", "😍", "😘", "👍", "👏", "🔥", "❤️", "🎉"];
+
+  // Emit typing event - chỉ emit khi state thay đổi (not typing → typing hoặc typing → not typing)
+  const emitTypingEvent = (currentText: string) => {
+    if (!socket || !conversationId) return;
+
+    const isCurrentlyTyping = currentText.trim().length > 0;
+
+    // Nếu state không thay đổi, không emit
+    if (isCurrentlyTyping === isTypingRef.current) {
+      // Clear timeout nếu vẫn typing
+      if (isCurrentlyTyping && typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Set mới timeout để check stopped typing
+      if (isCurrentlyTyping) {
+        typingTimeoutRef.current = setTimeout(() => {
+          isTypingRef.current = false;
+          socket.emit("userStoppedTyping", { conversationId });
+        }, 3000);
+      }
+
+      return;
+    }
+
+    // State thay đổi
+    if (isCurrentlyTyping) {
+      // Chuyển từ not-typing sang typing
+      isTypingRef.current = true;
+      socket.emit("userTyping", { conversationId });
+
+      // Clear timeout cũ
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      // Set timeout mới để auto stop typing sau 3s inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        isTypingRef.current = false;
+        socket.emit("userStoppedTyping", { conversationId });
+      }, 3000);
+    } else {
+      // Chuyển từ typing sang not-typing
+      isTypingRef.current = false;
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      socket.emit("userStoppedTyping", { conversationId });
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (isTypingRef.current && socket && conversationId) {
+        socket.emit("userStoppedTyping", { conversationId });
+      }
+    };
+  }, [socket, conversationId]);
 
   const handleSend = async () => {
     if (text.trim() || attachments.length > 0) {
       try {
+        // Emit stopped typing before sending
+        emitTypingEvent("");
+        
         onSendMessage(
           text.trim(),
           attachments.length > 0 ? attachments : undefined,
@@ -328,7 +400,11 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             ref={textInputRef}
             type="text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              const newText = e.target.value;
+              setText(newText);
+              emitTypingEvent(newText);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Nhập tin nhắn..."
             disabled={isSending || isUploading}
