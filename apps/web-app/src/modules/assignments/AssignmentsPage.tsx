@@ -12,7 +12,7 @@ function getStatusBadge(assignment: Assignment) {
   const now = new Date();
   const due = assignment.dueDate ? new Date(assignment.dueDate) : null;
 
-  if (assignment.archived) {
+  if (assignment.archivedAt) {
     return { label: 'Đã lưu trữ', color: 'bg-slate-100 text-slate-500' };
   }
   if (due && due < now) {
