@@ -1,10 +1,25 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+export type GroupJoinPolicy = "open" | "approval";
+
+export interface IPendingMemberRequest {
+  _id?: mongoose.Types.ObjectId;
+  targetUserId: mongoose.Types.ObjectId;
+  targetEmail: string;
+  targetName: string;
+  requestedById: mongoose.Types.ObjectId;
+  requestedByName: string;
+  createdAt?: Date;
+}
+
 export interface IConversation extends Document {
   participants: mongoose.Types.ObjectId[];
   lastMessage?: mongoose.Types.ObjectId;
   type: "private" | "class";
   ownerId?: mongoose.Types.ObjectId;
+  deputyId?: mongoose.Types.ObjectId | null;
+  joinPolicy?: GroupJoinPolicy;
+  pendingMemberRequests?: IPendingMemberRequest[];
   teamId?: number;
   name?: string;
   avatarUrl?: string;
@@ -40,6 +55,48 @@ const conversationSchema: Schema = new Schema(
       required: false,
       index: true,
     },
+    deputyId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+      index: true,
+      default: null,
+    },
+    joinPolicy: {
+      type: String,
+      enum: ["open", "approval"],
+      default: "open",
+    },
+    pendingMemberRequests: [
+      {
+        targetUserId: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        targetEmail: {
+          type: String,
+          required: true,
+        },
+        targetName: {
+          type: String,
+          required: true,
+        },
+        requestedById: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        requestedByName: {
+          type: String,
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     metadata: {
       type: Schema.Types.Mixed,
     },

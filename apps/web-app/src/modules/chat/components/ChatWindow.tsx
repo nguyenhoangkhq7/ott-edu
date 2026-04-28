@@ -67,6 +67,7 @@ interface ChatWindowProps {
   onOpenProfile?: (user: User) => void;
   onOpenGroupManage?: () => void;
   typingUsers?: Set<string>;
+  onConversationInfoRefreshTick?: number;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -103,6 +104,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onOpenProfile,
   onOpenGroupManage,
   typingUsers = new Set(),
+  onConversationInfoRefreshTick,
 }) => {
   const formatCallDuration = (durationSec: number): string => {
     if (!durationSec || durationSec <= 0) {
@@ -788,6 +790,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           onClose={() => setIsInfoSidebarOpen(false)}
           onOpenGroupManage={onOpenGroupManage}
           conversationType={conversation.type}
+          refreshSignal={onConversationInfoRefreshTick}
         />
       )}
     </div>
