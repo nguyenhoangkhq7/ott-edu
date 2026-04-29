@@ -9,6 +9,7 @@ export interface User {
   name: string; // mapped từ fullName của MongoDB
   email?: string;
   code?: string; // MSSV / MSGV
+  role?: string;
   avatarUrl: string;
   isOnline: boolean;
 }
@@ -24,16 +25,30 @@ export interface Reaction {
   emoji: string;
 }
 
+// Link Preview Data Type
+export interface LinkPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
 export interface Message {
-  id: string; // mapped từ _id của MongoDB
+  id: string;
   conversationId: string;
   senderId: string;
   content: string;
   createdAt: string;
   status: "sent" | "delivered" | "read";
   attachments?: Attachment[];
+  linkPreview?: LinkPreview; // Thêm link preview field
   replyTo?: Message | null;
+  /** Thu hồi với tất cả */
   isRevoked: boolean;
+  /** Danh sách userId đã tự thu hồi về phía mình */
+  revokedFor: string[];
+  /** Đánh dấu tin nhắn chuyển tiếp */
+  isForwarded?: boolean;
   reactions: Reaction[];
 }
 
@@ -45,6 +60,55 @@ export interface Conversation {
   lastMessage: Message | null;
   unreadCount: number;
   avatarUrl: string | null;
+  ownerId?: string | null;
+  deputyId?: string | null;
+  joinPolicy?: "open" | "approval";
+  pendingMemberRequests?: PendingMemberRequest[];
+  myRole?: "owner" | "deputy" | "member" | null;
+  canManageGroup?: boolean;
+}
+
+export interface PendingMemberRequest {
+  _id: string;
+  targetUserId: string;
+  targetEmail: string;
+  targetName: string;
+  requestedById: string;
+  requestedByName: string;
+  createdAt?: string;
+}
+
+export type VideoCallStatus = "idle" | "calling" | "receiving" | "connected";
+
+export interface IncomingVideoCall {
+  callId: string;
+  conversationId: string;
+  fromUserId: string;
+  toUserId: string;
+  initiatedAt?: string;
+}
+
+export interface ActiveVideoCall {
+  callId: string;
+  conversationId: string;
+  peerUserId: string;
+  direction: "incoming" | "outgoing";
+}
+
+export interface CallHistoryItem {
+  _id: string;
+  callId: string;
+  conversationId: string;
+  callerId: string;
+  calleeId: string;
+  status: "ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed";
+  startedAt: string;
+  connectedAt?: string;
+  endedAt?: string;
+  durationSec: number;
+  endReason?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ─── Raw API Response Types (từ backend MongoDB) ────────────────────────────
@@ -54,7 +118,9 @@ export interface ApiUser {
   fullName: string;
   email?: string;
   code?: string;
+  role?: string;
   avatarUrl?: string;
+  isOnline?: boolean;
 }
 
 export interface ApiAttachment {
@@ -68,6 +134,14 @@ export interface ApiReaction {
   emoji: string;
 }
 
+// API Link Preview Data Type
+export interface ApiLinkPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
 export interface ApiMessage {
   _id: string;
   conversationId: string;
@@ -76,8 +150,13 @@ export interface ApiMessage {
   createdAt: string;
   updatedAt?: string;
   attachments?: ApiAttachment[];
+  linkPreview?: ApiLinkPreview; // Thêm link preview field
   replyTo?: ApiMessage | null;
   isRevoked: boolean;
+  revokedFor?: string[];
+  /** Backend set true khi message này user hiện tại đã ẩn với mình */
+  _hiddenForMe?: boolean;
+  isForwarded?: boolean;
   reactions: ApiReaction[];
 }
 
@@ -86,6 +165,12 @@ export interface ApiConversation {
   type: "private" | "class";
   name?: string;
   avatarUrl?: string;
+  ownerId?: string | null;
+  deputyId?: string | null;
+  joinPolicy?: "open" | "approval";
+  pendingMemberRequests?: PendingMemberRequest[];
+  myRole?: "owner" | "deputy" | "member" | null;
+  canManageGroup?: boolean;
   metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;

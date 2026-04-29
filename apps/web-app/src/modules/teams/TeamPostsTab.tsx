@@ -554,10 +554,10 @@ const MessageItem = ({
 
 // ================= COMPONENT CHÍNH =================
 interface TeamPostsTabProps {
-  teamId: number;
+  teamId?: number;
 }
 
-export default function TeamPostsTab({ teamId }: TeamPostsTabProps) {
+export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [expandedPostIds, setExpandedPostIds] = useState<string[]>([]);
   const [activeInputPostId, setActiveInputPostId] = useState<string | null>(null);
@@ -580,7 +580,8 @@ export default function TeamPostsTab({ teamId }: TeamPostsTabProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { userEmail, isLoaded } = useAppContext();
+  const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
+  const classId = routeTeamId?.toString() ?? contextClassId ?? null;
 
   const fetchPosts = useCallback(async () => {
     if (!isLoaded || !teamId) return;

@@ -125,29 +125,36 @@ public class QuizService {
 
         // Nếu đã nộp, trả về kết quả cũ
         if (submission.getStatus() == SubmissionStatus.SUBMITTED && submission.getGrade() != null) {
-            return buildResultDto(submission);
+            return buildResultDto(submission, countCorrectQuestions(submission));
         }
 
-        List<Question> questions = submission.getAssignment().getQuestions();
         double totalScore = 0;
+        int correctQuestions = 0;
 
         for (StudentAnswer sa : submission.getStudentAnswers()) {
             Question q = sa.getQuestion();
-            if (q == null) continue;
-            double pts = q.getPoints() != null ? q.getPoints() : 0.0;
+            if (q == null) {
+                continue;
+            }
 
+            double pts = q.getPoints() != null ? q.getPoints() : 0.0;
             List<Long> correctIds = q.getOptions().stream()
-                    .filter(AnswerOption::isCorrect).map(AnswerOption::getId)
+                    .filter(AnswerOption::isCorrect)
+                    .map(AnswerOption::getId)
                     .collect(Collectors.toList());
             List<Long> selectedIds = sa.getSelectedOptions().stream()
-                    .map(AnswerOption::getId).collect(Collectors.toList());
+                    .map(AnswerOption::getId)
+                    .collect(Collectors.toList());
 
             boolean correct = !correctIds.isEmpty()
                     && correctIds.size() == selectedIds.size()
                     && correctIds.containsAll(selectedIds);
 
             sa.setEarnedPoints(correct ? pts : 0.0);
-            if (correct) totalScore += pts;
+            if (correct) {
+                totalScore += pts;
+                correctQuestions++;
+            }
         }
 
         Grade grade = new Grade();
@@ -163,14 +170,13 @@ public class QuizService {
         submission.setSubmittedAt(LocalDateTime.now());
 
         Submission saved = submissionRepository.save(submission);
-        return buildResultDto(saved);
+        return buildResultDto(saved, correctQuestions);
     }
 
     // ======== Private Mappers ========
 
     private AssignmentSummaryDto toSummaryDto(Assignment a) {
         AssignmentSummaryDto dto = new AssignmentSummaryDto();
-        dto.setId(a.getId());
         dto.setTitle(a.getTitle());
         dto.setInstructions(a.getInstructions());
         dto.setMaxScore(a.getMaxScore());
@@ -224,7 +230,7 @@ public class QuizService {
         return dto;
     }
 
-    private SubmissionResultDto buildResultDto(Submission s) {
+    private SubmissionResultDto buildResultDto(Submission s, int correctQuestions) {
         int total = s.getAssignment().getQuestions().size();
         int answered = s.getStudentAnswers() != null ? s.getStudentAnswers().size() : 0;
 
@@ -235,7 +241,40 @@ public class QuizService {
         dto.setFeedback(s.getGrade() != null ? s.getGrade().getFeedback() : "");
         dto.setTotalQuestions(total);
         dto.setAnsweredQuestions(answered);
+        dto.setCorrectQuestions(correctQuestions);
         return dto;
+    }
+
+    private int countCorrectQuestions(Submission submission) {
+        if (submission.getStudentAnswers() == null || submission.getStudentAnswers().isEmpty()) {
+            return 0;
+        }
+
+        int correctQuestions = 0;
+        for (StudentAnswer studentAnswer : submission.getStudentAnswers()) {
+            Question question = studentAnswer.getQuestion();
+            if (question == null || studentAnswer.getSelectedOptions() == null) {
+                continue;
+            }
+
+            List<Long> correctIds = question.getOptions().stream()
+                    .filter(AnswerOption::isCorrect)
+                    .map(AnswerOption::getId)
+                    .collect(Collectors.toList());
+            List<Long> selectedIds = studentAnswer.getSelectedOptions().stream()
+                    .map(AnswerOption::getId)
+                    .collect(Collectors.toList());
+
+            boolean correct = !correctIds.isEmpty()
+                    && correctIds.size() == selectedIds.size()
+                    && correctIds.containsAll(selectedIds);
+
+            if (correct) {
+                correctQuestions++;
+            }
+        }
+
+        return correctQuestions;
     }
 
     private String buildFeedback(double score, Double maxScore) {

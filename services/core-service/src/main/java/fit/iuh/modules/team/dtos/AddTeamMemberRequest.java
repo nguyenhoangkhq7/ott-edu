@@ -11,5 +11,6 @@ import lombok.NoArgsConstructor;
 @Builder
 public class AddTeamMemberRequest {
     private Long accountId;
+    private String email;
     private String role;
 }

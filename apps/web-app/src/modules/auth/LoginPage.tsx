@@ -93,13 +93,16 @@ export default function LoginPage() {
       // 3. Lấy danh sách Lớp từ latestUser
       const userTeams = typedUser?.teams || [];
       const userClassId = userTeams.length > 0 ? userTeams[0].id.toString() : "60d5ecb8b3112a445c742301"; 
+      const userClassId = userTeams.length > 0 ? userTeams[0].id.toString() : null; 
       const userEmail = typedUser?.email || form.email.trim();
 
-      // 4. CỰC KỲ QUAN TRỌNG: Xóa sạch cookie cũ đang bị kẹt chữ 'no-class'
+      // 4. CỰC KỲ QUAN TRỌNG: Xóa sạch cookie cũ đang bị kẹt
       Cookies.remove("classId");
 
-      // 5. Lưu classId (Team ID) thật vào Cookie
-      Cookies.set("classId", userClassId, { expires: 7 });
+      // 5. Lưu classId (Team ID) thật vào Cookie nếu user có tham gia lớp
+      if (userClassId) {
+        Cookies.set("classId", userClassId, { expires: 7 });
+      }
       Cookies.set("userEmail", userEmail, { expires: 7 });
 
       setSubmitSuccess("Đăng nhập thành công, đang chuyển hướng...");
@@ -107,7 +110,7 @@ export default function LoginPage() {
       setTouched({ email: false, password: false });
 
       // 6. Chuyển hướng
-      router.replace(`/teams/${userClassId}`);
+      router.replace(userClassId ? `/teams/${userClassId}` : "/teams");
       
     } catch (error) {
       if (error instanceof Error) {

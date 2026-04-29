@@ -15,6 +15,11 @@ export const QuizResultScreen: React.FC<QuizResultScreenProps> = ({
 }) => {
   const router = useRouter();
   const percentage = result.maxScore > 0 ? Math.round((result.score / result.maxScore) * 100) : 0;
+  const correctQuestions = result.correctQuestions ?? (
+    result.maxScore > 0 && result.totalQuestions > 0
+      ? Math.round((result.score / result.maxScore) * result.totalQuestions)
+      : 0
+  );
 
   const getGrade = (pct: number) => {
     if (pct >= 90) return { label: 'Xuất sắc', color: 'text-green-600', bg: 'bg-green-50 border-green-200' };
@@ -30,7 +35,7 @@ export const QuizResultScreen: React.FC<QuizResultScreenProps> = ({
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
         {/* Top accent */}
-        <div className="h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+        <div className="h-2 bg-linear-to-r from-indigo-500 via-purple-500 to-pink-500" />
 
         <div className="p-8 flex flex-col gap-6 items-center text-center">
           {/* Icon */}
@@ -56,16 +61,21 @@ export const QuizResultScreen: React.FC<QuizResultScreenProps> = ({
             <div className={`text-sm font-semibold mt-1 ${grade.color}`}>
               {percentage}% — {grade.label}
             </div>
+            <div className="mt-3 text-xs text-slate-500">
+              Chấm điểm tự động ngay sau khi nộp
+            </div>
           </div>
 
           {/* Stats */}
           <div className="w-full grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-              <div className="text-xl font-bold text-slate-800">{result.totalQuestions}</div>
-              <div className="text-xs text-slate-500 mt-0.5">Tổng câu hỏi</div>
+              <div className="text-xl font-bold text-slate-800">{correctQuestions}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Số câu đúng</div>
             </div>
             <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
-              <div className="text-xl font-bold text-slate-800">{result.answeredQuestions}</div>
+              <div className="text-xl font-bold text-slate-800">
+                {result.answeredQuestions}/{result.totalQuestions}
+              </div>
               <div className="text-xs text-slate-500 mt-0.5">Đã trả lời</div>
             </div>
           </div>
@@ -80,7 +90,7 @@ export const QuizResultScreen: React.FC<QuizResultScreenProps> = ({
 
           {/* Back button */}
           <button
-            onClick={() => router.push('/assignments')}
+            onClick={() => router.push('/online-quizzes')}
             className="w-full py-3.5 rounded-2xl bg-indigo-600 text-white font-bold text-base
               hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
           >
