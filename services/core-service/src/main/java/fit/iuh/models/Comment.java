@@ -27,4 +27,16 @@ public class Comment {
 
     @Transient
     private List<Attachment> attachments;
+
+    // ==========================================
+    // CÁC TRƯỜNG TRANSIENT ĐỂ TRẢ VỀ CHO FRONTEND
+    // ==========================================
+    @Transient
+    private String authorName;
+
+    @Transient
+    private String authorAvatar;
+
+    @Transient
+    private String userReaction;
 }

@@ -1,12 +1,11 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image'; 
-import apiClient from '@/services/api/axios';
+import { httpService } from '@/services/api/http.service'; 
 import { useAppContext } from '@/shared/providers/AppContext';
 import Cookies from 'js-cookie';
-import LockTeamDialog from '@/modules/teams/LockTeamDialog'; // Thêm Dialog khóa
 
-// ================= API INTERFACES (Fix no-explicit-any) =================
+// ================= API INTERFACES =================
 interface ApiAttachment {
   id: string;
   fileName: string;
@@ -20,11 +19,17 @@ interface ApiPost {
   authorName?: string;
   authorId: string;
   authorAvatar?: string;
+  user?: { name?: string; avatar?: string; avatarUrl?: string }; 
+  author?: { name?: string; fullName?: string; avatar?: string; avatarUrl?: string }; 
   content: string;
   createdAt: string;
   attachments?: ApiAttachment[];
   reactionCount?: number;
   commentCount?: number;
+  replyToCommentId?: string | null; 
+  userReaction?: string; 
+  myReaction?: string;
+  reactionType?: string;
 }
 
 // ================= HELPER FUNCTIONS =================
@@ -43,7 +48,6 @@ const formatTime = (dateString: string) => {
     return `${dateStr} at ${timeStr}`;
   }
 };
-
 
 const getFileConfig = (fileName: string, mimeType: string) => {
   const name = fileName.toLowerCase();
@@ -65,23 +69,18 @@ const formatBytes = (bytes: number, decimals = 2) => {
 };
 
 const getInitials = (name: string) => {
-  if (!name) return 'U'; // U cho User nếu không có tên
-  
-  // Nếu chuỗi là email (chưa cập nhật tên), lấy phần trước @
+  if (!name) return 'U'; 
   const cleanName = name.includes('@') ? name.split('@')[0] : name;
-  
-  // Tách chuỗi thành các từ dựa trên khoảng trắng
   const parts = cleanName.trim().split(/\s+/);
   
   if (parts.length === 0) return 'U';
-  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase(); // Nếu chỉ có 1 từ, lấy 2 ký tự đầu
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase(); 
   
-  // Lấy chữ cái đầu của từ ĐẦU TIÊN và từ CUỐI CÙNG
   const firstLetter = parts[0].charAt(0);
   const lastLetter = parts[parts.length - 1].charAt(0);
-  
   return (firstLetter + lastLetter).toUpperCase();
 };
+
 const REACTIONS = [
   { type: 'LIKE', emoji: '👍', color: 'text-blue-600' },
   { type: 'LOVE', emoji: '❤️', color: 'text-rose-500' },
@@ -148,6 +147,8 @@ interface Message {
   attachments?: AttachmentInfo[]; 
   reactionCount?: number;
   commentCount?: number;
+  replyToCommentId?: string | null; 
+  userReaction?: string | null; 
 }
 
 interface Post extends Message {
@@ -315,6 +316,7 @@ interface MessageItemProps {
   msg: Message;
   isPost: boolean;
   parentPostId?: string;
+  rootCommentId?: string;
   activeMenuId: string | null;
   setActiveMenuId: (id: string | null) => void;
   menuRef: React.RefObject<HTMLDivElement | null>;
@@ -333,199 +335,222 @@ interface MessageItemProps {
 }
 
 const MessageItem = ({ 
-  msg, isPost, parentPostId, activeMenuId, setActiveMenuId, menuRef, handleReaction, handleOpenComment, handleOpenReply, handleDeleteClick, onZoomImage,
+  msg, isPost, parentPostId, rootCommentId, activeMenuId, setActiveMenuId, menuRef, handleReaction, handleOpenComment, handleOpenReply, handleDeleteClick, onZoomImage,
   editingItemId, editInputValue, setEditInputValue, onEditStart, onEditCancel, onEditSubmit
-}: MessageItemProps) => (
-  <div className={`group relative flex gap-4 py-3 ${isPost ? 'px-0' : 'px-4 hover:bg-slate-50/50 rounded-lg -mx-4 transition-colors'}`}>
-    <div className="flex-shrink-0 pt-1">
-      {msg.senderAvatar ? (
-        <Image src={msg.senderAvatar} alt={msg.senderName} width={40} height={40} className="w-10 h-10 rounded-full object-cover border border-slate-200" unoptimized />
-      ) : (
-        <div className="w-10 h-10 rounded-full bg-[#1868f0] text-white flex items-center justify-center text-sm font-bold shadow-sm">
-          {msg.senderInitials}
-        </div>
-      )}
-    </div>
+}: MessageItemProps) => {
+  // Lấy icon emoji tương ứng nếu user đã react, nếu không thì lấy icon mặc định
+  const displayEmoji = msg.userReaction 
+    ? REACTIONS.find(r => r.type === msg.userReaction)?.emoji || '👍'
+    : '👍';
 
-    <div className="flex flex-col flex-1 min-w-0 relative">
-      <div className="flex items-baseline gap-2 mb-1">
-        <span className="font-semibold text-slate-900">{msg.senderName}</span>
-        <span className="text-xs text-slate-500">{msg.time}</span>
+  return (
+    <div className={`group relative flex gap-4 py-3 ${isPost ? 'px-0' : 'px-4 hover:bg-slate-50/50 rounded-lg -mx-4 transition-colors'}`}>
+      <div className="flex-shrink-0 pt-1">
+        {msg.senderAvatar ? (
+          <Image src={msg.senderAvatar} alt={msg.senderName} width={40} height={40} className="w-10 h-10 rounded-full object-cover border border-slate-200" unoptimized />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-[#1868f0] text-white flex items-center justify-center text-sm font-bold shadow-sm">
+            {msg.senderInitials}
+          </div>
+        )}
       </div>
 
-      {editingItemId === msg.id ? (
-        <div className="mt-1 bg-white border border-[#1868f0] rounded-md shadow-sm overflow-hidden animate-in fade-in duration-200">
-          <textarea
-            className="w-full text-[15px] p-3 text-slate-800 outline-none resize-none min-h-[60px]"
-            value={editInputValue}
-            onChange={(e) => setEditInputValue(e.target.value)}
-            rows={2}
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = '60px';
-              target.style.height = Math.min(target.scrollHeight, 150) + 'px';
-            }}
-          />
-          <div className="flex justify-end gap-2 p-2 border-t border-slate-100 bg-slate-50">
-            <button onClick={onEditCancel} className="px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-200 rounded transition-colors">Cancel</button>
-            <button onClick={() => onEditSubmit(msg.id, isPost, parentPostId)} className="px-4 py-1.5 text-sm font-medium bg-[#1868f0] text-white rounded hover:bg-blue-700 transition-colors">Save changes</button>
+      <div className="flex flex-col flex-1 min-w-0 relative">
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="font-semibold text-slate-900">{msg.senderName}</span>
+          <span className="text-xs text-slate-500">{msg.time}</span>
+        </div>
+
+        {editingItemId === msg.id ? (
+          <div className="mt-1 bg-white border border-[#1868f0] rounded-md shadow-sm overflow-hidden animate-in fade-in duration-200">
+            <textarea
+              className="w-full text-[15px] p-3 text-slate-800 outline-none resize-none min-h-[60px]"
+              value={editInputValue}
+              onChange={(e) => setEditInputValue(e.target.value)}
+              rows={2}
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = '60px';
+                target.style.height = Math.min(target.scrollHeight, 150) + 'px';
+              }}
+            />
+            <div className="flex justify-end gap-2 p-2 border-t border-slate-100 bg-slate-50">
+              <button onClick={onEditCancel} className="px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-200 rounded transition-colors">Cancel</button>
+              <button onClick={() => onEditSubmit(msg.id, isPost, parentPostId)} className="px-4 py-1.5 text-sm font-medium bg-[#1868f0] text-white rounded hover:bg-blue-700 transition-colors">Save changes</button>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="text-slate-800 text-[15px] leading-relaxed max-w-4xl pr-8 whitespace-pre-wrap">
-          {msg.text}
-        </div>
-      )}
+        ) : (
+          <div className="text-slate-800 text-[15px] leading-relaxed max-w-4xl pr-8 whitespace-pre-wrap">
+            {msg.text}
+          </div>
+        )}
 
-      {msg.attachments && msg.attachments.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-3">
-          {msg.attachments.map((att) => {
-            const isImage = att.type.startsWith('image/');
-            const isVideo = att.type.startsWith('video/');
+        {msg.attachments && msg.attachments.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-3">
+            {msg.attachments.map((att) => {
+              const isImage = att.type.startsWith('image/');
+              const isVideo = att.type.startsWith('video/');
 
-            if (isImage) {
+              if (isImage) {
+                return (
+                  <div key={att.id} className="relative rounded-lg overflow-hidden border border-slate-200 max-w-sm group/att">
+                    <Image 
+                      src={att.url} 
+                      alt={att.name} 
+                      width={500}
+                      height={300}
+                      className="w-full h-auto max-h-64 object-contain bg-slate-50 cursor-zoom-in hover:opacity-90 transition-opacity" 
+                      onClick={() => onZoomImage(att.url)} 
+                      unoptimized
+                    />
+                    <button 
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(att.url, att.name); }}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded opacity-0 group-hover/att:opacity-100 hover:bg-black/80 transition-all backdrop-blur-sm z-20 cursor-pointer"
+                      title="Download"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    </button>
+                  </div>
+                );
+              }
+
+              if (isVideo) {
+                return (
+                  <div key={att.id} className="relative rounded-lg overflow-hidden border border-slate-200 max-w-sm bg-black group/att">
+                    <video src={att.url} controls className="w-full h-auto max-h-64 outline-none" />
+                    <button 
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(att.url, att.name); }}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded opacity-0 group-hover/att:opacity-100 hover:bg-black/80 transition-all backdrop-blur-sm z-20 cursor-pointer"
+                      title="Download"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    </button>
+                  </div>
+                );
+              }
+
+              const fileConfig = getFileConfig(att.name, att.type);
+
               return (
-                <div key={att.id} className="relative rounded-lg overflow-hidden border border-slate-200 max-w-sm group/att">
-                  <Image 
-                    src={att.url} 
-                    alt={att.name} 
-                    width={500}
-                    height={300}
-                    className="w-full h-auto max-h-64 object-contain bg-slate-50 cursor-zoom-in hover:opacity-90 transition-opacity" 
-                    onClick={() => onZoomImage(att.url)} 
-                    unoptimized
-                  />
-                  <button 
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(att.url, att.name); }}
-                    className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded opacity-0 group-hover/att:opacity-100 hover:bg-black/80 transition-all backdrop-blur-sm z-20 cursor-pointer"
-                    title="Download"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  </button>
+                <div 
+                  key={att.id} 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(att.url, att.name); }}
+                  className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white min-w-[250px] max-w-sm hover:shadow-sm hover:border-blue-300 transition-all cursor-pointer group/att"
+                  title="Click to download"
+                >
+                  <div className="flex items-center gap-3 min-w-0 pr-4">
+                    <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 ${fileConfig.bg} ${fileConfig.text}`}>
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900 truncate group-hover/att:text-blue-600 transition-colors">{att.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{att.size}</p>
+                    </div>
+                  </div>
+                  <div className="w-8 h-8 rounded-full group-hover/att:bg-blue-50 group-hover/att:text-blue-600 flex items-center justify-center text-slate-400 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  </div>
                 </div>
               );
-            }
+            })}
+          </div>
+        )}
 
-            if (isVideo) {
-              return (
-                <div key={att.id} className="relative rounded-lg overflow-hidden border border-slate-200 max-w-sm bg-black group/att">
-                  <video src={att.url} controls className="w-full h-auto max-h-64 outline-none" />
-                  <button 
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(att.url, att.name); }}
-                    className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded opacity-0 group-hover/att:opacity-100 hover:bg-black/80 transition-all backdrop-blur-sm z-20 cursor-pointer"
-                    title="Download"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  </button>
-                </div>
-              );
-            }
+        {/* ĐÃ SỬA: Hiển thị emoji trạng thái hiện tại */}
+        {(msg.reactionCount || 0) > 0 && (
+          <div className="mt-2 flex">
+             <div 
+               onClick={() => handleReaction(msg.id, isPost, parentPostId, msg.userReaction || 'LIKE')}
+               className={`border rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm cursor-pointer transition-colors ${msg.userReaction ? 'bg-blue-50 border-blue-200 hover:bg-blue-100' : 'bg-slate-100 border-slate-200 hover:bg-slate-200'}`}
+             >
+               <span className="text-xs">{displayEmoji}</span>
+               <span className={`text-[10px] font-medium ml-1 ${msg.userReaction ? 'text-blue-600' : 'text-slate-600'}`}>
+                 {msg.reactionCount}
+               </span>
+             </div>
+          </div>
+        )}
+      </div>
 
-            const fileConfig = getFileConfig(att.name, att.type);
-
-            return (
-              <div 
-                key={att.id} 
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); downloadFile(att.url, att.name); }}
-                className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white min-w-[250px] max-w-sm hover:shadow-sm hover:border-blue-300 transition-all cursor-pointer group/att"
-                title="Click to download"
-              >
-                <div className="flex items-center gap-3 min-w-0 pr-4">
-                  <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 ${fileConfig.bg} ${fileConfig.text}`}>
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" /></svg>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900 truncate group-hover/att:text-blue-600 transition-colors">{att.name}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{att.size}</p>
-                  </div>
-                </div>
-                <div className="w-8 h-8 rounded-full group-hover/att:bg-blue-50 group-hover/att:text-blue-600 flex items-center justify-center text-slate-400 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                </div>
+      {editingItemId !== msg.id && (
+        <div className="absolute top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-white border border-slate-200 rounded-md shadow-sm z-10 px-0.5">
+          <div className="relative group/react">
+            {/* ĐÃ SỬA: Nút like nhanh có màu nếu đã thả icon */}
+            <button 
+              onClick={() => handleReaction(msg.id, isPost, parentPostId, msg.userReaction || 'LIKE')} 
+              className={`p-1.5 transition-colors ${msg.userReaction ? 'text-[#1868f0]' : 'text-slate-400 hover:text-blue-500'}`} 
+              title={msg.userReaction ? "Bỏ bày tỏ cảm xúc" : "Thích"}
+            >
+              <svg className="w-4 h-4" fill={msg.userReaction ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
+            </button>
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-2 hidden group-hover/react:block z-50 cursor-default">
+              <div className="flex items-center bg-white border border-slate-200 shadow-xl rounded-full px-2 py-1 gap-2 animate-in zoom-in-95 duration-150">
+                {REACTIONS.map((reaction) => (
+                  <button key={reaction.type} onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, isPost, parentPostId, reaction.type); }} className="text-xl hover:scale-125 hover:-translate-y-1 transition-all duration-200 cursor-pointer" title={reaction.type}>{reaction.emoji}</button>
+                ))}
               </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+          </div>
 
-      {(msg.reactionCount || 0) > 0 && (
-        <div className="mt-2 flex">
-           <div className="bg-slate-100 border border-slate-200 rounded-full px-2 py-0.5 flex items-center gap-1 shadow-sm cursor-pointer hover:bg-slate-200 transition-colors">
-             <span className="text-xs">👍❤️</span><span className="text-[10px] font-medium text-slate-600 ml-1">{msg.reactionCount}</span>
-           </div>
+          <div className="w-px h-4 bg-slate-200"></div>
+          
+          {isPost && (
+            <button onClick={() => handleOpenComment(msg.id)} className="p-1.5 text-slate-400 hover:text-[#1868f0] transition-colors" title="Comment">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+            </button>
+          )}
+
+          {!isPost && parentPostId && (
+            <button 
+              onClick={() => handleOpenReply(rootCommentId || msg.id, msg.senderName, parentPostId)} 
+              className="p-1.5 text-slate-400 hover:text-[#1868f0] transition-colors" 
+              title="Reply"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+            </button>
+          )}
+
+          <div className="w-px h-4 bg-slate-200"></div>
+          <div className="relative">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === msg.id ? null : msg.id); }}
+              className={`p-1.5 text-slate-400 hover:text-slate-700 transition-colors ${activeMenuId === msg.id ? 'text-slate-700' : ''}`}
+              title="Options"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
+            </button>
+            {activeMenuId === msg.id && (
+              <div ref={menuRef} className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg z-20 py-1 animate-in zoom-in-95 duration-100 border border-slate-200">
+                <button onClick={() => { navigator.clipboard.writeText(msg.text); setActiveMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  Copy text
+                </button>
+                {msg.isMe && (
+                  <>
+                    <button 
+                      onClick={() => { onEditStart(msg.id, msg.text); setActiveMenuId(null); }} 
+                      className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      Edit
+                    </button>
+                    <div className="h-px bg-slate-100 my-1"></div>
+                    <button onClick={() => handleDeleteClick(msg.id, isPost, parentPostId)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
-
-    {editingItemId !== msg.id && (
-      <div className="absolute top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-white border border-slate-200 rounded-md shadow-sm z-10 px-0.5">
-        <div className="relative group/react">
-          <button onClick={() => handleReaction(msg.id, isPost, parentPostId, 'LIKE')} className="p-1.5 text-slate-400 hover:text-blue-500 transition-colors" title="Like">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" /></svg>
-          </button>
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-2 hidden group-hover/react:block z-50 cursor-default">
-            <div className="flex items-center bg-white border border-slate-200 shadow-xl rounded-full px-2 py-1 gap-2 animate-in zoom-in-95 duration-150">
-              {REACTIONS.map((reaction) => (
-                <button key={reaction.type} onClick={(e) => { e.stopPropagation(); handleReaction(msg.id, isPost, parentPostId, reaction.type); }} className="text-xl hover:scale-125 hover:-translate-y-1 transition-all duration-200 cursor-pointer" title={reaction.type}>{reaction.emoji}</button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="w-px h-4 bg-slate-200"></div>
-        
-        {isPost && (
-          <button onClick={() => handleOpenComment(msg.id)} className="p-1.5 text-slate-400 hover:text-[#1868f0] transition-colors" title="Comment">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-          </button>
-        )}
-
-        {!isPost && parentPostId && (
-          <button onClick={() => handleOpenReply(msg.id, msg.senderName, parentPostId)} className="p-1.5 text-slate-400 hover:text-[#1868f0] transition-colors" title="Reply">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-          </button>
-        )}
-
-        <div className="w-px h-4 bg-slate-200"></div>
-        <div className="relative">
-          <button 
-            onClick={(e) => { e.stopPropagation(); setActiveMenuId(activeMenuId === msg.id ? null : msg.id); }}
-            className={`p-1.5 text-slate-400 hover:text-slate-700 transition-colors ${activeMenuId === msg.id ? 'text-slate-700' : ''}`}
-            title="Options"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
-          </button>
-          {activeMenuId === msg.id && (
-            <div ref={menuRef} className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg z-20 py-1 animate-in zoom-in-95 duration-100 border border-slate-200">
-              <button onClick={() => { navigator.clipboard.writeText(msg.text); setActiveMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                Copy text
-              </button>
-              {msg.isMe && (
-                <>
-                  <button 
-                    onClick={() => { onEditStart(msg.id, msg.text); setActiveMenuId(null); }} 
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                    Edit
-                  </button>
-                  <div className="h-px bg-slate-100 my-1"></div>
-                  <button onClick={() => handleDeleteClick(msg.id, isPost, parentPostId)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-                    <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    Delete
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 // ================= COMPONENT CHÍNH =================
 interface TeamPostsTabProps {
@@ -546,9 +571,6 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editInputValue, setEditInputValue] = useState('');
 
-  // Lock team dialog state
-  const [isLockDialogOpen, setIsLockDialogOpen] = useState(false);
-
   // --- Search & Filter State ---
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('ALL'); 
@@ -562,13 +584,10 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   const classId = routeTeamId?.toString() ?? contextClassId ?? null;
 
   const fetchPosts = useCallback(async () => {
-    if (!isLoaded || !classId) return;
+    if (!isLoaded || !teamId) return;
 
     try {
-      const response = await apiClient.get<ApiPost[]>(`/posts/class/${classId}`);
-      const data = response.data;
-      
-      // 👉 Lấy email từ context hoặc cookie để đảm bảo luôn có data so sánh
+      const data = await httpService.get<ApiPost[]>(`/posts/class/${teamId}`);
       const currentUser = userEmail || Cookies.get('userEmail') || "";
 
       const mappedPosts: Post[] = data.map((p: ApiPost) => {
@@ -580,31 +599,34 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
           url: att.fileUrl
         })) || [];
 
-        // 👉 Kiểm tra xem bài viết này có phải của account đang đăng nhập không
         const isMyPost = 
             String(p.authorId).toLowerCase() === currentUser.toLowerCase() || 
             String(p.authorName).toLowerCase() === currentUser.toLowerCase();
 
+        const name = p.authorName || p.user?.name || p.author?.name || p.author?.fullName || p.authorId;
+        const avatar = p.authorAvatar || p.user?.avatar || p.user?.avatarUrl || p.author?.avatar || p.author?.avatarUrl || null;
+        const userReact = p.userReaction || p.myReaction || p.reactionType || null;
+
         return {
           id: p.id,
-          senderName: p.authorName || p.authorId, 
-          senderAvatar: p.authorAvatar || null,
-         senderInitials: getInitials(p.authorName || p.authorId || ""),
-          isMe: isMyPost, // <--- Đã sửa logic ở đây
+          senderName: name, 
+          senderAvatar: avatar,
+          senderInitials: getInitials(name || ""),
+          isMe: isMyPost, 
           text: p.content,
           time: formatTime(p.createdAt),
           rawDate: new Date(p.createdAt || Date.now()).getTime(),
           attachments: mappedAttachments,
           reactionCount: p.reactionCount || 0,
           commentCount: p.commentCount || 0,
+          userReaction: userReact,
           replies: []
         };
       });
       setPosts(mappedPosts);
     } catch (error) { console.error("Error loading posts:", error); }
-  }, [classId, userEmail, isLoaded]);
+  }, [teamId, userEmail, isLoaded]);
 
-  // Fix: react-hooks/set-state-in-effect
   useEffect(() => { 
     const load = async () => { await fetchPosts(); };
     load();
@@ -624,25 +646,24 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
 
   const loadCommentsForPost = async (postId: string) => {
     try {
-      const response = await apiClient.get<ApiPost[]>(`/interact/comments/post/${postId}`);
-      const comments = response.data;
-      
-      // 👉 Lấy email từ context hoặc cookie
+      const comments = await httpService.get<ApiPost[]>(`/interact/comments/post/${postId}`);
       const currentUser = userEmail || Cookies.get('userEmail') || "";
 
       const mappedComments = comments.map((c: ApiPost) => {
-        
-        // 👉 Kiểm tra xem bình luận này có phải của account đang đăng nhập không
         const isMyComment = 
             String(c.authorId).toLowerCase() === currentUser.toLowerCase() || 
             String(c.authorName).toLowerCase() === currentUser.toLowerCase();
 
+        const name = c.authorName || c.user?.name || c.author?.name || c.author?.fullName || c.authorId;
+        const avatar = c.authorAvatar || c.user?.avatar || c.user?.avatarUrl || c.author?.avatar || c.author?.avatarUrl || null;
+        const userReact = c.userReaction || c.myReaction || c.reactionType || null;
+
         return {
           id: c.id,
-          senderName: c.authorName || c.authorId, 
-          senderAvatar: c.authorAvatar || null,
-          senderInitials: getInitials(c.authorName || c.authorId || ""),
-          isMe: isMyComment, // <--- Đã sửa logic ở đây
+          senderName: name, 
+          senderAvatar: avatar,
+          senderInitials: getInitials(name || ""),
+          isMe: isMyComment,
           text: c.content,
           time: formatTime(c.createdAt),
           rawDate: new Date(c.createdAt || Date.now()).getTime(),
@@ -653,7 +674,9 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
             type: att.fileType || 'application/octet-stream',
             url: att.fileUrl
           })) || [],
-          reactionCount: c.reactionCount || 0
+          reactionCount: c.reactionCount || 0,
+          replyToCommentId: c.replyToCommentId || null, 
+          userReaction: userReact
         };
       });
       
@@ -698,17 +721,17 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
     setTimeout(() => { inputRef.current?.focus(); }, 100);
   };
 
-const handleSendMessage = async () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim() && !selectedFile) return;
 
     if (isComposingNew) {
       const formData = new FormData();
-      const postData = { classId: classId, content: inputValue, type: 'DISCUSSION' };
+      const postData = { classId: teamId.toString(), content: inputValue, type: 'DISCUSSION' };
       formData.append('post', new Blob([JSON.stringify(postData)], { type: 'application/json' })); 
       if (selectedFile) formData.append('files', selectedFile);
 
       try {
-        await apiClient.post('/posts', formData, {
+        await httpService.post('/posts', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         await fetchPosts(); 
@@ -728,7 +751,7 @@ const handleSendMessage = async () => {
       if (selectedFile) formData.append('files', selectedFile);
 
       try {
-        await apiClient.post('/interact/comments', formData, {
+        await httpService.post('/interact/comments', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         
@@ -749,7 +772,7 @@ const handleSendMessage = async () => {
   const handleDeleteClick = async (idToDelete: string, isPost: boolean, parentPostId?: string) => {
     const url = isPost ? `/posts/${idToDelete}` : `/interact/comments/${idToDelete}`;
     try {
-      await apiClient.delete(url);
+      await httpService.delete(url);
       
       if (isPost) {
         setPosts(posts.filter(p => p.id !== idToDelete));
@@ -768,16 +791,48 @@ const handleSendMessage = async () => {
   const handleReaction = async (id: string, isPost: boolean, parentPostId?: string, reactionType: string = 'LIKE') => {
     const targetType = isPost ? 'POST' : 'COMMENT';
     try {
-      await apiClient.post(`/interact/reactions?targetId=${id}&targetType=${targetType}&reactionType=${reactionType}`);
+      await httpService.post(`/interact/reactions?targetId=${id}&targetType=${targetType}&reactionType=${reactionType}`);
       
-      if (isPost) {
-        setPosts(posts.map(p => p.id === id ? { ...p, reactionCount: (p.reactionCount || 0) + 1 } : p));
-      } else if (parentPostId) {
-        setPosts(posts.map(p => p.id === parentPostId ? {
-          ...p,
-          replies: p.replies.map(r => r.id === id ? { ...r, reactionCount: (r.reactionCount || 0) + 1 } : r)
-        } : p));
-      }
+      setPosts(prevPosts => {
+        return prevPosts.map(p => {
+          if (isPost && p.id === id) {
+            const isUnreacting = p.userReaction === reactionType;
+            const isChangingReaction = p.userReaction && p.userReaction !== reactionType;
+            
+            let newCount = p.reactionCount || 0;
+            if (isUnreacting) {
+                newCount = Math.max(0, newCount - 1);
+            } else if (!isChangingReaction) {
+                newCount += 1;
+            }
+
+            return { ...p, reactionCount: newCount, userReaction: isUnreacting ? null : reactionType };
+          } 
+          
+          if (!isPost && p.id === parentPostId) {
+            return {
+              ...p,
+              replies: p.replies.map(r => {
+                if (r.id === id) {
+                  const isUnreacting = r.userReaction === reactionType;
+                  const isChangingReaction = r.userReaction && r.userReaction !== reactionType;
+                  
+                  let newCount = r.reactionCount || 0;
+                  if (isUnreacting) {
+                      newCount = Math.max(0, newCount - 1);
+                  } else if (!isChangingReaction) {
+                      newCount += 1;
+                  }
+
+                  return { ...r, reactionCount: newCount, userReaction: isUnreacting ? null : reactionType };
+                }
+                return r;
+              })
+            };
+          }
+          return p;
+        });
+      });
     } catch (error) { console.error("Error reacting:", error); }
   };
 
@@ -797,7 +852,7 @@ const handleSendMessage = async () => {
     const url = isPost ? `/posts/${id}` : `/interact/comments/${id}`;
 
     try {
-      await apiClient.put(url, { content: editInputValue });
+      await httpService.put(url, { content: editInputValue });
 
       if (isPost) {
         setPosts(posts.map(p => p.id === id ? { ...p, text: editInputValue } : p));
@@ -823,7 +878,6 @@ const handleSendMessage = async () => {
   const filteredPosts = useMemo(() => {
     let result = [...posts];
 
-    // 1. Search Query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(p => 
@@ -832,14 +886,12 @@ const handleSendMessage = async () => {
       );
     }
 
-    // 2. Filter Type
     if (filterType === 'MY_POSTS') {
       result = result.filter(p => p.isMe);
     } else if (filterType === 'HAS_MEDIA') {
       result = result.filter(p => p.attachments && p.attachments.length > 0);
     }
 
-    // 3. Sorting
     result.sort((a, b) => {
       if (sortOrder === 'NEWEST') return b.rawDate - a.rawDate;
       return a.rawDate - b.rawDate;
@@ -848,30 +900,10 @@ const handleSendMessage = async () => {
     return result;
   }, [posts, searchQuery, filterType, sortOrder]);
 
-
   return (
     <>
       <div className="flex-1 min-w-0 flex flex-col h-full bg-[#f5f5f5] rounded-xl border border-slate-200 overflow-hidden relative">
-        <div className="px-6 py-4 border-b border-slate-200 bg-white flex items-center justify-between z-10 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold text-xl">Σ</div>
-            <div>
-              <h2 className="font-bold text-slate-800 text-lg leading-tight">General Discussion</h2>
-              <p className="text-xs text-slate-500">Class ID: {classId}</p>
-            </div>
-          </div>
 
-          {/* Nút Khóa lớp mới thêm vào */}
-          <button 
-            onClick={() => setIsLockDialogOpen(true)}
-            className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors shadow-sm font-medium"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-            Khóa lớp học
-          </button>
-        </div>
-
-        
           {/* SEARCH & FILTER BAR */}
           <div className="flex flex-col sm:flex-row items-center gap-3 mt-4 mb-3 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
             <div className="relative flex-1 w-full">
@@ -949,9 +981,9 @@ const handleSendMessage = async () => {
             <div className="h-px bg-slate-200 flex-1"></div>
           </div>
 
-
           {filteredPosts.map((post) => (
             <div key={post.id} className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+              {/* === BÀI POST === */}
               <MessageItem 
                 msg={post} 
                 isPost={true} 
@@ -982,28 +1014,59 @@ const handleSendMessage = async () => {
               )}
 
               {expandedPostIds.includes(post.id) && (
-                <div className="mt-2 ml-4 pl-4 border-l-2 border-slate-100 space-y-1 animate-in fade-in duration-300">
-                  {post.replies.map(reply => (
-                    <MessageItem 
-                      key={reply.id} 
-                      msg={reply} 
-                      isPost={false} 
-                      parentPostId={post.id}
-                      activeMenuId={activeMenuId}
-                      setActiveMenuId={setActiveMenuId}
-                      menuRef={menuRef}
-                      handleReaction={handleReaction}
-                      handleOpenComment={handleOpenComment}
-                      handleOpenReply={handleOpenReply}
-                      handleDeleteClick={handleDeleteClick}
-                      onZoomImage={setZoomedImage}
-                      editingItemId={editingItemId}
-                      editInputValue={editInputValue}
-                      setEditInputValue={setEditInputValue}
-                      onEditStart={handleEditStart}
-                      onEditCancel={handleEditCancel}
-                      onEditSubmit={handleEditSubmit}
-                    />
+                <div className="mt-2 ml-4 pl-4 border-l-2 border-slate-100 space-y-3 animate-in fade-in duration-300">
+                  {/* Lọc và render NHỮNG COMMENT GỐC (Không có replyToCommentId) trước */}
+                  {post.replies.filter(r => !r.replyToCommentId).map(comment => (
+                    <div key={comment.id} className="space-y-1">
+                      
+                      {/* === COMMENT GỐC === */}
+                      <MessageItem 
+                        msg={comment} 
+                        isPost={false} 
+                        parentPostId={post.id}
+                        rootCommentId={comment.id} 
+                        activeMenuId={activeMenuId}
+                        setActiveMenuId={setActiveMenuId}
+                        menuRef={menuRef}
+                        handleReaction={handleReaction}
+                        handleOpenComment={handleOpenComment}
+                        handleOpenReply={handleOpenReply}
+                        handleDeleteClick={handleDeleteClick}
+                        onZoomImage={setZoomedImage}
+                        editingItemId={editingItemId}
+                        editInputValue={editInputValue}
+                        setEditInputValue={setEditInputValue}
+                        onEditStart={handleEditStart}
+                        onEditCancel={handleEditCancel}
+                        onEditSubmit={handleEditSubmit}
+                      />
+
+                      {/* Lọc và render NHỮNG REPLY của riêng Comment này */}
+                      {post.replies.filter(r => r.replyToCommentId === comment.id).map(reply => (
+                        <div key={reply.id} className="ml-12 border-l-2 border-slate-100 pl-4 relative mt-1">
+                          <MessageItem 
+                            msg={reply} 
+                            isPost={false} 
+                            parentPostId={post.id}
+                            rootCommentId={comment.id} 
+                            activeMenuId={activeMenuId}
+                            setActiveMenuId={setActiveMenuId}
+                            menuRef={menuRef}
+                            handleReaction={handleReaction}
+                            handleOpenComment={handleOpenComment}
+                            handleOpenReply={handleOpenReply}
+                            handleDeleteClick={handleDeleteClick}
+                            onZoomImage={setZoomedImage}
+                            editingItemId={editingItemId}
+                            editInputValue={editInputValue}
+                            setEditInputValue={setEditInputValue}
+                            onEditStart={handleEditStart}
+                            onEditCancel={handleEditCancel}
+                            onEditSubmit={handleEditSubmit}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   ))}
                   
                   <button 
@@ -1028,7 +1091,7 @@ const handleSendMessage = async () => {
               )}
 
               {activeInputPostId === post.id && (
-                <div className="ml-14">
+                <div className="ml-14 mt-2">
                   <ChatInputBox 
                     placeholder={replyTarget ? "Write a reply..." : "Write a comment..."} 
                     onCancel={() => { setActiveInputPostId(null); setReplyTarget(null); }}
@@ -1076,17 +1139,6 @@ const handleSendMessage = async () => {
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
-      )}
-      {classId && (
-        <LockTeamDialog
-          isOpen={isLockDialogOpen}
-          teamId={Number(classId)}
-          teamName="Lớp học này"
-          onClose={() => setIsLockDialogOpen(false)}
-          onSuccess={() => {
-            window.location.reload();
-          }}
-        />
       )}
     </>
   );
