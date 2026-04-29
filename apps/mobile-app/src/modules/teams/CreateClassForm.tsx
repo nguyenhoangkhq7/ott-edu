@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { teamApi } from './team.api';
 import { 
   View, 
   Text, 
@@ -19,15 +20,35 @@ interface CreateClassFormProps {
   onClose: () => void;
 }
 
+
 export default function CreateClassForm({ onBack, onClose }: CreateClassFormProps) {
   const [className, setClassName] = useState('');
   const [description, setDescription] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreateClass = () => {
-    // Giả lập logic gọi API tạo lớp ở đây
-    // Sau khi thành công:
-    setShowSuccess(true);
+  const handleCreateClass = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Tạo joinCode và departmentId tạm thời (cần sửa nếu có UI chọn khoa)
+      const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const departmentId = 1;
+      await teamApi.create({
+        name: className,
+        description,
+        joinCode,
+        departmentId,
+      });
+      setShowSuccess(true);
+      setClassName('');
+      setDescription('');
+    } catch (err: any) {
+      setError(err?.message || 'Tạo lớp thất bại.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -119,15 +140,22 @@ export default function CreateClassForm({ onBack, onClose }: CreateClassFormProp
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            style={[styles.createBtn, !className && styles.disabledBtn]}
-            disabled={!className}
+            style={[styles.createBtn, (!className || loading) && styles.disabledBtn]}
+            disabled={!className || loading}
             onPress={handleCreateClass}
             activeOpacity={0.8}
           >
-            <Text style={styles.createBtnText}>Create Class</Text>
+            <Text style={styles.createBtnText}>{loading ? 'Creating...' : 'Create Class'}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Hiển thị lỗi nếu có */}
+      {error && (
+        <View style={{ padding: 12, backgroundColor: '#fee2e2', borderRadius: 8, margin: 16 }}>
+          <Text style={{ color: '#b91c1c', textAlign: 'center' }}>{error}</Text>
+        </View>
+      )}
 
       {/* Modal thông báo thành công */}
       <SuccessModal 
@@ -140,10 +168,10 @@ export default function CreateClassForm({ onBack, onClose }: CreateClassFormProp
         onGoToClass={() => {
           setShowSuccess(false);
           // Chuyển hướng vào chi tiết lớp học mới tạo
-          console.log("Navigating to:", className);
+          onClose();
         }}
         onAddMembers={() => {
-          console.log("Add members for:", className);
+          setShowSuccess(false);
         }}
       />
     </SafeAreaView>

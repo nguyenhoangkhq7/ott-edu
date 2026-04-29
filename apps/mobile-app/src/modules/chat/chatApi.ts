@@ -1,3 +1,17 @@
+// Thêm thành viên vào group chat (giống web)
+export async function requestOrAddGroupMember(
+  conversationId: string,
+  payload: { email?: string; accountId?: string }
+): Promise<{ conversation: Conversation; mode: 'added' | 'requested' }> {
+  const { data } = await chatApiClient.post<{ data: { conversation: ApiConversation; mode: 'added' | 'requested' } }>(
+    `/conversations/${conversationId}/members`,
+    payload
+  );
+  return {
+    conversation: mapApiConversationToConversation(data.data.conversation, ''),
+    mode: data.data.mode,
+  };
+}
 import { chatApiClient } from './axiosClient';
 import {
   ApiConversation,
