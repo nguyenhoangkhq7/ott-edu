@@ -1,4 +1,8 @@
-import axios, { AxiosError, AxiosInstance, AxiosResponse } from "axios";
+import axios, {
+  AxiosError,
+  AxiosResponse,
+  InternalAxiosRequestConfig,
+} from "axios";
 
 import { API_URL } from "../api";
 import { getAccessToken } from "../api/token-store";
@@ -18,16 +22,23 @@ type ApiSuccessEnvelope<T> = {
   data: T;
 };
 
+type RetryRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
 const DEFAULT_TIMEOUT_MS = 30000;
 const ASSIGNMENT_BASE_URL = `${API_URL.replace(/\/$/, "")}/api/assignment`;
 const BASE_PATH = "/assignments";
 
-function isApiSuccessEnvelope(payload: unknown): payload is ApiSuccessEnvelope<unknown> {
+function isApiSuccessEnvelope(
+  payload: unknown
+): payload is ApiSuccessEnvelope<unknown> {
   if (!payload || typeof payload !== "object") {
     return false;
   }
 
   const candidate = payload as Partial<ApiSuccessEnvelope<unknown>>;
+
   return (
     typeof candidate.timestamp === "string" &&
     typeof candidate.status === "number" &&
@@ -49,12 +60,26 @@ function unwrapEnvelope<T>(response: AxiosResponse<T>): AxiosResponse<T> {
 
 function mapError(error: unknown): Error {
   if (error instanceof AxiosError) {
-    const payload = error.response?.data as { message?: string; detail?: string; error?: string } | string | undefined;
+    const payload =
+      error.response?.data as
+        | {
+            message?: string;
+            detail?: string;
+            error?: string;
+          }
+        | string
+        | undefined;
+
     if (typeof payload === "string" && payload.length > 0) {
       return new Error(payload);
     }
 
-    const message = payload?.message || payload?.detail || payload?.error;
+    let message: string | undefined;
+
+    if (payload && typeof payload === "object") {
+      message = payload.message || payload.detail || payload.error;
+    }
+
     return new Error(message || "Không thể xử lý bài kiểm tra lúc này.");
   }
 
@@ -65,12 +90,11 @@ function mapError(error: unknown): Error {
   return new Error("Không thể xử lý bài kiểm tra lúc này.");
 }
 
-async function attachAuthHeader(config: Parameters<AxiosInstance["interceptors"]["request"]["use"]>[0] extends (
-  value: infer T,
-) => any
-  ? T
-  : never) {
+async function attachAuthHeader(
+  config: InternalAxiosRequestConfig
+): Promise<InternalAxiosRequestConfig> {
   const token = await getAccessToken();
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -87,12 +111,20 @@ const assignmentClient = axios.create({
   },
 });
 
-assignmentClient.interceptors.request.use(async (config) => attachAuthHeader(config));
+assignmentClient.interceptors.request.use((config) =>
+  attachAuthHeader(config)
+);
+
 assignmentClient.interceptors.response.use(
   (response) => unwrapEnvelope(response),
   async (error: AxiosError) => {
-    const originalRequest = error.config;
-    if (!originalRequest || error.response?.status !== 401 || originalRequest._retry) {
+    const originalRequest = error.config as RetryRequestConfig | undefined;
+
+    if (
+      !originalRequest ||
+      error.response?.status !== 401 ||
+      originalRequest._retry
+    ) {
       return Promise.reject(error);
     }
 
@@ -101,7 +133,9 @@ assignmentClient.interceptors.response.use(
     try {
       const refreshResponse = await refreshSession();
       const nextAccessToken = refreshResponse.accessToken;
+
       originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`;
+
       return assignmentClient(originalRequest);
     } catch (refreshError) {
       return Promise.reject(refreshError);
@@ -111,38 +145,63 @@ assignmentClient.interceptors.response.use(
 
 export const assignmentApi = {
   getAssignments: async (teamId: number): Promise<Assignment[]> => {
-    const response = await assignmentClient.get<Assignment[]>(`${BASE_PATH}/team/${teamId}`);
+    const response = await assignmentClient.get<Assignment[]>(
+      `${BASE_PATH}/team/${teamId}`
+    );
     return response.data;
   },
 
-  getAssignmentDetail: async (assignmentId: number): Promise<AssignmentDetail> => {
-    const response = await assignmentClient.get<AssignmentDetail>(`${BASE_PATH}/${assignmentId}`);
+  getAssignmentDetail: async (
+    assignmentId: number
+  ): Promise<AssignmentDetail> => {
+    const response = await assignmentClient.get<AssignmentDetail>(
+      `${BASE_PATH}/${assignmentId}`
+    );
     return response.data;
   },
 
   startAssignment: async (assignmentId: number): Promise<Submission> => {
-    const response = await assignmentClient.post<Submission>(`${BASE_PATH}/${assignmentId}/start`, {});
+    const response = await assignmentClient.post<Submission>(
+      `${BASE_PATH}/${assignmentId}/start`,
+      {}
+    );
     return response.data;
   },
 
-  getMySubmission: async (assignmentId: number): Promise<Submission | null> => {
+  getMySubmission: async (
+    assignmentId: number
+  ): Promise<Submission | null> => {
     try {
-      const response = await assignmentClient.get<Submission | null>(`${BASE_PATH}/${assignmentId}/my-submission`);
+      const response = await assignmentClient.get<Submission | null>(
+        `${BASE_PATH}/${assignmentId}/my-submission`
+      );
       return response.data;
     } catch {
       return null;
     }
   },
 
-  saveAnswer: async (submissionId: number, questionId: number, selectedOptionIds: number[]): Promise<void> => {
-    await assignmentClient.post<void>(`${BASE_PATH}/submission/${submissionId}/answer`, {
-      questionId,
-      selectedOptionIds,
-    });
+  saveAnswer: async (
+    submissionId: number,
+    questionId: number,
+    selectedOptionIds: number[]
+  ): Promise<void> => {
+    await assignmentClient.post<void>(
+      `${BASE_PATH}/submission/${submissionId}/answer`,
+      {
+        questionId,
+        selectedOptionIds,
+      }
+    );
   },
 
-  submitAssignment: async (submissionId: number): Promise<SubmissionResult> => {
-    const response = await assignmentClient.post<SubmissionResult>(`${BASE_PATH}/submission/${submissionId}/submit`, {});
+  submitAssignment: async (
+    submissionId: number
+  ): Promise<SubmissionResult> => {
+    const response = await assignmentClient.post<SubmissionResult>(
+      `${BASE_PATH}/submission/${submissionId}/submit`,
+      {}
+    );
     return response.data;
   },
 };
