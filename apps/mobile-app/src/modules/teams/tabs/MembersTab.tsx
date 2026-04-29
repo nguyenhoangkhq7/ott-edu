@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -11,55 +11,97 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-// Dữ liệu mẫu theo ảnh thiết kế
-const OWNERS = [
-  { id: 'o1', name: 'Dr. Aris Thorne', role: 'Instructor', status: 'online', avatar: 'https://i.pravatar.cc/150?u=aris' },
-];
+import { teamApi, TeamMember } from '../team.api';
+import * as chatApi from '../../chat/chatApi';
 
-const MEMBERS = [
-  { id: 'm1', name: 'Elena Rodriguez', role: 'Student • Mathematics Major', status: 'online', avatar: 'https://i.pravatar.cc/150?u=elena' },
-  { id: 'm2', name: 'Marcus Chen', role: 'Student • Physics Major', status: 'offline', avatar: 'https://i.pravatar.cc/150?u=marcus' },
-  { id: 'm3', name: 'Lucas Wright', role: 'Student • Data Science', status: 'away', avatar: null, initials: 'LW' },
-];
+interface MembersTabProps {
+  teamId: number;
+}
 
-export default function MembersTab() {
+export default function MembersTab({ teamId }: MembersTabProps) {
   const [search, setSearch] = useState('');
   const [showOwners, setShowOwners] = useState(true);
   const [showMembers, setShowMembers] = useState(true);
+  const [owners, setOwners] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addEmail, setAddEmail] = useState('');
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState<string|null>(null);
+  const [addSuccess, setAddSuccess] = useState<string|null>(null);
 
-  const renderMember = (member: any) => (
+  useEffect(() => {
+    const fetchMembers = async () => {
+      setLoading(true);
+      try {
+        const data = await teamApi.getMembers(teamId);
+        // Phân loại owner/leader và member
+        setOwners(data.filter((m) => m.role === 'LEADER' || m.role === 'OWNER'));
+        setMembers(data.filter((m) => m.role !== 'LEADER' && m.role !== 'OWNER'));
+      } catch (e) {
+        setOwners([]);
+        setMembers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (teamId) fetchMembers();
+  }, [teamId]);
+
+  const renderMember = (member: TeamMember) => (
     <View key={member.id} style={styles.memberCard}>
       <View style={styles.avatarContainer}>
         {member.avatar ? (
           <Image source={{ uri: member.avatar }} style={styles.avatar} />
         ) : (
           <View style={[styles.avatar, styles.initialsAvatar]}>
-            <Text style={styles.initialsText}>{member.initials}</Text>
+            <Text style={styles.initialsText}>
+              {member.firstName?.[0] || ''}{member.lastName?.[0] || ''}
+            </Text>
           </View>
         )}
-        {/* Chấm trạng thái */}
-        <View style={[
-          styles.statusDot, 
-          { backgroundColor: member.status === 'online' ? '#22c55e' : member.status === 'away' ? '#eab308' : '#94a3b8' }
-        ]} />
+        <View style={[styles.statusDot, { backgroundColor: '#94a3b8' }]} />
       </View>
-
       <View style={styles.memberInfo}>
-        <Text style={styles.memberName}>{member.name}</Text>
-        <Text style={styles.memberRole}>{member.role}</Text>
+        <Text style={styles.memberName}>{member.firstName} {member.lastName}</Text>
+        <Text style={styles.memberRole}>{member.email}</Text>
       </View>
-
       <TouchableOpacity style={styles.moreBtn}>
         <Ionicons name="ellipsis-horizontal" size={20} color="#94a3b8" />
       </TouchableOpacity>
     </View>
   );
 
+  // Lấy conversationId từ teamId (giả định conversationId = teamId, nếu không đúng cần mapping từ backend)
+  const conversationId = String(teamId);
+
+  // Hàm thêm thành viên
+  const handleAddMember = async () => {
+    setAddLoading(true);
+    setAddError(null);
+    setAddSuccess(null);
+    try {
+      // 1. Thêm vào team
+      await teamApi.addMember(teamId, { email: addEmail, role: 'MEMBER' });
+      // 2. Thêm vào nhóm chat
+      await chatApi.requestOrAddGroupMember(conversationId, { email: addEmail });
+      setAddSuccess('Thêm thành viên thành công!');
+      setAddEmail('');
+      // Reload lại danh sách
+      const data = await teamApi.getMembers(teamId);
+      setOwners(data.filter((m) => m.role === 'LEADER' || m.role === 'OWNER'));
+      setMembers(data.filter((m) => m.role !== 'LEADER' && m.role !== 'OWNER'));
+    } catch (e: any) {
+      setAddError(e?.message || 'Thêm thành viên thất bại');
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
-        {/* 1. THANH TÌM KIẾM */}
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={20} color="#94a3b8" style={styles.searchIcon} />
           <TextInput
@@ -70,8 +112,6 @@ export default function MembersTab() {
             onChangeText={setSearch}
           />
         </View>
-
-        {/* 2. NHÓM QUẢN TRỊ (OWNERS) */}
         <View style={styles.section}>
           <TouchableOpacity 
             style={styles.sectionHeader} 
@@ -81,18 +121,15 @@ export default function MembersTab() {
             <View style={styles.headerLeft}>
               <Ionicons name={showOwners ? "chevron-down" : "chevron-forward"} size={18} color="#64748b" />
               <Text style={styles.headerTitle}>Owners</Text>
-              <View style={styles.badge}><Text style={styles.badgeText}>{OWNERS.length}</Text></View>
+              <View style={styles.badge}><Text style={styles.badgeText}>{owners.length}</Text></View>
             </View>
           </TouchableOpacity>
-          
           {showOwners && (
             <View style={styles.sectionContent}>
-              {OWNERS.map(renderMember)}
+              {owners.map(renderMember)}
             </View>
           )}
         </View>
-
-        {/* 3. NHÓM THÀNH VIÊN (MEMBERS) */}
         <View style={styles.section}>
           <TouchableOpacity 
             style={styles.sectionHeader} 
@@ -102,22 +139,52 @@ export default function MembersTab() {
             <View style={styles.headerLeft}>
               <Ionicons name={showMembers ? "chevron-down" : "chevron-forward"} size={18} color="#64748b" />
               <Text style={styles.headerTitle}>Members and guests</Text>
-              <View style={styles.badge}><Text style={styles.badgeText}>24</Text></View>
+              <View style={styles.badge}><Text style={styles.badgeText}>{members.length}</Text></View>
             </View>
           </TouchableOpacity>
-
           {showMembers && (
             <View style={styles.sectionContent}>
-              {MEMBERS.map(renderMember)}
+              {members.map(renderMember)}
             </View>
           )}
         </View>
-
       </ScrollView>
-
-      {/* 4. NÚT FAB THÊM THÀNH VIÊN */}
-     <TouchableOpacity style={styles.fab} activeOpacity={0.8}>
-        {/* Đã sửa thành Ionicons và person-add */}
+      {/* Modal thêm thành viên */}
+      {showAddModal && (
+        <View style={{ position:'absolute', left:0, top:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.2)', justifyContent:'center', alignItems:'center', zIndex:10 }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, minWidth:300 }}>
+            <Text style={{ fontWeight:'bold', fontSize:16, marginBottom:12 }}>Thêm thành viên vào nhóm</Text>
+            <TextInput
+              style={{ borderWidth:1, borderColor:'#e5e7eb', borderRadius:8, padding:10, marginBottom:12, fontSize:15 }}
+              placeholder="Nhập email thành viên"
+              value={addEmail}
+              onChangeText={setAddEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+            {addError && <Text style={{ color:'#e11d48', marginBottom:8 }}>{addError}</Text>}
+            {addSuccess && <Text style={{ color:'#10b981', marginBottom:8 }}>{addSuccess}</Text>}
+            <View style={{ flexDirection:'row', justifyContent:'flex-end', gap:8 }}>
+              <TouchableOpacity
+                style={{ paddingVertical:10, paddingHorizontal:18, borderRadius:8, backgroundColor:'#94a3b8', marginRight:8 }}
+                onPress={() => { setShowAddModal(false); setAddError(null); setAddSuccess(null); setAddEmail(''); }}
+                disabled={addLoading}
+              >
+                <Text style={{ color:'#fff', fontWeight:'bold' }}>Huỷ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ paddingVertical:10, paddingHorizontal:18, borderRadius:8, backgroundColor:'#1868f0' }}
+                onPress={handleAddMember}
+                disabled={addLoading || !addEmail}
+              >
+                <Text style={{ color:'#fff', fontWeight:'bold' }}>Thêm</Text>
+              </TouchableOpacity>
+            </View>
+            {addLoading && <View style={{ marginTop:12 }}><Text>Đang thêm...</Text></View>}
+          </View>
+        </View>
+      )}
+      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => setShowAddModal(true)}>
         <Ionicons name="person-add" size={28} color="white" />
       </TouchableOpacity>
     </View>
