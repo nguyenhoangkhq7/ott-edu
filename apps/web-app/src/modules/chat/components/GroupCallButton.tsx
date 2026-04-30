@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Phone } from "lucide-react";
+import { Video } from "lucide-react";
 import useWebRTCMediasoup from "../hooks/useWebRTCMediasoup";
 import GroupCallView from "./GroupCallView";
 import type { Socket } from "socket.io-client";
@@ -69,16 +69,14 @@ export default function GroupCallButton({
       />
     );
   }
-
   return (
     <button
       onClick={handleStartCall}
       disabled={!socket}
-      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
+      className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
       title={socket ? "Start group call" : "Connecting..."}
     >
-      <Phone className="w-4 h-4" />
-      Start Call
+      <Video size={20} />
     </button>
   );
 }

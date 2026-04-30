@@ -16,7 +16,7 @@ import {
   Reaction,
   User,
 } from "../types";
-import { useWebRTC } from "../hooks/useWebRTC";
+import useWebRTCMediasoup from "../hooks/useWebRTCMediasoup";
 import {
   fetchCallHistory,
   fetchConversations,
@@ -130,7 +130,6 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
   const {
     localStream,
-    remoteStream,
     remoteStreams,
     callStatus,
     incomingCall,
@@ -140,18 +139,32 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     isScreenSharing,
     callError,
     retryMediaPermission,
-    startVideoCall,
+    startGroupCall,
     acceptIncomingCall,
     declineIncomingCall,
-    endVideoCall,
+    endCall,
     toggleMicrophone,
     toggleCamera,
     toggleScreenShare,
     clearCallError,
-  } = useWebRTC({
+  } = useWebRTCMediasoup({
     socket,
     currentUserId,
   });
+
+  // Provide a compatibility wrapper used elsewhere for private calls
+  const startVideoCall = useCallback(
+    async ({ toUserId, conversationId }: { toUserId: string; conversationId: string }) => {
+      await startGroupCall(conversationId);
+    },
+    [startGroupCall],
+  );
+
+  // Derive the first remote stream (used by some components)
+  const remoteStream = React.useMemo(() => {
+    const it = remoteStreams.values().next();
+    return it?.value || null;
+  }, [remoteStreams]);
 
   // Giữ ref luôn cập nhật để xài trong socket handler (tránh dependency bắt reconnect socket)
   useEffect(() => {
@@ -550,9 +563,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const activeConversation = conversations.find(
       (c) => c.id === activeConversationId,
     );
-    const isPrivate = activeConversation?.type === "private";
 
-    if (!activeConversationId || !isPrivate) {
+    if (!activeConversationId || !activeConversation) {
       setCallHistory([]);
       setCallHistoryPage(1);
       setCallHistoryTotalPages(1);
@@ -604,7 +616,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const activeConversation = conversations.find(
       (c) => c.id === activeConversationId,
     );
-    if (!activeConversation || activeConversation.type !== "private") {
+    if (!activeConversation) {
       return;
     }
 
@@ -894,7 +906,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onRetryMediaPermission={retryMediaPermission}
         onAcceptIncomingCall={acceptIncomingCall}
         onDeclineIncomingCall={declineIncomingCall}
-        onEndVideoCall={endVideoCall}
+        onEndVideoCall={endCall}
         onToggleMicrophone={toggleMicrophone}
         onToggleCamera={toggleCamera}
         onToggleScreenShare={toggleScreenShare}

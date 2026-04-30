@@ -14,6 +14,7 @@ import {
 } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
+import GroupCallButton from "./GroupCallButton";
 import { Camera, CameraOff, Info, Mic, MicOff, Phone, PhoneOff, RefreshCw, Share2, Users, Video, X } from "lucide-react";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
@@ -91,20 +92,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onToggleCamera,
   onToggleScreenShare,
 }) => {
-    const formatCallDuration = (durationSec: number): string => {
-      if (!durationSec || durationSec <= 0) {
-        return "0s";
-      }
-
-      const minutes = Math.floor(durationSec / 60);
-      const seconds = durationSec % 60;
-      if (minutes === 0) {
-        return `${seconds}s`;
-      }
-
-      return `${minutes}m ${seconds}s`;
-    };
-
     const formatCallStatus = (item: CallHistoryItem): string => {
       switch (item.status) {
         case "connected":
@@ -123,16 +110,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       }
     };
 
-    const formatCallTime = (isoDate: string): string => {
-      const date = new Date(isoDate);
-      return date.toLocaleString("vi-VN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        day: "2-digit",
-        month: "2-digit",
-      });
-    };
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -142,6 +119,36 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     () => Array.from(remoteStreams.entries()),
     [remoteStreams],
   );
+  const callHistoryMessages = React.useMemo(
+    () =>
+      callHistory.map((item) => ({
+        id: item._id,
+        conversationId: item.conversationId,
+        senderId: item.callerId,
+        content: `[call_log] ${JSON.stringify({
+          callType: "video",
+          status: item.status,
+          durationSec: item.durationSec,
+          label: `Cuoc goi ${formatCallStatus(item).toLowerCase()}`,
+        })}`,
+        createdAt: item.startedAt,
+        status: "sent" as const,
+        attachments: [],
+        linkPreview: undefined,
+        replyTo: null,
+        isRevoked: false,
+        revokedFor: [],
+        isForwarded: false,
+        reactions: [],
+      })),
+    [callHistory],
+  );
+  const timelineMessages = React.useMemo(() => {
+    const combined = [...localMessages, ...callHistoryMessages];
+    return combined.sort(
+      (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+    );
+  }, [callHistoryMessages, localMessages]);
 
   // Update local messages when messages prop changes
   useEffect(() => {
@@ -723,15 +730,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
             <Phone size={20} />
           </button>
-          <button
-            type="button"
-            onClick={onStartVideoCall}
-            disabled={!canStartVideoCall}
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-            title={canStartVideoCall ? "Goi video 1-1" : "Chi ho tro goi trong doan chat private"}
-          >
-            <Video size={20} />
-          </button>
+          {conversation.type === "class" ? (
+            <GroupCallButton
+              socket={socket ?? null}
+              currentUserId={currentUser?.id || ""}
+              conversationId={conversation.id}
+              conversationName={displayName || conversation.name || "Group Call"}
+              participantCount={conversation.participants.length}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={onStartVideoCall}
+              disabled={!canStartVideoCall}
+              className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+              title={canStartVideoCall ? "Goi video 1-1" : "Chi ho tro goi trong doan chat private"}
+            >
+              <Video size={20} />
+            </button>
+          )}
           <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
             <Info size={20} />
           </button>
@@ -740,52 +757,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {renderVideoCallPanel()}
 
-      {conversation.type === "private" && (
-        <div className="border-b border-slate-200 bg-white px-5 py-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Lich su cuoc goi
-            </p>
-            <p className="text-[11px] text-slate-400">
-              Trang {callHistoryPage}/{callHistoryTotalPages}
-            </p>
-          </div>
-
-          {isLoadingCallHistory ? (
-            <div className="mt-2 text-xs text-slate-400">Dang tai lich su...</div>
-          ) : callHistory.length === 0 ? (
-            <div className="mt-2 text-xs text-slate-400">Chua co lich su cuoc goi.</div>
-          ) : (
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {callHistory.map((item) => (
-                <div
-                  key={item._id}
-                  className="min-w-45 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2"
-                >
-                  <p className="text-xs font-semibold text-slate-700">{formatCallStatus(item)}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">{formatCallTime(item.startedAt)}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    Thoi luong: {formatCallDuration(item.durationSec)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white p-4">
         {isLoadingMessages ? (
           <div className="flex h-full items-center justify-center gap-2 text-slate-400">
             <RefreshCw size={16} className="animate-spin" />
             <span className="text-sm">Đang tải tin nhắn...</span>
           </div>
-        ) : localMessages.length === 0 ? (
+        ) : timelineMessages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
             Hãy là người đầu tiên gửi tin nhắn! 👋
           </div>
         ) : (
-          localMessages.map((msg) => (
+          timelineMessages.map((msg) => (
             <MessageBubble
               key={msg.id}
               message={msg}

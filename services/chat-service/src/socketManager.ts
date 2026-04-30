@@ -659,6 +659,14 @@ class SocketManager {
           socket.join(conversationId);
 
           const existingProducers = this.listExistingProducers(room, socket.id);
+          
+          // Notify other peers in the room about the new user joining
+          socket.to(conversationId).emit("mediaPeerJoined", {
+            userId,
+            socketId: socket.id,
+            conversationId,
+          });
+          
           this.safeAck(ack, {
             ok: true,
             data: {
@@ -880,7 +888,12 @@ class SocketManager {
           this.safeAck(ack, { ok: true, data: { producerId: producer.id } });
         } catch (error) {
           console.error("[Mediasoup] produce error:", error);
-          this.emitMediaError(socket, "MEDIA_PRODUCE_FAILED", "Unable to produce.", ack);
+          this.emitMediaError(
+            socket,
+            "MEDIA_PRODUCE_FAILED",
+            "Unable to produce. Check your browser's media permissions.",
+            ack,
+          );
         }
       });
 
@@ -925,11 +938,28 @@ class SocketManager {
           return;
         }
 
-        if (!room.router.canConsume({ producerId: data.producerId, rtpCapabilities })) {
+        try {
+          const canConsumeResult = room.router.canConsume({ producerId: data.producerId, rtpCapabilities });
+          if (!canConsumeResult) {
+            console.warn(
+              "[Mediasoup] canConsume failed for producer",
+              data.producerId,
+              "with peer rtpCapabilities",
+            );
+            this.emitMediaError(
+              socket,
+              "CANNOT_CONSUME",
+              "Router cannot consume this producer. Producer may not exist or codecs are incompatible.",
+              ack,
+            );
+            return;
+          }
+        } catch (checkError) {
+          console.error("[Mediasoup] canConsume check error:", checkError);
           this.emitMediaError(
             socket,
             "CANNOT_CONSUME",
-            "Router cannot consume this producer.",
+            "Unable to verify consumer capability.",
             ack,
           );
           return;
@@ -965,8 +995,19 @@ class SocketManager {
             },
           });
         } catch (error) {
-          console.error("[Mediasoup] consume error:", error);
-          this.emitMediaError(socket, "MEDIA_CONSUME_FAILED", "Unable to consume.", ack);
+          console.error("[Mediasoup] consume error - details:", {
+            error: (error as Error).message,
+            producerId: data.producerId,
+            conversationId,
+            rtpCapabilitiesProvided: !!data.rtpCapabilities,
+            peerRtpCapabilitiesSet: !!peer.rtpCapabilities,
+          });
+          this.emitMediaError(
+            socket,
+            "MEDIA_CONSUME_FAILED",
+            "Unable to consume. The producer may have been closed or codecs don't match.",
+            ack,
+          );
         }
       });
 
@@ -1032,6 +1073,54 @@ class SocketManager {
           conversationId: roomId,
         });
         this.closeRoomIfEmpty(room);
+      });
+
+      // For group calls: broadcast incoming call event when joining media room
+      socket.on("startGroupMediaCall", async (data: { conversationId: string }) => {
+        if (!userId) {
+          socket.emit("videoCallError", {
+            code: "UNAUTHORIZED",
+            message: "Missing user identity for starting group call.",
+          });
+          return;
+        }
+
+        const conversationId = data?.conversationId?.trim();
+        if (!conversationId) {
+          socket.emit("videoCallError", {
+            code: "INVALID_PAYLOAD",
+            message: "conversationId is required.",
+          });
+          return;
+        }
+
+        try {
+          const room = this.mediaRooms.get(conversationId);
+          if (!room) {
+            socket.emit("videoCallError", {
+              code: "ROOM_NOT_FOUND",
+              message: "Media room not found.",
+            });
+            return;
+          }
+
+          // Broadcast group call started to all peers in the room
+          socket.to(conversationId).emit("incomingGroupMediaCall", {
+            conversationId,
+            initiatorUserId: userId,
+            initiatedAt: new Date().toISOString(),
+          });
+
+          socket.emit("groupMediaCallStarted", {
+            conversationId,
+          });
+        } catch (error) {
+          console.error("[Mediasoup] startGroupMediaCall error:", error);
+          socket.emit("videoCallError", {
+            code: "GROUP_CALL_FAILED",
+            message: "Unable to start group media call.",
+          });
+        }
       });
 
       // Signaling: Caller bắt đầu gọi cho Callee trong private conversation hiện tại
@@ -1149,98 +1238,7 @@ class SocketManager {
         }
       });
 
-      // Signaling relay: SDP Offer
-      socket.on("webrtcOffer", (data: WebRtcOfferPayload) => {
-        if (!userId) {
-          return;
-        }
-
-        const callId = data?.callId?.trim();
-        if (!callId || !data?.offer) {
-          socket.emit("videoCallError", {
-            code: "INVALID_PAYLOAD",
-            message: "callId and offer are required.",
-          });
-          return;
-        }
-
-        this.relayWebRtcPayload(socket, userId, "webrtcOffer", {
-          callId,
-          ...(data?.toUserId ? { toUserId: data.toUserId } : {}),
-          dataKey: "offer",
-          dataValue: data.offer,
-        });
-      });
-
-      // Signaling relay: SDP Answer
-      socket.on("webrtcAnswer", (data: WebRtcAnswerPayload) => {
-        if (!userId) {
-          return;
-        }
-
-        const callId = data?.callId?.trim();
-        if (!callId || !data?.answer) {
-          socket.emit("videoCallError", {
-            code: "INVALID_PAYLOAD",
-            message: "callId and answer are required.",
-          });
-          return;
-        }
-
-        const relayed = this.relayWebRtcPayload(socket, userId, "webrtcAnswer", {
-          callId,
-          ...(data?.toUserId ? { toUserId: data.toUserId } : {}),
-          dataKey: "answer",
-          dataValue: data.answer,
-        });
-
-        const session = this.callSessions.get(callId);
-        if (!relayed || !session) {
-          return;
-        }
-
-        session.status = "connected";
-        session.connectedAt = Date.now();
-        void this.markCallConnected(callId, session.connectedAt);
-
-        if (this.isSessionParticipant(session, userId)) {
-          const peerUserId = this.getPeerId(session, userId);
-          socket.emit("videoCallConnected", {
-            callId,
-            conversationId: session.conversationId,
-          });
-
-          if (peerUserId) {
-            this.emitToUser(peerUserId, "videoCallConnected", {
-              callId,
-              conversationId: session.conversationId,
-            });
-          }
-        }
-      });
-
-      // Signaling relay: ICE Candidate
-      socket.on("webrtcIceCandidate", (data: WebRtcIceCandidatePayload) => {
-        if (!userId) {
-          return;
-        }
-
-        const callId = data?.callId?.trim();
-        if (!callId || !data?.candidate) {
-          socket.emit("videoCallError", {
-            code: "INVALID_PAYLOAD",
-            message: "callId and candidate are required.",
-          });
-          return;
-        }
-
-        this.relayWebRtcPayload(socket, userId, "webrtcIceCandidate", {
-          callId,
-          ...(data?.toUserId ? { toUserId: data.toUserId } : {}),
-          dataKey: "candidate",
-          dataValue: data.candidate,
-        });
-      });
+      // Legacy direct WebRTC signaling handlers removed; mediasoup-only flow used.
 
       // Signaling: End call từ một trong hai peer
       socket.on("endVideoCall", (data: EndVideoCallPayload) => {
