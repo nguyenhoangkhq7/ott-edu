@@ -110,8 +110,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -159,64 +157,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [localMessages]);
-
-  useEffect(() => {
-    const localVideoElement = localVideoRef.current;
-    if (!localVideoElement) {
-      return;
-    }
-
-    localVideoElement.srcObject = localStream;
-
-    if (!localStream) {
-      return;
-    }
-
-    if (localStream.getVideoTracks().length === 0) {
-      console.warn("[ChatWindow] Local stream has no video track.");
-      return;
-    }
-
-    const playLocalVideo = () => {
-      void localVideoElement.play().catch((error) => {
-        console.debug("[ChatWindow] Local video autoplay blocked:", error);
-      });
-    };
-
-    localVideoElement.onloadedmetadata = playLocalVideo;
-    playLocalVideo();
-
-    return () => {
-      localVideoElement.onloadedmetadata = null;
-    };
-  }, [localStream]);
-
-  useEffect(() => {
-    const remoteVideoElement = remoteVideoRef.current;
-    if (!remoteVideoElement || !remoteStream) {
-      return;
-    }
-
-    if (remoteVideoElement.srcObject !== remoteStream) {
-      remoteVideoElement.srcObject = remoteStream;
-    }
-
-    const playRemoteVideo = () => {
-      void remoteVideoElement.play().catch((error) => {
-        console.debug("[ChatWindow] Inline remote video autoplay blocked:", error);
-      });
-    };
-
-    if (remoteVideoElement.readyState >= 1) {
-      playRemoteVideo();
-    } else {
-      remoteVideoElement.onloadedmetadata = playRemoteVideo;
-    }
-
-    return () => {
-      remoteVideoElement.onloadedmetadata = null;
-    };
-  }, [remoteStream]);
 
   useEffect(() => {
     remoteStreamsList.forEach(([userId, stream]) => {
@@ -446,7 +386,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <div className="absolute bottom-4 right-4 z-20 overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl
                               w-28 sm:w-36 md:w-44">
                 <video
-                  ref={localVideoRef}
+                  ref={(el) => {
+                    if (!el) return;
+                    if (el.srcObject !== localStream) el.srcObject = localStream;
+                    if (localStream) el.play().catch(() => {});
+                  }}
                   autoPlay
                   muted
                   playsInline
@@ -500,7 +444,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   style={{ aspectRatio: "16/9" }}
                 >
                   <video
-                    ref={localVideoRef}
+                    ref={(el) => {
+                      if (!el) return;
+                      if (el.srcObject !== localStream) el.srcObject = localStream;
+                      if (localStream) el.play().catch(() => {});
+                    }}
                     autoPlay
                     muted
                     playsInline
@@ -685,7 +633,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
                 <video
-                  ref={remoteVideoRef}
+                  ref={(el) => {
+                    if (!el) return;
+                    if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                    if (remoteStream) el.play().catch(() => {});
+                  }}
                   autoPlay
                   playsInline
                   className="h-44 w-full object-cover"
@@ -701,7 +653,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               </div>
               <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
                 <video
-                  ref={localVideoRef}
+                  ref={(el) => {
+                    if (!el) return;
+                    if (el.srcObject !== localStream) el.srcObject = localStream;
+                    if (localStream) el.play().catch(() => {});
+                  }}
                   autoPlay
                   muted
                   playsInline
