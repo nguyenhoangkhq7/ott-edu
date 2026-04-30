@@ -14,7 +14,6 @@ import {
 } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
-import GroupCallButton from "./GroupCallButton";
 import { Camera, CameraOff, Info, Mic, MicOff, Phone, PhoneOff, RefreshCw, Share2, Users, Video, X } from "lucide-react";
 import Image from "next/image";
 import { Socket } from "socket.io-client";
@@ -837,25 +836,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
             <Phone size={20} />
           </button>
-          {conversation.type === "class" ? (
-            <GroupCallButton
-              socket={socket ?? null}
-              currentUserId={currentUser?.id || ""}
-              conversationId={conversation.id}
-              conversationName={displayName || conversation.name || "Group Call"}
-              participantCount={conversation.participants.length}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={onStartVideoCall}
-              disabled={!canStartVideoCall}
-              className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-              title={canStartVideoCall ? "Goi video 1-1" : "Chi ho tro goi trong doan chat private"}
-            >
-              <Video size={20} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onStartVideoCall}
+            disabled={!canStartVideoCall}
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+            title={canStartVideoCall ? "Goi video" : "Chi ho tro goi trong doan chat da tao"}
+          >
+            <Video size={20} />
+          </button>
           <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
             <Info size={20} />
           </button>

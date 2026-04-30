@@ -777,36 +777,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         ) || null
       : null;
 
-  const isCallablePrivateConversation =
+  const isCallableConversation =
     activeConversation !== null && !activeConversation.id.startsWith("draft_");
 
-  const canStartVideoCall =
-    Boolean(activePrivatePeer) &&
-    isCallablePrivateConversation &&
-    callStatus === "idle";
+  const canStartVideoCall = isCallableConversation && callStatus === "idle";
 
   const handleStartVideoCall = useCallback(async () => {
-    if (!activeConversation || activeConversation.type !== "private") {
+    if (!activeConversation || activeConversation.id.startsWith("draft_")) {
       return;
     }
 
-    if (activeConversation.id.startsWith("draft_")) {
-      return;
-    }
-
-    const targetPeer = activeConversation.participants.find(
-      (participant) => participant.id !== currentUserId,
-    );
-
-    if (!targetPeer) {
-      return;
-    }
-
-    await startVideoCall({
-      toUserId: targetPeer.id,
-      conversationId: activeConversation.id,
-    });
-  }, [activeConversation, currentUserId, startVideoCall]);
+    await startGroupCall(activeConversation.id);
+  }, [activeConversation, startGroupCall]);
 
   const incomingCaller = React.useMemo(() => {
     if (!incomingCall) {
