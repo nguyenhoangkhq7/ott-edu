@@ -57,7 +57,7 @@ export default function QuizPage() {
           <h2 className="text-xl font-bold text-slate-800 mb-2">Đã xảy ra lỗi</h2>
           <p className="text-slate-500 mb-6">ID bài kiểm tra không hợp lệ.</p>
           <a
-            href="/assignments"
+            href="/online-quizzes"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold
               hover:bg-indigo-700 transition-colors"
           >
@@ -92,7 +92,7 @@ export default function QuizPage() {
           <h2 className="text-xl font-bold text-slate-800 mb-2">Đã xảy ra lỗi</h2>
           <p className="text-slate-500 mb-6">{errorMsg}</p>
           <a
-            href="/assignments"
+            href="/online-quizzes"
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold
               hover:bg-indigo-700 transition-colors"
           >

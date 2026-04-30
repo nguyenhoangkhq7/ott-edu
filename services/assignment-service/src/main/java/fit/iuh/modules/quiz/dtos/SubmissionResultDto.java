@@ -10,4 +10,5 @@ public class SubmissionResultDto {
     private String feedback;
     private int totalQuestions;
     private int answeredQuestions;
+    private int correctQuestions;
 }
