@@ -79,7 +79,7 @@ export interface MediasoupSocketManager {
    */
   consume(
     conversationId: string,
-    consumeParams: unknown,
+    consumeParams: Record<string, unknown>,
     callback: (response: { ok: boolean; data?: unknown; error?: unknown }) => void,
   ): void;
 
@@ -143,7 +143,7 @@ export function setupMediasoupSocketListeners(socket: Socket): MediasoupSocketMa
     },
 
     consume(conversationId, consumeParams, callback) {
-      socket.emit("consume", { conversationId, ...consumeParams }, callback);
+      socket.emit("consume", { conversationId, ...(consumeParams as Record<string, unknown>) }, callback);
     },
 
     resume(conversationId, consumerId, callback) {

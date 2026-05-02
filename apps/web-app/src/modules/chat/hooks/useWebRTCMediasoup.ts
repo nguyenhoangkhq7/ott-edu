@@ -46,10 +46,18 @@ type JoinMediaRoomResponse = {
   existingProducers: Array<{ producerId: string; kind: "audio" | "video"; userId: string }>;
 };
 
-const RTC_ICE_SERVERS =
-  typeof window !== "undefined" && (window as unknown as { MEDIASOUP_ICE_SERVERS?: string }).MEDIASOUP_ICE_SERVERS
-    ? JSON.parse((window as unknown as { MEDIASOUP_ICE_SERVERS?: string }).MEDIASOUP_ICE_SERVERS)
-    : [{ urls: "stun:stun.l.google.com:19302" }];
+const RTC_ICE_SERVERS = (() => {
+  if (typeof window === "undefined") return [{ urls: "stun:stun.l.google.com:19302" }];
+  const w = window as unknown as { MEDIASOUP_ICE_SERVERS?: string };
+  if (w.MEDIASOUP_ICE_SERVERS) {
+    try {
+      return JSON.parse(w.MEDIASOUP_ICE_SERVERS);
+    } catch {
+      return [{ urls: "stun:stun.l.google.com:19302" }];
+    }
+  }
+  return [{ urls: "stun:stun.l.google.com:19302" }];
+})();
 
 function isMobileUserAgent(): boolean {
   if (typeof navigator === "undefined") {
@@ -493,7 +501,7 @@ export default function useWebRTCMediasoup({
       });
 
       if (!consumerResponse.ok || !consumerResponse.data) {
-        throw new Error(consumerResponse.error?.message || "Failed to consume remote producer");
+        throw new Error((consumerResponse.error as { message?: string })?.message || "Failed to consume remote producer");
       }
 
       const consumer = await recvTransportRef.current.consume({
@@ -521,7 +529,7 @@ export default function useWebRTCMediasoup({
             if (response.ok) {
               resolve();
             } else {
-              reject(new Error(response.error?.message || "Failed to resume consumer"));
+              reject(new Error((response.error as { message?: string })?.message || "Failed to resume consumer"));
             }
           },
         );
@@ -548,7 +556,7 @@ export default function useWebRTCMediasoup({
               return;
             }
 
-            reject(new Error(response.error?.message || "Failed to join media room"));
+            reject(new Error((response.error as { message?: string })?.message || "Failed to join media room"));
           },
         );
       });

@@ -55,6 +55,10 @@ interface ChatWindowProps {
   onToggleMicrophone?: () => void;
   onToggleCamera?: () => void;
   onToggleScreenShare?: () => void;
+  onForwardMessage?: (message: Message | null) => void;
+  onOpenProfile?: (user: User | null) => void;
+  onOpenGroupManage?: () => void;
+  onConversationInfoRefreshTick?: number;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -67,7 +71,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   socket,
   canStartVideoCall = false,
   onStartVideoCall,
-  callStatus = "idle",
+  callStatus = "idle" as VideoCallStatus,
   localStream = null,
   remoteStream = null,
   remoteStreams = new Map(),
@@ -90,6 +94,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onToggleMicrophone,
   onToggleCamera,
   onToggleScreenShare,
+  onForwardMessage,
+  onOpenProfile,
+  onOpenGroupManage,
+  onConversationInfoRefreshTick = 0,
 }) => {
     const formatCallStatus = (item: CallHistoryItem): string => {
       switch (item.status) {
@@ -316,7 +324,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           )}
 
           {/* ── Main area — flex-1 with min-h-0 to stay within bounds ── */}
-          {incomingCall && callStatus === "receiving" ? (
+          {incomingCall && callStatus === ("receiving" as VideoCallStatus) ? (
             /* Incoming call screen */
             <div className="flex flex-1 items-center justify-center p-6">
               <div className="w-full max-w-sm rounded-3xl border border-emerald-400/30 bg-emerald-500/10 px-6 py-8 text-center backdrop-blur-sm">
@@ -570,7 +578,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         )}
 
-        {incomingCall && callStatus === "receiving" && (
+        {incomingCall && callStatus === ("receiving" as VideoCallStatus) && (
           <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
             <p className="font-semibold">{incomingCallerName} dang goi video cho ban</p>
             <div className="mt-2 flex items-center gap-2">
