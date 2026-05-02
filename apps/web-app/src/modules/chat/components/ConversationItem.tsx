@@ -2,6 +2,19 @@ import React from 'react';
 import { Conversation, User } from '../types';
 import Image from 'next/image';
 
+const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) && parsed.hostname !== "via.placeholder.com";
+  } catch {
+    return false;
+  }
+};
+
 interface ConversationItemProps {
   conversation: Conversation;
   currentUser: User;
@@ -44,21 +57,27 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
           : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
       }`}
     >
-      <div className="relative flex-shrink-0">
-        <Image
-          src={displayAvatar?.trim() || 'https://via.placeholder.com/150'}
-          alt={displayName || 'Conversation'}
-          width={48}
-          height={48}
-          className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
-        />
+      <div className="relative shrink-0">
+        {isSafeAvatarUrl(displayAvatar) ? (
+          <Image
+            src={displayAvatar}
+            alt={displayName || 'Conversation'}
+            width={48}
+            height={48}
+            className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+          />
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-purple-600 text-sm font-semibold text-white ring-1 ring-slate-200">
+            {(displayName || 'U').charAt(0).toUpperCase()}
+          </div>
+        )}
         {conversation.type === 'private' && isOnline && (
           <div className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-500" />
         )}
       </div>
-      
+
       <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-baseline mb-0.5">
+        <div className="mb-0.5 flex items-baseline justify-between">
           <h3 className="truncate text-sm font-semibold text-slate-900">
             {displayName || 'Unknown User'}
           </h3>
@@ -68,11 +87,15 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             </span>
           )}
         </div>
-        
-        <div className="flex justify-between items-center">
-          <p className={`truncate text-sm ${
-            conversation.unreadCount > 0 ? 'font-semibold text-slate-900' : 'text-slate-500'
-          }`}>
+
+        <div className="flex items-center justify-between">
+          <p
+            className={`truncate text-sm ${
+              conversation.unreadCount > 0
+                ? 'font-semibold text-slate-900'
+                : 'text-slate-500'
+            }`}
+          >
             {!conversation.lastMessage
               ? 'Chưa có tin nhắn...'
               : conversation.lastMessage.isRevoked

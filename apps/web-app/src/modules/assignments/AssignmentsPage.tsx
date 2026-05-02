@@ -3,10 +3,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Assignment, AssignmentType } from '@/shared/types/quiz';
 import { quizService } from '@/services/api/quiz.service';
+import { useAppContext } from '@/shared/providers/AppContext';
+import { useAuth } from '@/shared/providers/AuthProvider';
 import Link from 'next/link';
-
-// Fallback teamId - in production this would come from context/session
-const DEFAULT_TEAM_ID = 1;
 
 function getStatusBadge(assignment: Assignment) {
   const now = new Date();
@@ -35,13 +34,17 @@ const AssignmentIcon = () => (
   </svg>
 );
 
-export default function AssignmentsPage({ teamId = DEFAULT_TEAM_ID }: { teamId?: number }) {
+export default function AssignmentsPage({ teamId: routeTeamId }: { teamId?: number }) {
+  const { classId: contextClassId, isLoaded } = useAppContext();
+  const { isInitializing: isAuthInitializing, isAuthenticated } = useAuth();
+  const teamId = routeTeamId ?? (contextClassId ? Number(contextClassId) : null);
+
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAssignments = useCallback(async () => {
-    if (!teamId) return;
+    if (teamId == null) return;
     setLoading(true);
     setError(null);
     try {
@@ -55,8 +58,55 @@ export default function AssignmentsPage({ teamId = DEFAULT_TEAM_ID }: { teamId?:
   }, [teamId]);
 
   useEffect(() => {
+    if (!isLoaded || isAuthInitializing || !isAuthenticated || teamId == null) return;
     fetchAssignments();
-  }, [fetchAssignments]);
+  }, [fetchAssignments, isAuthInitializing, isAuthenticated, isLoaded, teamId]);
+
+  if (!isLoaded || isAuthInitializing) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <svg className="animate-spin w-8 h-8 text-indigo-500" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span className="text-slate-500 text-sm">Đang xác thực và xác định lớp học...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-96 flex-col items-center justify-center text-center gap-4">
+        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-500">
+          <AssignmentIcon />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-slate-800">Cần đăng nhập</h2>
+          <p className="text-slate-500 text-sm mt-1 max-w-xs">
+            Vui lòng đăng nhập để xem các bài kiểm tra của lớp học.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!teamId) {
+    return (
+      <div className="flex h-96 flex-col items-center justify-center text-center gap-4">
+        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center text-amber-600">
+          <AssignmentIcon />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-slate-800">Chưa chọn lớp học</h2>
+          <p className="text-slate-500 text-sm mt-1 max-w-xs">
+            Vui lòng chọn lớp học trước khi xem bài kiểm tra.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -117,7 +167,7 @@ export default function AssignmentsPage({ teamId = DEFAULT_TEAM_ID }: { teamId?:
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Bài kiểm tra</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Online Quizzes</h1>
         <p className="text-slate-500 mt-1 text-sm">
           Xem và tham gia các bài kiểm tra của lớp học.
         </p>
@@ -143,7 +193,7 @@ export default function AssignmentsPage({ teamId = DEFAULT_TEAM_ID }: { teamId?:
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between gap-3">
-                    <div className="w-11 h-11 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 flex-shrink-0">
+                    <div className="w-11 h-11 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                           d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
@@ -167,7 +217,7 @@ export default function AssignmentsPage({ teamId = DEFAULT_TEAM_ID }: { teamId?:
                   {/* Meta */}
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                           d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
@@ -177,7 +227,7 @@ export default function AssignmentsPage({ teamId = DEFAULT_TEAM_ID }: { teamId?:
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                           d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                       </svg>
@@ -195,7 +245,7 @@ export default function AssignmentsPage({ teamId = DEFAULT_TEAM_ID }: { teamId?:
                     </button>
                   ) : (
                     <Link
-                      href={`/assignments/${assignment.id}/quiz`}
+                      href={`/online-quizzes/${assignment.id}/quiz`}
                       className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold
                         hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                     >

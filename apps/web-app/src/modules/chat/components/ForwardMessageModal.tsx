@@ -4,6 +4,19 @@ import Image from "next/image";
 import { Conversation, Message } from "../types";
 import { sendMessage } from "../chatApi";
 
+const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) && parsed.hostname !== "via.placeholder.com";
+  } catch {
+    return false;
+  }
+};
+
 interface ForwardMessageModalProps {
   message: Message;
   conversations: Conversation[];
@@ -162,13 +175,19 @@ export const ForwardMessageModal: React.FC<ForwardMessageModalProps> = ({
                       }`}
                     />
                   </div>
-                  <Image
-                    src={displayAvatar || "https://via.placeholder.com/150"}
-                    alt={displayName || "Chat"}
-                    width={40}
-                    height={40}
-                    className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
-                  />
+                  {isSafeAvatarUrl(displayAvatar) ? (
+                    <Image
+                      src={displayAvatar}
+                      alt={displayName || "Chat"}
+                      width={40}
+                      height={40}
+                      className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-purple-600 text-xs font-semibold text-white ring-1 ring-slate-200">
+                      {(displayName || "C").charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-800">
                       {displayName}

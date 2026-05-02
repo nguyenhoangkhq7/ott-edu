@@ -788,6 +788,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           onClose={() => setIsInfoSidebarOpen(false)}
           onOpenGroupManage={onOpenGroupManage}
           conversationType={conversation.type}
+          refreshSignal={onConversationInfoRefreshTick}
         />
       )}
     </div>

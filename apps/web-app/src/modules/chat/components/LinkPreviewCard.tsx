@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { LinkPreview } from "../types";
 import { ExternalLink } from "lucide-react";
 
@@ -51,10 +52,12 @@ export const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({
       {/* Thumbnail Image - Bên trái */}
       {linkPreview.image && !imageError ? (
         <div className="relative h-28 w-28 flex-shrink-0 overflow-hidden bg-slate-200">
-          <img
+          <Image
             src={linkPreview.image}
             alt="Link preview"
             className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-200"
+            fill
+            sizes="112px"
             onError={handleImageError}
           />
         </div>

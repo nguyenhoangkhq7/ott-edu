@@ -19,6 +19,19 @@ router.get("/calls/history", ChatController.getCallHistory);
 // Lấy role/quyền của user trong conversation
 router.get("/conversations/:conversationId/role", ChatController.getConversationRole);
 
+// Cấp / gỡ quyền phó nhóm
+router.post("/conversations/:conversationId/deputy", ChatController.setGroupDeputy);
+
+// Đổi chế độ công khai / riêng tư của nhóm
+router.post("/conversations/:conversationId/join-policy", ChatController.updateJoinPolicy);
+
+// Mời thành viên hoặc tạo yêu cầu chờ duyệt
+router.post("/conversations/:conversationId/members", ChatController.requestOrAddGroupMember);
+
+// Duyệt / từ chối yêu cầu vào nhóm
+router.post("/conversations/:conversationId/member-requests/:requestId/approve", ChatController.approveGroupMemberRequest);
+router.post("/conversations/:conversationId/member-requests/:requestId/reject", ChatController.rejectGroupMemberRequest);
+
 // Lấy toàn bộ lịch sử tin nhắn của một cuộc trò chuyện
 router.get(
   "/messages/:conversationId",
