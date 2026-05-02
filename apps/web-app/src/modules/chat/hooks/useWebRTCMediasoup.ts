@@ -10,6 +10,7 @@ import type {
   RtpCapabilities,
   RtpParameters,
   DtlsParameters,
+  TransportOptions,
 } from "mediasoup-client/types";
 import type { Socket } from "socket.io-client";
 import type { ActiveVideoCall, IncomingVideoCall, VideoCallStatus } from "../types";
@@ -46,8 +47,8 @@ type JoinMediaRoomResponse = {
 };
 
 const RTC_ICE_SERVERS =
-  typeof window !== "undefined" && (window as any).MEDIASOUP_ICE_SERVERS
-    ? JSON.parse((window as any).MEDIASOUP_ICE_SERVERS)
+  typeof window !== "undefined" && (window as unknown as { MEDIASOUP_ICE_SERVERS?: string }).MEDIASOUP_ICE_SERVERS
+    ? JSON.parse((window as unknown as { MEDIASOUP_ICE_SERVERS?: string }).MEDIASOUP_ICE_SERVERS)
     : [{ urls: "stun:stun.l.google.com:19302" }];
 
 function isMobileUserAgent(): boolean {
@@ -324,9 +325,7 @@ export default function useWebRTCMediasoup({
       }
 
       // Start screen share
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // @ts-ignore
-      const screenStream = await (navigator as any).mediaDevices.getDisplayMedia({ video: true });
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       const screenTrack = screenStream.getVideoTracks()[0];
       if (!screenTrack) {
         setCallError("Khong the chia se man hinh.");
@@ -479,7 +478,7 @@ export default function useWebRTCMediasoup({
       const consumerResponse = await new Promise<{
         ok: boolean;
         data?: { id: string; producerId: string; kind: "audio" | "video"; rtpParameters: unknown };
-        error?: any;
+        error?: unknown;
       }>((resolve) => {
         socket.emit(
           "consume",
@@ -501,7 +500,7 @@ export default function useWebRTCMediasoup({
         id: consumerResponse.data.id,
         producerId: consumerResponse.data.producerId,
         kind: consumerResponse.data.kind,
-        rtpParameters: consumerResponse.data.rtpParameters as any,
+        rtpParameters: consumerResponse.data.rtpParameters as RtpParameters,
       });
 
       consumersRef.current.set(consumer.id, consumer);
@@ -518,7 +517,7 @@ export default function useWebRTCMediasoup({
             conversationId: currentConversationIdRef.current,
             consumerId: consumer.id,
           },
-          (response: { ok: boolean; error?: any }) => {
+          (response: { ok: boolean; error?: unknown }) => {
             if (response.ok) {
               resolve();
             } else {
@@ -543,7 +542,7 @@ export default function useWebRTCMediasoup({
         socket.emit(
           "joinMediaRoom",
           { conversationId },
-          (response: { ok: boolean; data?: JoinMediaRoomResponse; error?: any }) => {
+          (response: { ok: boolean; data?: JoinMediaRoomResponse; error?: unknown }) => {
             if (response.ok && response.data?.rtpCapabilities) {
               resolve(response.data);
               return;
@@ -597,13 +596,13 @@ export default function useWebRTCMediasoup({
       socket.emit(
         "createWebRtcTransport",
         { conversationId, direction: "send" },
-        (response: { ok: boolean; data?: any; error?: any }) => {
+        (response: { ok: boolean; data?: unknown; error?: unknown }) => {
           if (!response.ok) {
-            reject(new Error(response.error?.message || "Failed to create send transport"));
+            reject(new Error((response.error as unknown as { message?: string })?.message || "Failed to create send transport"));
             return;
           }
 
-          const sendTransport = deviceRef.current!.createSendTransport(response.data);
+          const sendTransport = deviceRef.current!.createSendTransport(response.data as TransportOptions);
           sendTransportRef.current = sendTransport;
 
           sendTransport.on(
@@ -620,11 +619,11 @@ export default function useWebRTCMediasoup({
                 transportId: sendTransport.id,
                 dtlsParameters,
               },
-              (connectResponse: { ok: boolean; error?: any }) => {
+              (connectResponse: { ok: boolean; error?: unknown }) => {
                 if (connectResponse.ok) {
                   callback();
                 } else {
-                  errback(connectResponse.error);
+                  errback(connectResponse.error as Error);
                 }
               },
             );
@@ -651,13 +650,13 @@ export default function useWebRTCMediasoup({
                 rtpParameters,
                 appData,
               },
-              (produceResponse: { ok: boolean; data?: any; error?: any }) => {
-                if (produceResponse.ok) {
-                  callback({ id: produceResponse.data.producerId });
-                } else {
-                  errback(produceResponse.error);
-                }
-              },
+              (produceResponse: { ok: boolean; data?: { producerId: string }; error?: unknown }) => {
+                  if (produceResponse.ok) {
+                    callback({ id: produceResponse.data!.producerId });
+                  } else {
+                    errback(produceResponse.error as Error);
+                  }
+                },
             );
             },
           );
@@ -666,13 +665,13 @@ export default function useWebRTCMediasoup({
           socket.emit(
             "createWebRtcTransport",
             { conversationId, direction: "recv" },
-            (recvResponse: { ok: boolean; data?: any; error?: any }) => {
-              if (!recvResponse.ok) {
-                reject(new Error(recvResponse.error?.message || "Failed to create recv transport"));
+            (recvResponse: { ok: boolean; data?: unknown; error?: unknown }) => {
+                if (!recvResponse.ok) {
+                reject(new Error((recvResponse.error as unknown as { message?: string })?.message || "Failed to create recv transport"));
                 return;
               }
 
-              const recvTransport = deviceRef.current!.createRecvTransport(recvResponse.data);
+              const recvTransport = deviceRef.current!.createRecvTransport(recvResponse.data as TransportOptions);
               recvTransportRef.current = recvTransport;
 
               recvTransport.on(
@@ -689,11 +688,11 @@ export default function useWebRTCMediasoup({
                     transportId: recvTransport.id,
                     dtlsParameters,
                   },
-                  (connectResponse: { ok: boolean; error?: any }) => {
+                  (connectResponse: { ok: boolean; error?: unknown }) => {
                     if (connectResponse.ok) {
                       callback();
                     } else {
-                      errback(connectResponse.error);
+                      errback(connectResponse.error as Error);
                     }
                   },
                 );

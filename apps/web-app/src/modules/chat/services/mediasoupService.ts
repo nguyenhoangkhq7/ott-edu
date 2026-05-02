@@ -5,7 +5,7 @@ import type { Socket } from "socket.io-client";
 
 export interface JoinMediaRoomPayload {
   conversationId: string;
-  rtpCapabilities?: any;
+  rtpCapabilities?: unknown;
 }
 
 export interface CreateWebRtcTransportPayload {
@@ -16,21 +16,21 @@ export interface CreateWebRtcTransportPayload {
 export interface ConnectTransportPayload {
   conversationId: string;
   transportId: string;
-  dtlsParameters: any;
+  dtlsParameters: unknown;
 }
 
 export interface ProducePayload {
   conversationId: string;
   transportId: string;
   kind: "audio" | "video";
-  rtpParameters: any;
-  appData?: any;
+  rtpParameters: unknown;
+  appData?: unknown;
 }
 
 export interface ConsumePayload {
   conversationId: string;
   producerId: string;
-  rtpCapabilities: any;
+  rtpCapabilities: unknown;
 }
 
 export interface MediasoupSocketManager {
@@ -39,7 +39,7 @@ export interface MediasoupSocketManager {
    */
   getRtpCapabilities(
     conversationId: string,
-    callback: (response: { ok: boolean; data?: any; error?: any }) => void,
+    callback: (response: { ok: boolean; data?: unknown; error?: unknown }) => void,
   ): void;
 
   /**
@@ -47,7 +47,7 @@ export interface MediasoupSocketManager {
    */
   joinMediaRoom(
     payload: JoinMediaRoomPayload,
-    callback: (response: { ok: boolean; data?: any; error?: any }) => void,
+    callback: (response: { ok: boolean; data?: unknown; error?: unknown }) => void,
   ): void;
 
   /**
@@ -55,7 +55,7 @@ export interface MediasoupSocketManager {
    */
   createWebRtcTransport(
     payload: CreateWebRtcTransportPayload,
-    callback: (response: { ok: boolean; data?: any; error?: any }) => void,
+    callback: (response: { ok: boolean; data?: unknown; error?: unknown }) => void,
   ): void;
 
   /**
@@ -63,7 +63,7 @@ export interface MediasoupSocketManager {
    */
   connectTransport(
     payload: ConnectTransportPayload,
-    callback: (response: { ok: boolean; error?: any }) => void,
+    callback: (response: { ok: boolean; error?: unknown }) => void,
   ): void;
 
   /**
@@ -71,7 +71,7 @@ export interface MediasoupSocketManager {
    */
   produce(
     payload: ProducePayload,
-    callback: (response: { ok: boolean; data?: { producerId: string }; error?: any }) => void,
+    callback: (response: { ok: boolean; data?: { producerId: string }; error?: unknown }) => void,
   ): void;
 
   /**
@@ -79,8 +79,8 @@ export interface MediasoupSocketManager {
    */
   consume(
     conversationId: string,
-    consumeParams: any,
-    callback: (response: { ok: boolean; data?: any; error?: any }) => void,
+    consumeParams: unknown,
+    callback: (response: { ok: boolean; data?: unknown; error?: unknown }) => void,
   ): void;
 
   /**
@@ -89,7 +89,7 @@ export interface MediasoupSocketManager {
   resume(
     conversationId: string,
     consumerId: string,
-    callback: (response: { ok: boolean; error?: any }) => void,
+    callback: (response: { ok: boolean; error?: unknown }) => void,
   ): void;
 
   /**
@@ -115,7 +115,7 @@ export interface MediasoupSocketManager {
       consumerId: string;
       kind: "audio" | "video";
       userId: string;
-      rtpParameters: any;
+      rtpParameters: unknown;
     }) => void,
   ): void;
 }
