@@ -7,6 +7,7 @@ import socketManager from "../socketManager.ts";
 
 export type GroupRole = "owner" | "deputy" | "member";
 import { LinkPreviewService } from "./link-preview.service.ts";
+import FriendRequest from "../model/FriendRequest.ts";
 
 type SyncParticipant = {
   accountId?: number;
@@ -58,7 +59,10 @@ export class ChatService {
       return "owner";
     }
 
-    if (conversation.deputyId && conversation.deputyId.toString() === userId.toString()) {
+    if (
+      conversation.deputyId &&
+      conversation.deputyId.toString() === userId.toString()
+    ) {
       return "deputy";
     }
 
@@ -74,7 +78,9 @@ export class ChatService {
     }
 
     if (conversation.ownerId?.toString() !== requesterId.toString()) {
-      const error = new Error("You do not have permission to manage this group");
+      const error = new Error(
+        "You do not have permission to manage this group",
+      );
       (error as any).statusCode = 403;
       throw error;
     }
@@ -86,7 +92,9 @@ export class ChatService {
   ) {
     const role = this.resolveConversationRole(conversation, requesterId);
     if (role !== "owner" && role !== "deputy") {
-      const error = new Error("You do not have permission to manage this group");
+      const error = new Error(
+        "You do not have permission to manage this group",
+      );
       (error as any).statusCode = 403;
       throw error;
     }
@@ -99,7 +107,9 @@ export class ChatService {
     return participantId.toString() === otherId.toString();
   }
 
-  private static getJoinPolicy(conversation: ConversationWithRole): GroupJoinPolicy {
+  private static getJoinPolicy(
+    conversation: ConversationWithRole,
+  ): GroupJoinPolicy {
     return conversation.joinPolicy === "approval" ? "approval" : "open";
   }
 
@@ -118,11 +128,16 @@ export class ChatService {
   }
 
   private static async resolveRequesterDisplayName(requesterId: string) {
-    const user = await User.findById(requesterId).select("fullName email").lean();
+    const user = await User.findById(requesterId)
+      .select("fullName email")
+      .lean();
     return user?.fullName || user?.email || "User";
   }
 
-  private static async resolveTargetDisplayName(targetUser: any, fallbackEmail: string) {
+  private static async resolveTargetDisplayName(
+    targetUser: any,
+    fallbackEmail: string,
+  ) {
     if (targetUser?.fullName) {
       return targetUser.fullName;
     }
@@ -153,65 +168,105 @@ export class ChatService {
       })
       .lean();
 
-    // Formatting: trích xuất "người đang nói chuyện cùng" và xử lý trạng thái ẩn/thu hồi của lastMessage
-    return conversations.map((conv: any) => {
-      let otherParticipant = null;
-      if (conv.type === "private") {
-        otherParticipant = conv.participants.find(
-          (p: any) => p._id.toString() !== userId.toString(),
+    // 1. Lấy thông tin user hiện tại để check mảng bạn bè
+    const currentUser = (await User.findById(userId)
+      .select("friends")
+      .lean()) as any;
+
+    return await Promise.all(
+      conversations.map(async (conv: any) => {
+        // 👇 BƯỚC QUAN TRỌNG NHẤT ĐÂY: NHÉT TRẠNG THÁI VÀO TỪNG PARTICIPANT 👇
+        const participants = await Promise.all(
+          conv.participants.map(async (participant: any) => {
+            const pId = participant._id.toString();
+            let friendStatus = "none";
+
+            // Chỉ check trạng thái kết bạn với những người KHÁC BẢN THÂN MÌNH
+            if (pId !== userId.toString()) {
+              // Check xem đã là bạn bè chưa
+              if (
+                currentUser?.friends &&
+                currentUser.friends.some((fId: any) => fId.toString() === pId)
+              ) {
+                friendStatus = "friend";
+              } else {
+                // Check xem 1 trong 2 người có ai gửi lời mời chưa (Check 2 chiều)
+                const pendingRequest = await FriendRequest.findOne({
+                  $or: [
+                    { requesterId: userId, recipientId: pId },
+                    { requesterId: pId, recipientId: userId },
+                  ],
+                  status: "pending",
+                } as Record<string, unknown>).lean();
+
+                if (pendingRequest) {
+                  friendStatus = "pending";
+                }
+              }
+            }
+
+            return {
+              ...participant,
+              isOnline: socketManager.isUserOnline(pId),
+              friendStatus: friendStatus, // Đã nhét thành công vào Array cho Frontend đọc!
+            };
+          }),
         );
-      }
+        // 👆 KẾT THÚC NHÉT TRẠNG THÁI 👆
 
-      const participants = conv.participants.map((participant: any) => ({
-        ...participant,
-        isOnline: socketManager.isUserOnline(participant._id.toString()),
-      }));
-
-      if (otherParticipant) {
-        otherParticipant = {
-          ...otherParticipant,
-          isOnline: socketManager.isUserOnline(otherParticipant._id.toString()),
-        };
-      }
-
-      if (conv.lastMessage) {
-        const isHiddenForMe = Array.isArray(conv.lastMessage.revokedFor) &&
-          conv.lastMessage.revokedFor.some((id: any) => id.toString() === userId.toString());
-        
-        if (isHiddenForMe) {
-          conv.lastMessage = {
-            ...conv.lastMessage,
-            content: "",
-            isRevoked: false,
-            _hiddenForMe: true, // Marker Frontend
-          };
+        // Trích xuất otherParticipant cho các mục đích khác (nếu cần)
+        let otherParticipant = null;
+        if (conv.type === "private") {
+          otherParticipant = participants.find(
+            (p: any) => p._id.toString() !== userId.toString(),
+          );
         }
-      }
 
-      return {
-        ...conv,
-        ownerId: conv.ownerId?.toString() || null,
-        deputyId: conv.deputyId?.toString() || null,
-        joinPolicy: this.getJoinPolicy(conv),
-        pendingMemberRequests:
-          this.resolveConversationRole(conv, userId) === "owner" ||
-          this.resolveConversationRole(conv, userId) === "deputy"
-            ? (conv.pendingMemberRequests || []).map((request: any) => ({
-                ...request,
-                _id: request._id?.toString(),
-                targetUserId: request.targetUserId?.toString(),
-                requestedById: request.requestedById?.toString(),
-                createdAt: request.createdAt ? new Date(request.createdAt) : undefined,
-              }))
-            : [],
-        myRole: this.resolveConversationRole(conv, userId),
-        canManageGroup:
-          this.resolveConversationRole(conv, userId) === "owner" ||
-          this.resolveConversationRole(conv, userId) === "deputy",
-        participants,
-        otherParticipant,
-      };
-    });
+        // Xử lý ẩn tin nhắn
+        if (conv.lastMessage) {
+          const isHiddenForMe =
+            Array.isArray(conv.lastMessage.revokedFor) &&
+            conv.lastMessage.revokedFor.some(
+              (id: any) => id.toString() === userId.toString(),
+            );
+
+          if (isHiddenForMe) {
+            conv.lastMessage = {
+              ...conv.lastMessage,
+              content: "",
+              isRevoked: false,
+              _hiddenForMe: true, // Marker Frontend
+            };
+          }
+        }
+
+        return {
+          ...conv,
+          ownerId: conv.ownerId?.toString() || null,
+          deputyId: conv.deputyId?.toString() || null,
+          joinPolicy: this.getJoinPolicy(conv),
+          pendingMemberRequests:
+            this.resolveConversationRole(conv, userId) === "owner" ||
+            this.resolveConversationRole(conv, userId) === "deputy"
+              ? (conv.pendingMemberRequests || []).map((request: any) => ({
+                  ...request,
+                  _id: request._id?.toString(),
+                  targetUserId: request.targetUserId?.toString(),
+                  requestedById: request.requestedById?.toString(),
+                  createdAt: request.createdAt
+                    ? new Date(request.createdAt)
+                    : undefined,
+                }))
+              : [],
+          myRole: this.resolveConversationRole(conv, userId),
+          canManageGroup:
+            this.resolveConversationRole(conv, userId) === "owner" ||
+            this.resolveConversationRole(conv, userId) === "deputy",
+          participants, // Array này giờ đã có friendStatus mượt mà
+          otherParticipant,
+        };
+      }),
+    );
   }
 
   // Lấy toàn bộ lịch sử tin nhắn của một cuộc trò chuyện
@@ -229,8 +284,11 @@ export class ChatService {
 
     // Với mỗi tin nhắn, nếu requestingUserId có trong revokedFor thì đánh dấu ẩn
     return messages.map((msg: any) => {
-      const isHiddenForMe = Array.isArray(msg.revokedFor) &&
-        msg.revokedFor.some((id: any) => id.toString() === requestingUserId.toString());
+      const isHiddenForMe =
+        Array.isArray(msg.revokedFor) &&
+        msg.revokedFor.some(
+          (id: any) => id.toString() === requestingUserId.toString(),
+        );
       if (isHiddenForMe) {
         // Trả về dạng "đã ẩn" chỉ cho user này
         return {
@@ -287,12 +345,16 @@ export class ChatService {
     // 3. Phát hiện và crawl link preview nếu có URL trong tin nhắn
     // Nếu lỗi xảy ra, vẫn lưu message bình thường (linkPreview sẽ là null)
     try {
-      const linkPreview = await LinkPreviewService.processMessageForLinkPreview(content);
+      const linkPreview =
+        await LinkPreviewService.processMessageForLinkPreview(content);
       if (linkPreview) {
         messagePayload.linkPreview = linkPreview;
       }
     } catch (error) {
-      console.error("Error processing link preview for private message:", error);
+      console.error(
+        "Error processing link preview for private message:",
+        error,
+      );
       // Bỏ qua lỗi link preview, vẫn lưu message
     }
 
@@ -333,7 +395,12 @@ export class ChatService {
       throw new Error("Conversation is archived");
     }
 
-    if (!conversation.participants.some((participantId: ConversationParticipantId) => this.participantIdEquals(participantId, senderId))) {
+    if (
+      !conversation.participants.some(
+        (participantId: ConversationParticipantId) =>
+          this.participantIdEquals(participantId, senderId),
+      )
+    ) {
       const error = new Error("You are not a member of this conversation");
       (error as any).statusCode = 403;
       throw error;
@@ -356,7 +423,8 @@ export class ChatService {
 
     // Phát hiện và crawl link preview nếu có URL trong tin nhắn
     try {
-      const linkPreview = await LinkPreviewService.processMessageForLinkPreview(content);
+      const linkPreview =
+        await LinkPreviewService.processMessageForLinkPreview(content);
       if (linkPreview) {
         messagePayload.linkPreview = linkPreview;
       }
@@ -412,10 +480,14 @@ export class ChatService {
   }
 
   static async syncClassConversation(payload: SyncClassConversationRequest) {
-    const participantIds = await this.resolveParticipantIds(payload.participants);
+    const participantIds = await this.resolveParticipantIds(
+      payload.participants,
+    );
     const firstParticipantId = participantIds[0];
     if (!firstParticipantId) {
-      throw new Error("At least one participant is required for class conversation");
+      throw new Error(
+        "At least one participant is required for class conversation",
+      );
     }
 
     const ownerId = payload.ownerId
@@ -452,13 +524,22 @@ export class ChatService {
     conversation.participants = participantIds as any;
     conversation.metadata = metadata;
     conversation.isArchived = payload.archived ?? false;
-    conversation.joinPolicy = payload.joinPolicy ?? conversation.joinPolicy ?? "open";
+    conversation.joinPolicy =
+      payload.joinPolicy ?? conversation.joinPolicy ?? "open";
 
     if (!conversation.ownerId) {
       conversation.ownerId = ownerId;
     }
 
-    if (conversation.deputyId && !participantIds.some((participantId) => this.participantIdEquals(participantId, conversation.deputyId!.toString()))) {
+    if (
+      conversation.deputyId &&
+      !participantIds.some((participantId) =>
+        this.participantIdEquals(
+          participantId,
+          conversation.deputyId!.toString(),
+        ),
+      )
+    ) {
       conversation.deputyId = null;
     }
 
@@ -484,10 +565,19 @@ export class ChatService {
       ownerId: conversation.ownerId?.toString() || null,
       deputyId: conversation.deputyId?.toString() || null,
       joinPolicy: this.getJoinPolicy(conversation as ConversationWithRole),
-      myRole: this.resolveConversationRole(conversation as ConversationWithRole, userId),
+      myRole: this.resolveConversationRole(
+        conversation as ConversationWithRole,
+        userId,
+      ),
       canManageGroup:
-        this.resolveConversationRole(conversation as ConversationWithRole, userId) === "owner" ||
-        this.resolveConversationRole(conversation as ConversationWithRole, userId) === "deputy",
+        this.resolveConversationRole(
+          conversation as ConversationWithRole,
+          userId,
+        ) === "owner" ||
+        this.resolveConversationRole(
+          conversation as ConversationWithRole,
+          userId,
+        ) === "deputy",
     };
 
     return result;
@@ -503,7 +593,10 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
-    this.ensureConversationOwner(conversation as ConversationWithRole, requesterId);
+    this.ensureConversationOwner(
+      conversation as ConversationWithRole,
+      requesterId,
+    );
 
     conversation.joinPolicy = joinPolicy;
     await conversation.save();
@@ -527,7 +620,10 @@ export class ChatService {
       throw error;
     }
 
-    const requesterRole = this.resolveConversationRole(conversation as ConversationWithRole, requesterId);
+    const requesterRole = this.resolveConversationRole(
+      conversation as ConversationWithRole,
+      requesterId,
+    );
     if (!requesterRole) {
       const error = new Error("You are not a member of this conversation");
       (error as any).statusCode = 403;
@@ -541,9 +637,20 @@ export class ChatService {
     }
 
     const requesterName = await this.resolveRequesterDisplayName(requesterId);
-    const targetUser = targetAccountId
+    // --- BẮT ĐẦU ĐOẠN CẦN THAY THẾ ---
+
+    let targetUser = targetAccountId
       ? await User.findById(targetAccountId).lean()
       : await this.resolveUserForEmail(targetEmail || "");
+
+    // LAZY SYNC: Tự động tạo user nếu chưa có trong Mongo
+    if (!targetUser && targetEmail) {
+      const emailToSync = targetEmail.trim().toLowerCase();
+      targetUser = await User.create({
+        email: emailToSync,
+        fullName: targetEmail.split("@")[0] || "Người dùng",
+      });
+    }
 
     if (!targetUser) {
       const error = new Error("Target user not found");
@@ -551,30 +658,50 @@ export class ChatService {
       throw error;
     }
 
+    // KHAI BÁO LẠI 2 BIẾN BỊ THIẾU VÀO ĐÂY NÈ:
     const targetUserId = targetUser._id.toString();
-    const normalizedEmail = (targetUser.email || targetEmail || "").trim().toLowerCase();
+    const normalizedEmail = (targetUser.email || targetEmail || "")
+      .trim()
+      .toLowerCase();
+
     if (!normalizedEmail) {
       const error = new Error("Target email is required");
       (error as any).statusCode = 400;
       throw error;
     }
 
-    if (conversation.participants.some((participantId) => this.participantIdEquals(participantId, targetUserId))) {
+    if (
+      conversation.participants.some((participantId) =>
+        this.participantIdEquals(participantId, targetUserId),
+      )
+    ) {
       const error = new Error("User is already a member of this conversation");
       (error as any).statusCode = 409;
       throw error;
     }
 
-    if ((conversation.pendingMemberRequests || []).some((request) => this.participantIdEquals(request.targetUserId, targetUserId))) {
-      const error = new Error("There is already a pending request for this user");
+    if (
+      (conversation.pendingMemberRequests || []).some((request) =>
+        this.participantIdEquals(request.targetUserId, targetUserId),
+      )
+    ) {
+      const error = new Error(
+        "There is already a pending request for this user",
+      );
       (error as any).statusCode = 409;
       throw error;
     }
 
-    const canAddDirectly = requesterRole === "owner" || requesterRole === "deputy" || this.getJoinPolicy(conversation as ConversationWithRole) === "open";
+    const canAddDirectly =
+      requesterRole === "owner" ||
+      requesterRole === "deputy" ||
+      this.getJoinPolicy(conversation as ConversationWithRole) === "open";
 
     if (canAddDirectly) {
-      conversation.participants = [...conversation.participants, new mongoose.Types.ObjectId(targetUserId)] as any;
+      conversation.participants = [
+        ...conversation.participants,
+        new mongoose.Types.ObjectId(targetUserId),
+      ] as any;
       await conversation.save();
       return {
         conversation,
@@ -582,7 +709,10 @@ export class ChatService {
       };
     }
 
-    const targetName = await this.resolveTargetDisplayName(targetUser, normalizedEmail);
+    const targetName = await this.resolveTargetDisplayName(
+      targetUser,
+      normalizedEmail,
+    );
     const request = {
       _id: this.buildPendingRequestId(),
       targetUserId: new mongoose.Types.ObjectId(targetUserId),
@@ -616,7 +746,10 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
-    this.ensureConversationManager(conversation as ConversationWithRole, requesterId);
+    this.ensureConversationManager(
+      conversation as ConversationWithRole,
+      requesterId,
+    );
 
     const request = (conversation.pendingMemberRequests || []).find(
       (item: any) => item._id?.toString() === requestId.toString(),
@@ -629,16 +762,27 @@ export class ChatService {
     }
 
     const targetUserId = request.targetUserId.toString();
-    if (conversation.participants.some((participantId) => this.participantIdEquals(participantId, targetUserId))) {
-      conversation.pendingMemberRequests = (conversation.pendingMemberRequests || []).filter(
+    if (
+      conversation.participants.some((participantId) =>
+        this.participantIdEquals(participantId, targetUserId),
+      )
+    ) {
+      conversation.pendingMemberRequests = (
+        conversation.pendingMemberRequests || []
+      ).filter(
         (item: any) => item._id?.toString() !== requestId.toString(),
       ) as any;
       await conversation.save();
       return conversation;
     }
 
-    conversation.participants = [...conversation.participants, new mongoose.Types.ObjectId(targetUserId)] as any;
-    conversation.pendingMemberRequests = (conversation.pendingMemberRequests || []).filter(
+    conversation.participants = [
+      ...conversation.participants,
+      new mongoose.Types.ObjectId(targetUserId),
+    ] as any;
+    conversation.pendingMemberRequests = (
+      conversation.pendingMemberRequests || []
+    ).filter(
       (item: any) => item._id?.toString() !== requestId.toString(),
     ) as any;
 
@@ -656,7 +800,10 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
-    this.ensureConversationManager(conversation as ConversationWithRole, requesterId);
+    this.ensureConversationManager(
+      conversation as ConversationWithRole,
+      requesterId,
+    );
 
     const exists = (conversation.pendingMemberRequests || []).some(
       (item: any) => item._id?.toString() === requestId.toString(),
@@ -668,7 +815,9 @@ export class ChatService {
       throw error;
     }
 
-    conversation.pendingMemberRequests = (conversation.pendingMemberRequests || []).filter(
+    conversation.pendingMemberRequests = (
+      conversation.pendingMemberRequests || []
+    ).filter(
       (item: any) => item._id?.toString() !== requestId.toString(),
     ) as any;
 
@@ -686,7 +835,10 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
-    this.ensureConversationOwner(conversation as ConversationWithRole, requesterId);
+    this.ensureConversationOwner(
+      conversation as ConversationWithRole,
+      requesterId,
+    );
 
     if (deputyId === undefined || deputyId === null || deputyId === "") {
       conversation.deputyId = null;
@@ -701,7 +853,8 @@ export class ChatService {
     }
 
     const isValidMember = conversation.participants.some(
-      (participantId: ConversationParticipantId) => this.participantIdEquals(participantId, deputyId),
+      (participantId: ConversationParticipantId) =>
+        this.participantIdEquals(participantId, deputyId),
     );
 
     if (!isValidMember) {
@@ -725,7 +878,10 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
-    this.ensureConversationManager(conversation as ConversationWithRole, requesterId);
+    this.ensureConversationManager(
+      conversation as ConversationWithRole,
+      requesterId,
+    );
 
     if (conversation.ownerId?.toString() === memberId.toString()) {
       const error = new Error("Cannot remove the owner from the group");
@@ -733,14 +889,20 @@ export class ChatService {
       throw error;
     }
 
-    if (!conversation.participants.some((participantId: ConversationParticipantId) => this.participantIdEquals(participantId, memberId))) {
+    if (
+      !conversation.participants.some(
+        (participantId: ConversationParticipantId) =>
+          this.participantIdEquals(participantId, memberId),
+      )
+    ) {
       const error = new Error("Member is not part of this conversation");
       (error as any).statusCode = 404;
       throw error;
     }
 
     conversation.participants = conversation.participants.filter(
-      (participantId: ConversationParticipantId) => !this.participantIdEquals(participantId, memberId),
+      (participantId: ConversationParticipantId) =>
+        !this.participantIdEquals(participantId, memberId),
     ) as any;
 
     if (conversation.deputyId?.toString() === memberId.toString()) {
@@ -757,7 +919,10 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
-    this.ensureConversationOwner(conversation as ConversationWithRole, requesterId);
+    this.ensureConversationOwner(
+      conversation as ConversationWithRole,
+      requesterId,
+    );
 
     conversation.isArchived = true;
     await conversation.save();
@@ -780,9 +945,11 @@ export class ChatService {
       throw error;
     }
 
-    const requesterIsOwner = conversation.ownerId?.toString() === requesterId.toString();
+    const requesterIsOwner =
+      conversation.ownerId?.toString() === requesterId.toString();
     const requesterIsMember = conversation.participants.some(
-      (participantId: ConversationParticipantId) => this.participantIdEquals(participantId, requesterId),
+      (participantId: ConversationParticipantId) =>
+        this.participantIdEquals(participantId, requesterId),
     );
 
     if (!requesterIsMember) {
@@ -793,17 +960,25 @@ export class ChatService {
 
     if (requesterIsOwner) {
       if (!newOwnerId) {
-        const error = new Error("You must select a new owner before leaving the group");
+        const error = new Error(
+          "You must select a new owner before leaving the group",
+        );
         (error as any).statusCode = 400;
         throw error;
       }
 
       const isValidNewOwner = conversation.participants.some(
-        (participantId: ConversationParticipantId) => this.participantIdEquals(participantId, newOwnerId),
+        (participantId: ConversationParticipantId) =>
+          this.participantIdEquals(participantId, newOwnerId),
       );
 
-      if (!isValidNewOwner || newOwnerId.toString() === requesterId.toString()) {
-        const error = new Error("New owner must be another member of the group");
+      if (
+        !isValidNewOwner ||
+        newOwnerId.toString() === requesterId.toString()
+      ) {
+        const error = new Error(
+          "New owner must be another member of the group",
+        );
         (error as any).statusCode = 400;
         throw error;
       }
@@ -816,7 +991,8 @@ export class ChatService {
     }
 
     conversation.participants = conversation.participants.filter(
-      (participantId: ConversationParticipantId) => !this.participantIdEquals(participantId, requesterId),
+      (participantId: ConversationParticipantId) =>
+        !this.participantIdEquals(participantId, requesterId),
     ) as any;
 
     if (conversation.deputyId?.toString() === requesterId.toString()) {
@@ -835,7 +1011,10 @@ export class ChatService {
     const uniqueParticipants = new Map(
       participants
         .filter((participant) => Boolean(participant.email))
-        .map((participant) => [participant.email.toLowerCase(), participant] as const),
+        .map(
+          (participant) =>
+            [participant.email.toLowerCase(), participant] as const,
+        ),
     );
 
     const resolvedUserIds: mongoose.Types.ObjectId[] = [];
@@ -850,7 +1029,8 @@ export class ChatService {
           avatarUrl?: string;
         } = {
           email: participant.email.toLowerCase(),
-          fullName: participant.fullName || participant.email.split("@")[0] || "User",
+          fullName:
+            participant.fullName || participant.email.split("@")[0] || "User",
         };
 
         if (participant.code !== undefined) {
@@ -872,7 +1052,10 @@ export class ChatService {
           user.code = participant.code;
           hasChanges = true;
         }
-        if (participant.avatarUrl !== undefined && user.avatarUrl !== participant.avatarUrl) {
+        if (
+          participant.avatarUrl !== undefined &&
+          user.avatarUrl !== participant.avatarUrl
+        ) {
           user.avatarUrl = participant.avatarUrl;
           hasChanges = true;
         }
@@ -886,5 +1069,207 @@ export class ChatService {
     }
 
     return resolvedUserIds;
+  }
+
+  // 1. TÌM KIẾM USER (Lấy từ bên Core MySQL sang)
+  static async searchUsers(keyword: string, currentUserId: string) {
+    const safeKeyword = keyword ? keyword.trim() : "";
+    try {
+      const CORE_API_URL = process.env.CORE_API_URL || "http://localhost:8080";
+      const response = await fetch(
+        `${CORE_API_URL}/api/users/search?keyword=${safeKeyword}`,
+      );
+      if (response.ok) {
+        const coreData = await response.json();
+        // Giả sử API Core trả về: { data: [...] }
+        const usersFromCore = coreData.data || [];
+
+        // Lọc bỏ chính mình ra khỏi danh sách
+        return usersFromCore.filter(
+          (u: any) =>
+            u.id?.toString() !== currentUserId &&
+            u._id?.toString() !== currentUserId,
+        );
+      }
+    } catch (error) {
+      console.error("[ChatService] Lỗi khi lấy data từ Core:", error);
+    }
+
+    // 🔙 FALLBACK: Nếu API Core bị lỗi hoặc sập, tự động lấy tạm data từ MongoDB để app không bị chết
+    console.log("Đang lấy tạm danh sách từ MongoDB...");
+    const regex = new RegExp(keyword.trim(), "i");
+    const users = await User.find({
+      _id: { $ne: currentUserId },
+      $or: [{ fullName: regex }, { email: regex }, { code: regex }],
+    })
+      .select("fullName email avatarUrl code isOnline")
+      .limit(20)
+      .lean();
+
+    return users.map((u: any) => ({
+      ...u,
+      id: u._id.toString(), // Trả về id cho Frontend dễ xử lý
+    }));
+  }
+
+  // 2. GỬI LỜI MỜI KẾT BẠN (Hỗ trợ Lazy Sync qua Email)
+  static async sendFriendRequest(
+    requesterId: string,
+    targetEmail?: string,
+    targetAccountId?: string,
+  ) {
+    let targetUser;
+
+    if (targetAccountId) {
+      targetUser = await User.findById(targetAccountId);
+    } else if (targetEmail) {
+      const normalizedEmail = targetEmail.trim().toLowerCase();
+      targetUser = await User.findOne({ email: normalizedEmail });
+
+      // Lazy Sync: Tạo profile ảo nếu user MySQL chưa từng vào Chat
+      if (!targetUser) {
+        targetUser = await User.create({
+          email: normalizedEmail,
+          fullName: targetEmail.split("@")[0] || "Người dùng",
+        });
+      }
+    }
+
+    if (!targetUser) {
+      const error = new Error("Không xác định được người nhận");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    const targetId = targetUser._id.toString();
+    if (requesterId.toString() === targetId) {
+      const error = new Error("Không thể tự kết bạn với chính mình");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    // 👇 1. CHỐT CHẶN: KIỂM TRA ĐÃ LÀ BẠN BÈ CHƯA (Xử lý an toàn ObjectId)
+    const userWithFriends = targetUser as typeof targetUser & {
+      friends?: any[];
+    };
+    const isAlreadyFriend =
+      userWithFriends.friends &&
+      userWithFriends.friends.some(
+        (friendId) => friendId.toString() === requesterId.toString(),
+      );
+
+    if (isAlreadyFriend) {
+      const error = new Error("Hai người đã là bạn bè rồi!");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    // 👇 2. CHỐT CHẶN: KIỂM TRA MÌNH ĐÃ GỬI LỜI MỜI CHƯA
+    const existingReq = await FriendRequest.findOne({
+      requesterId,
+      recipientId: targetId,
+      status: "pending",
+    });
+
+    if (existingReq) {
+      const error = new Error(
+        "Đã gửi lời mời rồi, vui lòng chờ người kia xác nhận!",
+      );
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    // 👇 3. CHỐT CHẶN: KIỂM TRA NGƯỜI KIA CÓ ĐANG GỬI CHO MÌNH KHÔNG
+    const reverseReq = await FriendRequest.findOne({
+      requesterId: targetId,
+      recipientId: requesterId,
+      status: "pending",
+    });
+
+    if (reverseReq) {
+      const error = new Error(
+        "Người này đã gửi lời mời cho bạn rồi, hãy kiểm tra danh sách lời mời nhé!",
+      );
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    // Mọi thứ hoàn hảo thì lưu vào Database
+    return await FriendRequest.create({ requesterId, recipientId: targetId });
+  }
+
+  // 3. LẤY DANH SÁCH LỜI MỜI
+  static async getFriendRequests(userId: string) {
+    const requests = await FriendRequest.find({
+      recipientId: userId,
+      status: "pending",
+    })
+      .populate("requesterId", "fullName email avatarUrl code isOnline")
+      .lean();
+
+    return requests.map((req: any) => ({
+      ...req.requesterId,
+      _id: req.requesterId._id.toString(),
+      requestId: req._id.toString(),
+    }));
+  }
+
+  // 4. CHẤP NHẬN KẾT BẠN
+  static async acceptFriendRequest(userId: string, requesterId: string) {
+    const request = await FriendRequest.findOneAndUpdate(
+      // 👇 Thêm ép kiểu Record<string, unknown> vào đây để hết gạch đỏ
+      { requesterId, recipientId: userId, status: "pending" } as Record<
+        string,
+        unknown
+      >,
+      { status: "accepted" },
+      { new: true },
+    );
+
+    if (!request) {
+      const error = new Error("Lời mời không tồn tại hoặc đã xử lý");
+      (error as any).statusCode = 404;
+      throw error;
+    }
+
+    // 👇 CHỐT CHẶN FIX BỆNH: THÊM ID VÀO MẢNG FRIENDS CỦA NHAU 👇
+    // Dùng $addToSet của MongoDB để ném ID vào mảng (nếu có rồi thì nó tự bỏ qua, không bị trùng)
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { friends: new mongoose.Types.ObjectId(requesterId) },
+    });
+
+    await User.findByIdAndUpdate(requesterId, {
+      $addToSet: { friends: new mongoose.Types.ObjectId(userId) },
+    });
+    // 👆 KẾT THÚC ĐOẠN FIX BỆNH 👆
+
+    // Tự động tạo nhóm chat 1-1
+    let conversation = await Conversation.findOne({
+      type: "private",
+      participants: { $all: [userId, requesterId] },
+    });
+
+    if (!conversation) {
+      conversation = await Conversation.create({
+        type: "private",
+        participants: [userId, requesterId],
+      });
+    }
+    return conversation;
+  }
+
+  // 5. TỪ CHỐI KẾT BẠN
+  static async rejectFriendRequest(userId: string, requesterId: string) {
+    const request = await FriendRequest.findOneAndUpdate(
+      { requesterId, recipientId: userId, status: "pending" },
+      { status: "rejected" },
+    );
+
+    if (!request) {
+      const error = new Error("Lời mời không tồn tại hoặc đã xử lý");
+      (error as any).statusCode = 404;
+      throw error;
+    }
+    return { success: true };
   }
 }

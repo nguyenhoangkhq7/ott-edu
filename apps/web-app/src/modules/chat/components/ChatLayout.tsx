@@ -16,7 +16,7 @@ import {
   Reaction,
   User,
 } from "../types";
-import { useWebRTC } from "../hooks/useWebRTC";
+import useWebRTCMediasoup from "../hooks/useWebRTCMediasoup";
 import {
   fetchCallHistory,
   fetchConversations,
@@ -133,25 +133,41 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
   const {
     localStream,
-    remoteStream,
+    remoteStreams,
     callStatus,
     incomingCall,
     activeCall,
     isMicrophoneEnabled,
     isCameraEnabled,
+    isScreenSharing,
     callError,
     retryMediaPermission,
-    startVideoCall,
+    startGroupCall,
     acceptIncomingCall,
     declineIncomingCall,
-    endVideoCall,
+    endCall,
     toggleMicrophone,
     toggleCamera,
+    toggleScreenShare,
     clearCallError,
-  } = useWebRTC({
+  } = useWebRTCMediasoup({
     socket,
     currentUserId,
   });
+
+  // Provide a compatibility wrapper used elsewhere for private calls
+  const startVideoCall = useCallback(
+    async ({ toUserId, conversationId }: { toUserId: string; conversationId: string }) => {
+      await startGroupCall(conversationId);
+    },
+    [startGroupCall],
+  );
+
+  // Derive the first remote stream (used by some components)
+  const remoteStream = React.useMemo(() => {
+    const it = remoteStreams.values().next();
+    return it?.value || null;
+  }, [remoteStreams]);
 
   // Giữ ref luôn cập nhật để xài trong socket handler (tránh dependency bắt reconnect socket)
   useEffect(() => {
@@ -607,9 +623,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const activeConversation = conversations.find(
       (c) => c.id === activeConversationId,
     );
-    const isPrivate = activeConversation?.type === "private";
 
-    if (!activeConversationId || !isPrivate) {
+    if (!activeConversationId || !activeConversation) {
       setCallHistory([]);
       setCallHistoryPage(1);
       setCallHistoryTotalPages(1);
@@ -661,7 +676,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const activeConversation = conversations.find(
       (c) => c.id === activeConversationId,
     );
-    if (!activeConversation || activeConversation.type !== "private") {
+    if (!activeConversation) {
       return;
     }
 
@@ -822,36 +837,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         ) || null
       : null;
 
-  const isCallablePrivateConversation =
+  const isCallableConversation =
     activeConversation !== null && !activeConversation.id.startsWith("draft_");
 
-  const canStartVideoCall =
-    Boolean(activePrivatePeer) &&
-    isCallablePrivateConversation &&
-    callStatus === "idle";
+  const canStartVideoCall = isCallableConversation && callStatus === "idle";
 
   const handleStartVideoCall = useCallback(async () => {
-    if (!activeConversation || activeConversation.type !== "private") {
+    if (!activeConversation || activeConversation.id.startsWith("draft_")) {
       return;
     }
 
-    if (activeConversation.id.startsWith("draft_")) {
-      return;
-    }
-
-    const targetPeer = activeConversation.participants.find(
-      (participant) => participant.id !== currentUserId,
-    );
-
-    if (!targetPeer) {
-      return;
-    }
-
-    await startVideoCall({
-      toUserId: targetPeer.id,
-      conversationId: activeConversation.id,
-    });
-  }, [activeConversation, currentUserId, startVideoCall]);
+    await startGroupCall(activeConversation.id);
+  }, [activeConversation, startGroupCall]);
 
   const incomingCaller = React.useMemo(() => {
     if (!incomingCall) {
@@ -934,6 +931,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onStartVideoCall={handleStartVideoCall}
         localStream={localStream}
         remoteStream={remoteStream}
+        remoteStreams={remoteStreams}
         callStatus={callStatus}
         incomingCall={incomingCall}
         incomingCaller={incomingCaller}
@@ -944,14 +942,16 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         callHistoryTotalPages={callHistoryTotalPages}
         isMicrophoneEnabled={isMicrophoneEnabled}
         isCameraEnabled={isCameraEnabled}
+        isScreenSharing={isScreenSharing}
         callError={callError}
         onClearCallError={clearCallError}
         onRetryMediaPermission={retryMediaPermission}
         onAcceptIncomingCall={acceptIncomingCall}
         onDeclineIncomingCall={declineIncomingCall}
-        onEndVideoCall={endVideoCall}
+        onEndVideoCall={endCall}
         onToggleMicrophone={toggleMicrophone}
         onToggleCamera={toggleCamera}
+        onToggleScreenShare={toggleScreenShare}
         onForwardMessage={setForwardMessageTarget}
         onOpenProfile={setProfileTarget}
         onOpenGroupManage={() => void handleOpenGroupManage()}

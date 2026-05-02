@@ -22,6 +22,7 @@ export function mapApiUserToUser(apiUser: ApiUser): User {
     avatarUrl:
       apiUser.avatarUrl || `https://i.pravatar.cc/150?u=${apiUser._id}`,
     isOnline: apiUser.isOnline ?? false,
+    friendStatus: apiUser.friendStatus || "none",
   };
 }
 
@@ -85,6 +86,9 @@ export function mapApiConversationToConversation(
     canManageGroup:
       apiConv.canManageGroup ??
       (apiConv.myRole === "owner" || apiConv.myRole === "deputy"),
+    otherParticipant: type === "private" 
+      ? participants.find((p) => p.id !== currentUserId) 
+      : null,
   };
 }
 
@@ -426,3 +430,53 @@ export async function leaveGroup(
 
   return mapApiConversationToConversation(data.data, "");
 }
+
+
+export async function fetchFriendRequests(): Promise<User[]> {
+  try {
+    const data = await chatHttpService.get<{ data: ApiUser[] }>("/friend-requests");
+    // Nếu mảng rỗng thì trả về [] luôn, tránh lỗi map của undefined
+    if (!data || !data.data) return [];
+    return data.data.map(mapApiUserToUser);
+  } catch (error) {
+    console.error("Lỗi khi tải danh sách kết bạn:", error);
+    return [];
+  }
+}
+
+// Chấp nhận kết bạn (tạo luôn nhóm chat 1-1)
+export async function acceptFriendRequest(requesterId: string): Promise<void> {
+  await chatHttpService.post(`/friend-requests/accept`, { requesterId });
+}
+
+// Từ chối kết bạn
+export async function rejectFriendRequest(requesterId: string): Promise<void> {
+  await chatHttpService.post(`/friend-requests/reject`, { requesterId });
+}
+
+// Gửi lời mời kết bạn
+export const sendFriendRequestApi = async (targetAccountId: string) => {
+  const response = await chatHttpService.post('/friend-requests/send', {
+    targetId: targetAccountId // (Nhớ là targetId để khớp với Backend nha)
+  }) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  return response.data;
+};
+
+export const searchUsersApi = async (keyword: string = "") => {
+  // Xử lý triệt để vụ lồng data (bắt mọi trường hợp)
+  const response = await chatHttpService.get(
+    `/users/search?keyword=${encodeURIComponent(keyword)}`
+  ) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  let userList = [];
+  if (Array.isArray(response)) {
+    userList = response;
+  } else if (response?.data && Array.isArray(response.data)) {
+    userList = response.data;
+  } else if (response?.data?.data && Array.isArray(response.data.data)) {
+    userList = response.data.data;
+  }
+
+  return { data: userList }; 
+};

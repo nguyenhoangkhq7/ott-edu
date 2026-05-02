@@ -1,6 +1,21 @@
 # --- 1. Base Stage (Dùng chung cho cả Dev và Prod) ---
-FROM node:24-alpine3.23 AS base
+FROM node:24-slim AS base
 WORKDIR /app
+
+# Install build dependencies for mediasoup on Debian/Ubuntu
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    make \
+    g++ \
+    gcc \
+    libtool \
+    autoconf \
+    automake \
+    build-essential \
+    linux-headers-generic \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 
 # --- 2. Dependencies Stage (Dùng cho DEV) ---
@@ -19,7 +34,7 @@ COPY . .
 RUN npm run build
 
 # --- 4. Production Stage (Chạy thật) ---
-FROM node:18-alpine AS production
+FROM node:24-slim AS production
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --only=production
