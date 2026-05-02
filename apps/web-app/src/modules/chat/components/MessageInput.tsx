@@ -243,7 +243,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       {uploadError && (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle size={16} className="flex-shrink-0" />
+          <AlertCircle size={16} className="shrink-0" />
           <p>{uploadError}</p>
           <button
             type="button"

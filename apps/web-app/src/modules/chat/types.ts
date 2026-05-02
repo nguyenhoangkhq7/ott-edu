@@ -94,7 +94,7 @@ export interface ActiveVideoCall {
   callId: string;
   conversationId: string;
   peerUserId: string;
-  direction: "incoming" | "outgoing";
+  direction: "incoming" | "outgoing" | "group";
 }
 
 export interface CallHistoryItem {

@@ -32,6 +32,122 @@ interface MessageBubbleProps {
 
 const EMOJI_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
 
+type CallMessageMeta = {
+  callType?: "video" | "audio";
+  status?: string;
+  durationSec?: number;
+  label?: string;
+};
+
+const CALL_MARKER_PATTERN = /^(\[call(?:_log)?\]|call_log:|call:|system_call:)/i;
+const CALL_STATUS_LABELS: Record<string, string> = {
+  ringing: "Cuoc goi dang do chuong",
+  connected: "Cuoc goi da ket noi",
+  ended: "Cuoc goi da ket thuc",
+  declined: "Cuoc goi bi tu choi",
+  unavailable: "Khong lien lac duoc",
+  failed: "Cuoc goi loi",
+  missed: "Cuoc goi nho",
+};
+
+const CALL_STATUS_KEYS = new Set(Object.keys(CALL_STATUS_LABELS));
+
+const formatCallDuration = (durationSec?: number): string => {
+  if (!durationSec || durationSec <= 0) {
+    return "0s";
+  }
+
+  const minutes = Math.floor(durationSec / 60);
+  const seconds = durationSec % 60;
+  if (minutes <= 0) {
+    return `${seconds}s`;
+  }
+
+  return `${minutes}m ${seconds}s`;
+};
+
+const parseCallMessage = (content: string, sender?: User): CallMessageMeta | null => {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const hasExplicitMarker = CALL_MARKER_PATTERN.test(trimmed);
+  const shouldHeuristicParse = hasExplicitMarker || !sender;
+  if (!shouldHeuristicParse) {
+    return null;
+  }
+
+  const stripped = trimmed.replace(CALL_MARKER_PATTERN, "").trim();
+
+  if (stripped.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(stripped) as {
+        type?: string;
+        callType?: string;
+        status?: string;
+        durationSec?: number;
+        label?: string;
+      };
+
+      if (parsed?.type?.includes("call") || parsed?.callType || parsed?.status) {
+        return {
+          callType:
+            parsed.callType === "audio" || parsed.callType === "video"
+              ? parsed.callType
+              : "video",
+          status: parsed.status,
+          durationSec: parsed.durationSec,
+          label: parsed.label,
+        };
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+  }
+
+  const durationMatch = stripped.match(/duration(?:sec)?\s*=?\s*(\d+)/i);
+  const statusMatch = stripped.match(
+    /\b(ringing|connected|ended|declined|unavailable|failed|missed)\b/i,
+  );
+  const callTypeMatch = stripped.match(/\b(audio|video)\b/i);
+
+  if (durationMatch || statusMatch || callTypeMatch || /cuoc goi|call/i.test(stripped)) {
+    return {
+      callType: callTypeMatch?.[1]?.toLowerCase() === "audio" ? "audio" : "video",
+      status: statusMatch?.[1]?.toLowerCase(),
+      durationSec: durationMatch ? Number(durationMatch[1]) : undefined,
+      label: /cuoc goi|call/i.test(stripped) ? stripped : undefined,
+    };
+  }
+
+  return null;
+};
+
+const buildCallLabel = (meta: CallMessageMeta): string => {
+  if (meta.label) {
+    return meta.label;
+  }
+
+  const callTypeLabel = meta.callType === "audio" ? "Cuoc goi thoai" : "Cuoc goi video";
+  const statusKey = meta.status?.toLowerCase();
+
+  if (statusKey && CALL_STATUS_KEYS.has(statusKey)) {
+    if (statusKey === "connected" || statusKey === "ended") {
+      const durationText = meta.durationSec ? ` - ${formatCallDuration(meta.durationSec)}` : "";
+      return `${callTypeLabel}${durationText}`;
+    }
+
+    return `${callTypeLabel} - ${CALL_STATUS_LABELS[statusKey]}`;
+  }
+
+  if (meta.durationSec) {
+    return `${callTypeLabel} - ${formatCallDuration(meta.durationSec)}`;
+  }
+
+  return callTypeLabel;
+};
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isOwnMessage,
@@ -159,6 +275,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   }
 
+  const callMeta = parseCallMessage(message.content, sender);
+  if (callMeta) {
+    const callLabel = buildCallLabel(callMeta);
+    return (
+      <div className="mb-4 flex w-full justify-center">
+        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600 shadow-sm">
+          <span>📞</span>
+          <span className="font-medium">{callLabel}</span>
+        </div>
+      </div>
+    );
+  }
+
   // ==================== TIN NHẮN BÌNH THƯỜNG ====================
   return (
     <div
@@ -234,13 +363,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                         alt={attachment.fileName}
                         width={280}
                         height={280}
-                        className="max-h-[300px] max-w-[280px] rounded-lg object-cover"
+                        className="max-h-75 max-w-70 rounded-lg object-cover"
                       />
                     </a>
                   ) : isVideo(attachment.fileType) ? (
                     <video
                       controls
-                      className="max-h-[300px] max-w-[300px] rounded-lg bg-black"
+                      className="max-h-75 max-w-75 rounded-lg bg-black"
                     >
                       <source src={attachment.url} type={attachment.fileType} />
                       Your browser does not support the video tag.
@@ -311,7 +440,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {/* Context Menu */}
         {showMenu && (
-          <div className="absolute right-0 top-full z-20 mt-1 min-w-[220px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          <div className="absolute right-0 top-full z-20 mt-1 min-w-55 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
             {/* Phản ứng */}
             <button
               type="button"
