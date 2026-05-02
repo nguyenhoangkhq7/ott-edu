@@ -581,7 +581,7 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   const menuRef = useRef<HTMLDivElement>(null);
 
   const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
-  const classId = routeTeamId?.toString() ?? contextClassId ?? null;
+  const teamId = routeTeamId?.toString() ?? contextClassId ?? null;
 
   const fetchPosts = useCallback(async () => {
     if (!isLoaded || !teamId) return;
@@ -722,11 +722,12 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   };
 
   const handleSendMessage = async () => {
+    if (!teamId) return;
     if (!inputValue.trim() && !selectedFile) return;
 
     if (isComposingNew) {
       const formData = new FormData();
-      const postData = { classId: teamId.toString(), content: inputValue, type: 'DISCUSSION' };
+      const postData = { teamId: teamId.toString(), content: inputValue, type: 'DISCUSSION' };
       formData.append('post', new Blob([JSON.stringify(postData)], { type: 'application/json' })); 
       if (selectedFile) formData.append('files', selectedFile);
 
