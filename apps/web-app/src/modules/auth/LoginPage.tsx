@@ -93,7 +93,6 @@ export default function LoginPage() {
       // 3. Lấy danh sách Lớp từ latestUser
       const userTeams = typedUser?.teams || [];
       const userClassId = userTeams.length > 0 ? userTeams[0].id.toString() : "60d5ecb8b3112a445c742301"; 
-      const userClassId = userTeams.length > 0 ? userTeams[0].id.toString() : null; 
       const userEmail = typedUser?.email || form.email.trim();
 
       // 4. CỰC KỲ QUAN TRỌNG: Xóa sạch cookie cũ đang bị kẹt
