@@ -12,6 +12,7 @@ export interface User {
   role?: string;
   avatarUrl: string;
   isOnline: boolean;
+  friendStatus?: "none" | "pending" | "friend";
 }
 
 export interface Attachment {
@@ -66,6 +67,7 @@ export interface Conversation {
   pendingMemberRequests?: PendingMemberRequest[];
   myRole?: "owner" | "deputy" | "member" | null;
   canManageGroup?: boolean;
+  otherParticipant?: User | null;
 }
 
 export interface PendingMemberRequest {
@@ -121,6 +123,7 @@ export interface ApiUser {
   role?: string;
   avatarUrl?: string;
   isOnline?: boolean;
+  friendStatus?: "none" | "pending" | "friend";
 }
 
 export interface ApiAttachment {

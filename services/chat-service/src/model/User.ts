@@ -34,7 +34,8 @@ const userSchema: Schema = new Schema(
     avatarUrl: {
       type: String,
       default: 'https://via.placeholder.com/150' // Link ảnh placeholder mặc định
-    }
+    },
+    friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   },
   {
     timestamps: true // Tự động sinh `createdAt` và `updatedAt`

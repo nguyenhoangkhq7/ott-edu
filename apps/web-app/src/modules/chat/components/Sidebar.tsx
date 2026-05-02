@@ -2,8 +2,12 @@ import React from "react";
 import { Conversation, ChatMode, User } from "../types";
 import { SidebarTabs } from "./SidebarTabs";
 import { ConversationItem } from "./ConversationItem";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Users, UserPlus } from "lucide-react";
 import Image from "next/image";
+import { CreateGroupModal } from "./CreateGroupModal";
+import { FriendRequestsModal } from "./FriendRequestsModal";
+import { createGroupConversation } from "../chatApi";
+import { useState } from "react";
 
 interface SidebarProps {
   currentMode: ChatMode;
@@ -18,6 +22,7 @@ interface SidebarProps {
   onStartPrivateChat: (user: User) => void;
   isLoading?: boolean;
   error?: string | null;
+  onRefreshConversations?: () => Promise<void> | void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,43 +38,86 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onStartPrivateChat,
   isLoading = false,
   error = null,
+  onRefreshConversations,
 }) => {
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isFriendRequestOpen, setIsFriendRequestOpen] = useState(false);
+
+  const handleCreateGroup = async (name: string, selectedIds: string[]) => {
+    try {
+      // 1. Gọi API tạo nhóm (không gán biến để tránh lỗi unused-vars và as any)
+      await createGroupConversation({
+        name,
+        participants: selectedIds,
+        joinPolicy: "open",
+      });
+
+      // 2. Gọi hàm làm mới danh sách từ server (Đảm bảo đồng bộ)
+      if (onRefreshConversations) {
+        await onRefreshConversations();
+      }
+
+      alert("Tạo nhóm thành công! 🚀");
+      
+    } catch (error) { // Xóa chữ : any ở đây
+      console.error("Lỗi tạo nhóm:", error);
+      
+      // Ép kiểu an toàn (không dùng any) để lấy được cấu trúc lỗi của Axios
+      const err = error as { response?: { data?: { error?: string } }; message: string };
+      alert(`Không thể tạo nhóm: ${err.response?.data?.error || err.message}`);
+    }
+  };
   const normalizedQuery = searchQuery.trim().toLowerCase();
-  const filteredConversations = conversations.filter(
-    (c) => {
-      if (c.type !== currentMode) return false;
-      if (!normalizedQuery) return true;
+  const filteredConversations = conversations.filter((c) => {
+    if (c.type !== currentMode) return false;
+    if (!normalizedQuery) return true;
 
-      const otherParticipant =
-        c.type === "private"
-          ? c.participants.find((p) => p.id !== currentUser?.id)
-          : null;
-      const searchable = [
-        c.name,
-        c.lastMessage?.content,
-        otherParticipant?.name,
-        otherParticipant?.email,
-        otherParticipant?.code,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+    const otherParticipant =
+      c.type === "private"
+        ? c.participants.find((p) => p.id !== currentUser?.id)
+        : null;
+    const searchable = [
+      c.name,
+      c.lastMessage?.content,
+      otherParticipant?.name,
+      otherParticipant?.email,
+      otherParticipant?.code,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
 
-      return searchable.includes(normalizedQuery);
-    },
-  );
+    return searchable.includes(normalizedQuery);
+  });
 
   return (
     <div className="flex h-full w-80 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
-      <div className="border-b border-slate-200 px-4 py-4">
-        <h1 className="text-xl font-semibold text-slate-900">
-          Tin nhắn
-        </h1>
-        {currentUser && (
-          <p className="mt-1 truncate text-xs text-slate-500">
-            {currentUser.name}
-          </p>
-        )}
+      <div className="border-b border-slate-200 px-4 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">Tin nhắn</h1>
+          {currentUser && (
+            <p className="mt-1 truncate text-xs text-slate-500">
+              {currentUser.name}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setIsCreateGroupOpen(true)}
+            className="p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-500 rounded-xl transition"
+            title="Tạo nhóm"
+          >
+            <Users size={20} />
+          </button>
+          <button
+            onClick={() => setIsFriendRequestOpen(true)}
+            className="p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-500 rounded-xl transition relative"
+            title="Lời mời kết bạn"
+          >
+            <UserPlus size={20} />
+            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 border border-white"></span>
+          </button>
+        </div>
       </div>
 
       <SidebarTabs currentMode={currentMode} onModeChange={onModeChange} />
@@ -135,28 +183,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
               <div className="space-y-1">
                 {suggestedUsers.map((user) => (
-                  <button
+                  <div
                     key={user.id}
-                    type="button"
-                    onClick={() => onStartPrivateChat(user)}
-                    className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-100"
+                    className="group flex w-full items-center justify-between gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-slate-100"
                   >
-                    <Image
-                      src={user.avatarUrl}
-                      alt={user.name}
-                      width={36}
-                      height={36}
-                      className="h-9 w-9 rounded-full object-cover"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800">
-                        {user.name}
-                      </p>
-                      <p className="truncate text-xs text-slate-500">
-                        {user.code || user.email || "Bắt đầu nhắn tin"}
-                      </p>
-                    </div>
-                  </button>
+                    {/* Bấm vào tên/avatar thì mở khung chat (như cũ) */}
+                    <button
+                      type="button"
+                      onClick={() => onStartPrivateChat(user)}
+                      className="flex flex-1 items-center gap-3 min-w-0"
+                    >
+                      <Image
+                        src={
+                          user.avatarUrl ||
+                          `https://i.pravatar.cc/150?u=${user.email}`
+                        }
+                        alt={user.name}
+                        width={36}
+                        height={36}
+                        className="h-9 w-9 shrink-0 rounded-full object-cover"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {user.name}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {user.code || user.email}
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* NÚT KẾT BẠN */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Ngăn không cho click nhảy sang khung chat
+                        // GỌI HÀM KẾT BẠN Ở ĐÂY NÈ (ví dụ: sendFriendRequest(user.email))
+                        alert(`Đã gửi lời mời kết bạn đến ${user.name}`);
+                      }}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 opacity-0 transition-all hover:bg-blue-500 hover:text-white group-hover:opacity-100"
+                      title="Gửi kết bạn"
+                    >
+                      <UserPlus size={16} />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -172,6 +242,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
       </div>
+      <CreateGroupModal
+        isOpen={isCreateGroupOpen}
+        onClose={() => setIsCreateGroupOpen(false)}
+        onCreateGroup={handleCreateGroup}
+      />
+      <FriendRequestsModal
+        isOpen={isFriendRequestOpen}
+        onClose={() => setIsFriendRequestOpen(false)}
+      />
     </div>
   );
 };
