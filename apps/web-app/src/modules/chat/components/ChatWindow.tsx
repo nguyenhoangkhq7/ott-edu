@@ -118,23 +118,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onOpenGroupManage,
   onConversationInfoRefreshTick = 0,
 }) => {
-    const formatCallStatus = (item: CallHistoryItem): string => {
-      switch (item.status) {
-        case "connected":
-        case "ended":
-          return "Da goi";
-        case "declined":
-          return "Bi tu choi";
-        case "unavailable":
-          return "Khong lien lac duoc";
-        case "failed":
-          return "Loi ket noi";
-        case "ringing":
-          return "Dang do chuong";
-        default:
-          return item.status;
-      }
-    };
+  const formatCallStatus = (item: CallHistoryItem): string => {
+    switch (item.status) {
+      case "connected":
+      case "ended":
+        return "Da goi";
+      case "declined":
+        return "Bi tu choi";
+      case "unavailable":
+        return "Khong lien lac duoc";
+      case "failed":
+        return "Loi ket noi";
+      case "ringing":
+        return "Dang do chuong";
+      default:
+        return item.status;
+    }
+  };
 
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
 
@@ -151,6 +151,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [isInfoSidebarOpen, setIsInfoSidebarOpen] = useState(false);
   const remoteStreamsList = React.useMemo(
     () => Array.from(remoteStreams.entries()),
     [remoteStreams],
@@ -182,7 +183,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const timelineMessages = React.useMemo(() => {
     const combined = [...localMessages, ...callHistoryMessages];
     return combined.sort(
-      (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+      (left, right) =>
+        new Date(left.createdAt).getTime() -
+        new Date(right.createdAt).getTime(),
     );
   }, [callHistoryMessages, localMessages]);
 
@@ -244,7 +247,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       el.muted = true;
       const tryPlay = () => {
         el.play()
-          .then(() => { el.muted = false; })
+          .then(() => {
+            el.muted = false;
+          })
           .catch((err) => {
             console.warn("[ChatWindow] Remote play failed:", err);
           });
@@ -318,9 +323,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   }, [callStatus]);
 
-  const incomingCallerName = incomingCaller?.name || incomingCall?.fromUserId || "Nguoi dung";
+  const incomingCallerName =
+    incomingCaller?.name || incomingCall?.fromUserId || "Nguoi dung";
   const showFullScreenCall =
-    callStatus !== "idle" || Boolean(localStream) || remoteStreamsList.length > 0;
+    callStatus !== "idle" ||
+    Boolean(localStream) ||
+    remoteStreamsList.length > 0;
   const showInlineCallPanel = !showFullScreenCall && Boolean(callError);
 
   const renderFullScreenCallOverlay = () => {
@@ -347,7 +355,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* Content wrapper — takes full height, never overflows */}
         <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-
           {/* ── Header ── */}
           <div className="flex shrink-0 items-center justify-between px-4 py-3 sm:px-6">
             <div className="flex items-center gap-3">
@@ -355,8 +362,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <Users size={16} />
               </div>
               <div className="min-w-0">
-                <p className="truncate text-xs uppercase tracking-widest text-slate-400">Cuoc goi video</p>
-                <h2 className="truncate text-base font-semibold leading-tight text-white sm:text-lg">{callTitle}</h2>
+                <p className="truncate text-xs uppercase tracking-widest text-slate-400">
+                  Cuoc goi video
+                </p>
+                <h2 className="truncate text-base font-semibold leading-tight text-white sm:text-lg">
+                  {callTitle}
+                </h2>
               </div>
             </div>
             <div className="shrink-0 text-right">
@@ -370,7 +381,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               <div className="flex items-start justify-between gap-2">
                 <p className="flex-1">{callError}</p>
                 {onClearCallError && (
-                  <button type="button" onClick={onClearCallError} className="shrink-0 rounded-full p-1 hover:bg-white/10">
+                  <button
+                    type="button"
+                    onClick={onClearCallError}
+                    className="shrink-0 rounded-full p-1 hover:bg-white/10"
+                  >
                     <X size={12} />
                   </button>
                 )}
@@ -395,8 +410,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/20 ring-4 ring-emerald-400/30">
                   <Video size={28} className="text-emerald-300" />
                 </div>
-                <p className="text-xs uppercase tracking-widest text-emerald-300">Cuoc goi den</p>
-                <p className="mt-2 text-lg font-semibold text-white">{incomingCallerName} dang goi video cho ban</p>
+                <p className="text-xs uppercase tracking-widest text-emerald-300">
+                  Cuoc goi den
+                </p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {incomingCallerName} dang goi video cho ban
+                </p>
                 <div className="mt-6 flex items-center justify-center gap-3">
                   <button
                     type="button"
@@ -433,9 +452,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         if (el.srcObject !== stream) el.srcObject = stream;
                         el.muted = true;
                         el.play()
-                          .then(() => { el.muted = false; })
+                          .then(() => {
+                            el.muted = false;
+                          })
                           .catch(() => {
-                            el.oncanplay = () => { el.play().then(() => { el.muted = false; }).catch(() => {}); };
+                            el.oncanplay = () => {
+                              el.play()
+                                .then(() => {
+                                  el.muted = false;
+                                })
+                                .catch(() => {});
+                            };
                           });
                       }}
                       autoPlay
@@ -450,17 +477,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10">
                     <Users size={36} className="opacity-40" />
                   </div>
-                  <p className="text-sm tracking-wide text-slate-400">Dang ket noi...</p>
+                  <p className="text-sm tracking-wide text-slate-400">
+                    Dang ket noi...
+                  </p>
                 </div>
               )}
 
               {/* Local PiP — bottom-right corner, responsive size */}
-              <div className="absolute bottom-4 right-4 z-20 overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl
-                              w-28 sm:w-36 md:w-44">
+              <div
+                className="absolute bottom-4 right-4 z-20 overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl
+                              w-28 sm:w-36 md:w-44"
+              >
                 <video
                   ref={(el) => {
                     if (!el) return;
-                    if (el.srcObject !== localStream) el.srcObject = localStream;
+                    if (el.srcObject !== localStream)
+                      el.srcObject = localStream;
                     if (localStream) el.play().catch(() => {});
                   }}
                   autoPlay
@@ -473,14 +505,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     {isCameraEnabled ? "Dang tai..." : "Camera tat"}
                   </div>
                 )}
-                <div className="absolute bottom-1 left-2 text-[10px] text-white/70">Ban</div>
+                <div className="absolute bottom-1 left-2 text-[10px] text-white/70">
+                  Ban
+                </div>
               </div>
             </div>
           ) : (
             /* ── Group Layout: grid + local tile ── */
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 sm:px-4">
-              <div className={`grid ${gridCols} auto-rows-fr gap-2 sm:gap-3`}
-                   style={{ minHeight: 0 }}>
+              <div
+                className={`grid ${gridCols} auto-rows-fr gap-2 sm:gap-3`}
+                style={{ minHeight: 0 }}
+              >
                 {/* Remote tiles */}
                 {remoteStreamsList.map(([userId, stream]) => (
                   <div
@@ -495,9 +531,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         if (el.srcObject !== stream) el.srcObject = stream;
                         el.muted = true;
                         el.play()
-                          .then(() => { el.muted = false; })
+                          .then(() => {
+                            el.muted = false;
+                          })
                           .catch(() => {
-                            el.oncanplay = () => { el.play().then(() => { el.muted = false; }).catch(() => {}); };
+                            el.oncanplay = () => {
+                              el.play()
+                                .then(() => {
+                                  el.muted = false;
+                                })
+                                .catch(() => {});
+                            };
                           });
                       }}
                       autoPlay
@@ -518,7 +562,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   <video
                     ref={(el) => {
                       if (!el) return;
-                      if (el.srcObject !== localStream) el.srcObject = localStream;
+                      if (el.srcObject !== localStream)
+                        el.srcObject = localStream;
                       if (localStream) el.play().catch(() => {});
                     }}
                     autoPlay
@@ -569,7 +614,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }`}
                 title={isCameraEnabled ? "Tat camera" : "Bat camera"}
               >
-                {isCameraEnabled ? <Camera size={18} /> : <CameraOff size={18} />}
+                {isCameraEnabled ? (
+                  <Camera size={18} />
+                ) : (
+                  <CameraOff size={18} />
+                )}
               </button>
 
               {/* Screen share */}
@@ -604,7 +653,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       </div>
     );
   };
-
 
   const renderVideoCallPanel = () => {
     if (!showInlineCallPanel) {
@@ -644,7 +692,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {incomingCall && callStatus === ("receiving" as VideoCallStatus) && (
           <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
-            <p className="font-semibold">{incomingCallerName} dang goi video cho ban</p>
+            <p className="font-semibold">
+              {incomingCallerName} dang goi video cho ban
+            </p>
             <div className="mt-2 flex items-center gap-2">
               <button
                 type="button"
@@ -678,7 +728,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
                   title={isMicrophoneEnabled ? "Tat micro" : "Bat micro"}
                 >
-                  {isMicrophoneEnabled ? <Mic size={14} /> : <MicOff size={14} />}
+                  {isMicrophoneEnabled ? (
+                    <Mic size={14} />
+                  ) : (
+                    <MicOff size={14} />
+                  )}
                 </button>
                 <button
                   type="button"
@@ -687,7 +741,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
                   title={isCameraEnabled ? "Tat camera" : "Bat camera"}
                 >
-                  {isCameraEnabled ? <Camera size={14} /> : <CameraOff size={14} />}
+                  {isCameraEnabled ? (
+                    <Camera size={14} />
+                  ) : (
+                    <CameraOff size={14} />
+                  )}
                 </button>
                 {(activeCall || callStatus !== "idle") && (
                   <button
@@ -707,14 +765,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <video
                   ref={(el) => {
                     if (!el) return;
-                    if (el.srcObject !== remoteStream) el.srcObject = remoteStream;
+                    if (el.srcObject !== remoteStream)
+                      el.srcObject = remoteStream;
                     if (remoteStream) el.play().catch(() => {});
                   }}
                   autoPlay
                   playsInline
                   className="h-44 w-full object-cover"
                   onError={() => {
-                    console.error("[ChatWindow] Remote video element failed to render stream.");
+                    console.error(
+                      "[ChatWindow] Remote video element failed to render stream.",
+                    );
                   }}
                 />
                 {!remoteStream && (
@@ -727,7 +788,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <video
                   ref={(el) => {
                     if (!el) return;
-                    if (el.srcObject !== localStream) el.srcObject = localStream;
+                    if (el.srcObject !== localStream)
+                      el.srcObject = localStream;
                     if (localStream) el.play().catch(() => {});
                   }}
                   autoPlay
@@ -735,19 +797,24 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   playsInline
                   className="h-44 w-full object-cover"
                   onError={() => {
-                    console.error("[ChatWindow] Local video element failed to render stream.");
+                    console.error(
+                      "[ChatWindow] Local video element failed to render stream.",
+                    );
                   }}
                 />
                 {(!localStream || !isCameraEnabled) && (
                   <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-200">
-                    {isCameraEnabled ? "Dang khoi tao camera..." : "Ban da tat camera"}
+                    {isCameraEnabled
+                      ? "Dang khoi tao camera..."
+                      : "Ban da tat camera"}
                   </div>
                 )}
               </div>
             </div>
 
             <p className="mt-2 text-[11px] text-slate-500">
-              Camera/Microphone chi duoc cap quyen khi test tren localhost hoac HTTPS.
+              Camera/Microphone chi duoc cap quyen khi test tren localhost hoac
+              HTTPS.
             </p>
           </>
         )}
@@ -838,6 +905,48 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
+  const handleRevokeForAll = (messageId: string) => {
+    if (!socket || !conversation) return;
+
+    // Optimistic update
+
+    setLocalMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, isRevoked: true } : m)),
+    );
+
+    socket.emit("revokeForAll", { messageId, conversationId: conversation.id });
+
+    // Rollback if error
+
+    socket.once("revokeError", (err: { messageId: string; error: string }) => {
+      if (err.messageId === messageId) {
+        console.warn("[Revoke]", err.error);
+
+        setLocalMessages((prev) =>
+          prev.map((m) =>
+            m.id === messageId ? { ...m, isRevoked: false } : m,
+          ),
+        );
+      }
+    });
+  };
+
+  const handleRevokeForMe = (messageId: string) => {
+    if (!socket || !conversation || !currentUser) return;
+
+    // Optimistic update
+
+    setLocalMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId
+          ? { ...m, revokedFor: [...(m.revokedFor || []), currentUser.id] }
+          : m,
+      ),
+    );
+
+    socket.emit("revokeForMe", { messageId, conversationId: conversation.id });
+  };
+
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
       {renderFullScreenCallOverlay()}
@@ -861,7 +970,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-2 text-slate-400">
-          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
+          <button
+            type="button"
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+          >
             <Phone size={20} />
           </button>
           <button
@@ -869,11 +981,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onClick={onStartVideoCall}
             disabled={!canStartVideoCall}
             className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-            title={canStartVideoCall ? "Goi video" : "Chi ho tro goi trong doan chat da tao"}
+            title={
+              canStartVideoCall
+                ? "Goi video"
+                : "Chi ho tro goi trong doan chat da tao"
+            }
           >
             <Video size={20} />
           </button>
-          <button type="button" className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500">
+          <button
+            type="button"
+            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+          >
             <Info size={20} />
           </button>
 
@@ -1079,6 +1198,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         replyingTo={replyingTo}
         onCancelReply={() => setReplyingTo(null)}
       />
+      {/* ==================== INFO SIDEBAR ==================== */}
+
+      {isInfoSidebarOpen && (
+        <ConversationInfoSidebar
+          conversationId={conversation.id}
+          isOpen={isInfoSidebarOpen}
+          onClose={() => setIsInfoSidebarOpen(false)}
+          onOpenGroupManage={onOpenGroupManage}
+          conversationType={conversation.type}
+          refreshSignal={onConversationInfoRefreshTick}
+        />
+      )}
     </div>
   );
 };
