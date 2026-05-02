@@ -38,6 +38,9 @@ public class Submission {
     @Column(name = "submitted_at")
     private LocalDateTime submittedAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SubmissionStatus status;

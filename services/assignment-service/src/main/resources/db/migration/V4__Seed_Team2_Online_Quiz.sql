@@ -1,6 +1,4 @@
--- Seed one online quiz for the active student team (team 2)
--- This matches the current live schema:
--- assignments(type), assignment_teams, questions(display_order, points, type), answer_options(display_order)
+-- Seed one online quiz for the active student team (team_id = 2)
 
 INSERT INTO assignments (
     title,
@@ -8,8 +6,6 @@ INSERT INTO assignments (
     max_score,
     due_date,
     created_at,
-    archived_at,
-    creator_id,
     department_id,
     type
 )
@@ -19,16 +15,13 @@ VALUES (
     10.0,
     DATE_ADD(NOW(), INTERVAL 7 DAY),
     NOW(),
-    NULL,
-    NULL,
-    NULL,
+    1,
     'QUIZ'
 );
 
 SET @assignment_id = LAST_INSERT_ID();
 
-INSERT INTO assignment_teams (assignment_id, team_id)
-VALUES (@assignment_id, 2);
+INSERT INTO assignment_teams (assignment_id, team_id) VALUES (@assignment_id, 2);
 
 INSERT INTO questions (assignment_id, content, display_order, points, type)
 VALUES
@@ -38,11 +31,11 @@ VALUES
 (@assignment_id, 'Java is an object-oriented programming language.', 4, 2.0, 'TRUE_FALSE'),
 (@assignment_id, 'Which principle means bundling data and behavior together?', 5, 2.0, 'SINGLE_CHOICE');
 
-SET @question_1 = LAST_INSERT_ID() - 4;
-SET @question_2 = LAST_INSERT_ID() - 3;
-SET @question_3 = LAST_INSERT_ID() - 2;
-SET @question_4 = LAST_INSERT_ID() - 1;
-SET @question_5 = LAST_INSERT_ID();
+SET @question_1 = LAST_INSERT_ID();
+SET @question_2 = LAST_INSERT_ID() + 1;
+SET @question_3 = LAST_INSERT_ID() + 2;
+SET @question_4 = LAST_INSERT_ID() + 3;
+SET @question_5 = LAST_INSERT_ID() + 4;
 
 INSERT INTO answer_options (question_id, content, display_order, is_correct) VALUES
 (@question_1, 'final', 1, TRUE),

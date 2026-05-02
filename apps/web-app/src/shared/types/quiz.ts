@@ -53,11 +53,9 @@ export type Assignment = {
   instructions: string;
   maxScore: number;
   dueDate: string;
-  createdAt: string;
-  archived: boolean;
   type: AssignmentType;
   teamIds: number[];
-  departmentId: number;
+  archivedAt: string | null;
 };
 
 // Submission - Bài nộp của học viên (từ backend)
