@@ -5,6 +5,8 @@ import CallLog from "../model/CallLog.ts";
 import S3Service from "../services/s3.service.ts";
 import socketManager from "../socketManager.ts";
 import User from "../model/User.ts";
+import FriendRequest from "../model/FriendRequest.ts";
+import Conversation from "../model/Conversation.ts";
 
 export class ChatController {
   // API: GET /api/calls/history
@@ -674,4 +676,99 @@ export class ChatController {
       });
     }
   }
+
+  // ===================== PHẦN KẾT BẠN (SCRUM-164) =====================
+
+  // API: GET /api/users/search?keyword=...
+  static async searchUsers(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const keyword = typeof req.query.keyword === "string" ? req.query.keyword : "";
+      
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      // Gọi hàm searchUsers từ ChatService mà anh em mình vừa viết
+      const data = await ChatService.searchUsers(keyword, userId);
+      return res.status(200).json({ data });
+    } catch (error: any) {
+      console.error("[ChatController] searchUsers error:", error);
+      return res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  }
+
+  // API: GET /api/friend-requests
+  static async getFriendRequests(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      // Gọi logic từ ChatService mà mình đã viết lúc nãy
+      const requests = await ChatService.getFriendRequests(userId);
+      return res.status(200).json({ data: requests });
+    } catch (error: any) {
+      console.error("[ChatController] getFriendRequests error:", error);
+      return res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  }
+
+  // API: POST /api/friend-requests/send
+  static async sendFriendRequest(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const { targetId, targetEmail } = req.body;
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+      
+      if (!targetId && !targetEmail) {
+        return res.status(400).json({ error: "Missing targetId or targetEmail" });
+      }
+
+      const data = await ChatService.sendFriendRequest(requesterId, targetEmail, targetId);
+      return res.status(200).json({ data });
+    } catch (error: any) {
+      console.error("[ChatController] sendFriendRequest error:", error);
+      return res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  }
+
+ // ✅ CODE CHUẨN ĐỂ FIX LỖI
+static async acceptFriendRequest(req: any, res: any) {
+    try {
+      // 1. Lấy đúng cái chuỗi ID của người dùng (từ token đã giải mã)
+      const userId = req.user._id || req.user.id; 
+      
+      // 2. Lấy chuỗi ID người gửi từ Frontend truyền lên
+      const requesterId = req.body.requesterId;
+
+      // 3. Truyền đúng 2 cái chuỗi ID vào Service
+      const conversation = await ChatService.acceptFriendRequest(userId, requesterId); 
+
+      return res.status(200).json({ success: true, data: conversation });
+    } catch (error: any) {
+      const statusCode = error.statusCode || 500;
+      return res.status(statusCode).json({ error: error.message });
+    }
+  }
+
+  // API: POST /api/friend-requests/reject
+ static async rejectFriendRequest(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const { requesterId } = req.body;
+
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      if (!requesterId) return res.status(400).json({ error: "Thiếu requesterId" });
+
+      await ChatService.rejectFriendRequest(userId, requesterId);
+      return res.status(200).json({ success: true, message: "Đã từ chối kết bạn" });
+    } catch (error: any) {
+      console.error("[ChatController] rejectFriendRequest error:", error);
+      return res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  }
+  
 }

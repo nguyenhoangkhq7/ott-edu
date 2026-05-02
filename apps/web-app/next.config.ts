@@ -18,9 +18,27 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'i.ytimg.com',
+        port: '',
+        pathname: '/**', // Cho phép lấy thumbnail từ YouTube
+      },
+      {
+        protocol: 'https',
+        hostname: 'img.youtube.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: 'i.pravatar.cc',
         port: '',
         pathname: '/**', // Cho phép lấy avatar từ pravatar
+      },
+      {
+        protocol: 'https',
+        hostname: 'via.placeholder.com',
+        port: '',
+        pathname: '/**',
       },
     ],
   },

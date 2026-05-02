@@ -69,4 +69,12 @@ router.post("/conversations/:conversationId/leave", ChatController.leaveGroup);
 // Đồng bộ conversation của class từ core-service
 router.post("/conversations/class", ChatController.syncClassConversation);
 
+// Tìm kiếm User trong Chat DB
+router.get("/users/search", ChatController.searchUsers);
+
+// Xử lý Lời mời kết bạn
+router.get("/friend-requests", ChatController.getFriendRequests);
+router.post("/friend-requests/send", ChatController.sendFriendRequest);
+router.post("/friend-requests/accept", ChatController.acceptFriendRequest);
+router.post("/friend-requests/reject", ChatController.rejectFriendRequest);
 export default router;

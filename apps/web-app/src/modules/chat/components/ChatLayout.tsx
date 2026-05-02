@@ -16,7 +16,7 @@ import {
   Reaction,
   User,
 } from "../types";
-import { useWebRTC } from "../hooks/useWebRTC";
+import useWebRTCMediasoup from "../hooks/useWebRTCMediasoup";
 import {
   fetchCallHistory,
   fetchConversations,
@@ -99,6 +99,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
   const [showGroupManageModal, setShowGroupManageModal] = useState(false);
   const [groupOwnerTarget, setGroupOwnerTarget] = useState<User | null>(null);
+  const [typingUsers, setTypingUsers] = useState<Map<string, Set<string>>>(
+    new Map()
+  );
   const [groupDeputyTarget, setGroupDeputyTarget] = useState<User | null>(null);
   const [groupInfoRefreshTick, setGroupInfoRefreshTick] = useState(0);
 
@@ -130,25 +133,41 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
   const {
     localStream,
-    remoteStream,
+    remoteStreams,
     callStatus,
     incomingCall,
     activeCall,
     isMicrophoneEnabled,
     isCameraEnabled,
+    isScreenSharing,
     callError,
     retryMediaPermission,
-    startVideoCall,
+    startGroupCall,
     acceptIncomingCall,
     declineIncomingCall,
-    endVideoCall,
+    endCall,
     toggleMicrophone,
     toggleCamera,
+    toggleScreenShare,
     clearCallError,
-  } = useWebRTC({
+  } = useWebRTCMediasoup({
     socket,
     currentUserId,
   });
+
+  // Provide a compatibility wrapper used elsewhere for private calls
+  const startVideoCall = useCallback(
+    async ({ toUserId, conversationId }: { toUserId: string; conversationId: string }) => {
+      await startGroupCall(conversationId);
+    },
+    [startGroupCall],
+  );
+
+  // Derive the first remote stream (used by some components)
+  const remoteStream = React.useMemo(() => {
+    const it = remoteStreams.values().next();
+    return it?.value || null;
+  }, [remoteStreams]);
 
   // Giữ ref luôn cập nhật để xài trong socket handler (tránh dependency bắt reconnect socket)
   useEffect(() => {
@@ -289,16 +308,73 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       );
     };
 
+    const handleUserTyping = (data: {
+      userId: string;
+      conversationId: string;
+      timestamp: number;
+    }) => {
+      setTypingUsers((prev) => {
+        const newMap = new Map(prev);
+        const conversationTypingUsers =
+          newMap.get(data.conversationId) || new Set<string>();
+        conversationTypingUsers.add(data.userId);
+        newMap.set(data.conversationId, conversationTypingUsers);
+
+        // Auto remove after 3 seconds of inactivity
+        setTimeout(() => {
+          setTypingUsers((current) => {
+            const updated = new Map(current);
+            const users = updated.get(data.conversationId);
+            if (users) {
+              users.delete(data.userId);
+              if (users.size === 0) {
+                updated.delete(data.conversationId);
+              } else {
+                updated.set(data.conversationId, users);
+              }
+            }
+            return updated;
+          });
+        }, 3000);
+
+        return newMap;
+      });
+    };
+
+    const handleUserStoppedTyping = (data: {
+      userId: string;
+      conversationId: string;
+    }) => {
+      setTypingUsers((prev) => {
+        const newMap = new Map(prev);
+        const conversationTypingUsers =
+          newMap.get(data.conversationId);
+        if (conversationTypingUsers) {
+          conversationTypingUsers.delete(data.userId);
+          if (conversationTypingUsers.size === 0) {
+            newMap.delete(data.conversationId);
+          } else {
+            newMap.set(data.conversationId, conversationTypingUsers);
+          }
+        }
+        return newMap;
+      });
+    };
+
     nextSocket.on("newMessage", handleNewMessage);
     nextSocket.on("newMessage", handleNewMessage);
     nextSocket.on("messageRevoked", handleMessageRevoked);
     nextSocket.on("userStatusChanged", handleUserStatusChanged);
+    nextSocket.on("userTyping", handleUserTyping);
+    nextSocket.on("userStoppedTyping", handleUserStoppedTyping);
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
       nextSocket.off("newMessage", handleNewMessage);
       nextSocket.off("messageRevoked", handleMessageRevoked);
       nextSocket.off("userStatusChanged", handleUserStatusChanged);
+      nextSocket.off("userTyping", handleUserTyping);
+      nextSocket.off("userStoppedTyping", handleUserStoppedTyping);
       nextSocket.disconnect();
       socketRef.current = null;
       setSocket(null);
@@ -547,9 +623,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const activeConversation = conversations.find(
       (c) => c.id === activeConversationId,
     );
-    const isPrivate = activeConversation?.type === "private";
 
-    if (!activeConversationId || !isPrivate) {
+    if (!activeConversationId || !activeConversation) {
       setCallHistory([]);
       setCallHistoryPage(1);
       setCallHistoryTotalPages(1);
@@ -601,7 +676,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const activeConversation = conversations.find(
       (c) => c.id === activeConversationId,
     );
-    if (!activeConversation || activeConversation.type !== "private") {
+    if (!activeConversation) {
       return;
     }
 
@@ -762,36 +837,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         ) || null
       : null;
 
-  const isCallablePrivateConversation =
+  const isCallableConversation =
     activeConversation !== null && !activeConversation.id.startsWith("draft_");
 
-  const canStartVideoCall =
-    Boolean(activePrivatePeer) &&
-    isCallablePrivateConversation &&
-    callStatus === "idle";
+  const canStartVideoCall = isCallableConversation && callStatus === "idle";
 
   const handleStartVideoCall = useCallback(async () => {
-    if (!activeConversation || activeConversation.type !== "private") {
+    if (!activeConversation || activeConversation.id.startsWith("draft_")) {
       return;
     }
 
-    if (activeConversation.id.startsWith("draft_")) {
-      return;
-    }
-
-    const targetPeer = activeConversation.participants.find(
-      (participant) => participant.id !== currentUserId,
-    );
-
-    if (!targetPeer) {
-      return;
-    }
-
-    await startVideoCall({
-      toUserId: targetPeer.id,
-      conversationId: activeConversation.id,
-    });
-  }, [activeConversation, currentUserId, startVideoCall]);
+    await startGroupCall(activeConversation.id);
+  }, [activeConversation, startGroupCall]);
 
   const incomingCaller = React.useMemo(() => {
     if (!incomingCall) {
@@ -874,6 +931,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onStartVideoCall={handleStartVideoCall}
         localStream={localStream}
         remoteStream={remoteStream}
+        remoteStreams={remoteStreams}
         callStatus={callStatus}
         incomingCall={incomingCall}
         incomingCaller={incomingCaller}
@@ -884,17 +942,20 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         callHistoryTotalPages={callHistoryTotalPages}
         isMicrophoneEnabled={isMicrophoneEnabled}
         isCameraEnabled={isCameraEnabled}
+        isScreenSharing={isScreenSharing}
         callError={callError}
         onClearCallError={clearCallError}
         onRetryMediaPermission={retryMediaPermission}
         onAcceptIncomingCall={acceptIncomingCall}
         onDeclineIncomingCall={declineIncomingCall}
-        onEndVideoCall={endVideoCall}
+        onEndVideoCall={endCall}
         onToggleMicrophone={toggleMicrophone}
         onToggleCamera={toggleCamera}
+        onToggleScreenShare={toggleScreenShare}
         onForwardMessage={setForwardMessageTarget}
         onOpenProfile={setProfileTarget}
         onOpenGroupManage={() => void handleOpenGroupManage()}
+        typingUsers={activeConversationId ? typingUsers.get(activeConversationId) || new Set() : new Set()}
         onConversationInfoRefreshTick={groupInfoRefreshTick}
       />
       {forwardMessageTarget && (

@@ -1,67 +1,77 @@
 package fit.iuh.modules.quiz.controllers;
 
+import fit.iuh.common.utils.AuthUtil;
 import fit.iuh.modules.quiz.dtos.*;
 import fit.iuh.modules.quiz.models.Assignment;
 import fit.iuh.modules.quiz.models.Submission;
 import fit.iuh.modules.quiz.services.QuizService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/assignments")
+@RequestMapping("/api/v1/quiz")
 public class QuizController {
 
     @Autowired
     private QuizService quizService;
 
     /**
-     * GET /assignments/team/{teamId}
+     * GET /api/v1/quiz/team/{teamId}
      * Lấy danh sách bài kiểm tra theo lớp học (teamId)
      */
+    @PreAuthorize("hasRole('STUDENT')")
     @GetMapping("/team/{teamId}")
     public ResponseEntity<List<AssignmentSummaryDto>> getAssignmentsByTeam(@PathVariable Long teamId) {
         return ResponseEntity.ok(quizService.getAssignmentsByTeam(teamId));
     }
 
     /**
-     * GET /assignments/{assignmentId}
+     * GET /api/v1/quiz/{assignmentId}
      * Lấy chi tiết bài kiểm tra kèm câu hỏi (KHÔNG tiết lộ đáp án đúng)
      */
+    @PreAuthorize("hasRole('STUDENT')")
     @GetMapping("/{assignmentId}")
     public ResponseEntity<AssignmentDetailDto> getAssignmentDetail(@PathVariable Long assignmentId) {
         return ResponseEntity.ok(quizService.getAssignmentDetail(assignmentId));
     }
 
     /**
-     * POST /assignments/{assignmentId}/start
+     * POST /api/v1/quiz/{assignmentId}/start
      * Bắt đầu làm bài - trả về submission (tạo mới hoặc resume nếu đã có)
      */
+    @PreAuthorize("hasRole('STUDENT')")
     @PostMapping("/{assignmentId}/start")
     public ResponseEntity<Submission> startSubmission(
             @PathVariable Long assignmentId,
-            @RequestHeader("X-User-Id") Long studentId) {
+            Authentication authentication) {
+        Long studentId = AuthUtil.extractUserId(authentication);
         return ResponseEntity.ok(quizService.startSubmission(assignmentId, studentId));
     }
 
     /**
-     * GET /assignments/{assignmentId}/my-submission
+     * GET /api/v1/quiz/{assignmentId}/my-submission
      * Kiểm tra học viên đã có submission chưa (để biết là resume hay bắt đầu mới)
      */
+    @PreAuthorize("hasRole('STUDENT')")
     @GetMapping("/{assignmentId}/my-submission")
     public ResponseEntity<Optional<Submission>> getMySubmission(
             @PathVariable Long assignmentId,
-            @RequestHeader("X-User-Id") Long studentId) {
+            Authentication authentication) {
+        Long studentId = AuthUtil.extractUserId(authentication);
         return ResponseEntity.ok(quizService.getMySubmission(assignmentId, studentId));
     }
 
     /**
-     * POST /assignments/submission/{submissionId}/answer
+     * POST /api/v1/quiz/submission/{submissionId}/answer
      * Auto-save đáp án khi học viên chọn
      */
+    @PreAuthorize("hasRole('STUDENT')")
     @PostMapping("/submission/{submissionId}/answer")
     public ResponseEntity<Void> saveAnswer(
             @PathVariable Long submissionId,
@@ -71,9 +81,10 @@ public class QuizController {
     }
 
     /**
-     * POST /assignments/submission/{submissionId}/submit
+     * POST /api/v1/quiz/submission/{submissionId}/submit
      * Nộp bài và chấm điểm
      */
+    @PreAuthorize("hasRole('STUDENT')")
     @PostMapping("/submission/{submissionId}/submit")
     public ResponseEntity<SubmissionResultDto> submitAndGrade(@PathVariable Long submissionId) {
         return ResponseEntity.ok(quizService.submitAndGrade(submissionId));

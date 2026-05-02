@@ -42,121 +42,119 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:8000}")
-    private String allowedOrigins;
+        @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:8000}")
+        private String allowedOrigins;
 
-    private final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        private final ObjectMapper objectMapper = new ObjectMapper()
+                        .registerModule(new JavaTimeModule())
+                        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
-    private final CustomUserDetailsService customUserDetailsService;
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final CustomUserDetailsService customUserDetailsService;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(customUserDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
-        return provider;
-    }
+        @Bean
+        public AuthenticationProvider authenticationProvider() {
+                DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+                provider.setUserDetailsService(customUserDetailsService);
+                provider.setPasswordEncoder(passwordEncoder());
+                return provider;
+        }
 
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
-    }
+        @Bean
+        public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+                return config.getAuthenticationManager();
+        }
 
-    @Bean
-    public AuthenticationEntryPoint authenticationEntryPoint() {
-        return (request, response, authException) ->
-                writeErrorResponse(request, response, HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để truy cập tài nguyên này.");
-    }
+        @Bean
+        public AuthenticationEntryPoint authenticationEntryPoint() {
+                return (request, response, authException) -> writeErrorResponse(request, response,
+                                HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để truy cập tài nguyên này.");
+        }
 
-    @Bean
-    public AccessDeniedHandler accessDeniedHandler() {
-        return (request, response, accessDeniedException) ->
-                writeErrorResponse(request, response, HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập tài nguyên này.");
-    }
+        @Bean
+        public AccessDeniedHandler accessDeniedHandler() {
+                return (request, response, accessDeniedException) -> writeErrorResponse(request, response,
+                                HttpStatus.FORBIDDEN, "Bạn không có quyền truy cập tài nguyên này.");
+        }
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .collect(Collectors.toList()));
-        configuration.setAllowedMethods(List.of(
-                HttpMethod.GET.name(),
-                HttpMethod.POST.name(),
-                HttpMethod.PUT.name(),
-                HttpMethod.DELETE.name(),
-                HttpMethod.PATCH.name(),
-                HttpMethod.OPTIONS.name()
-        ));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Set-Cookie"));
-        configuration.setAllowCredentials(true);
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
+                configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                                .map(String::trim)
+                                .filter(value -> !value.isBlank())
+                                .collect(Collectors.toList()));
+                configuration.setAllowedMethods(List.of(
+                                HttpMethod.GET.name(),
+                                HttpMethod.POST.name(),
+                                HttpMethod.PUT.name(),
+                                HttpMethod.DELETE.name(),
+                                HttpMethod.PATCH.name(),
+                                HttpMethod.OPTIONS.name()));
+                configuration.setAllowedHeaders(List.of("*"));
+                configuration.setExposedHeaders(List.of("Set-Cookie"));
+                configuration.setAllowCredentials(true);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
-    }
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
+        }
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider())
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(authenticationEntryPoint())
-                        .accessDeniedHandler(accessDeniedHandler())
-                )
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/core/auth/**", "/auth/**").permitAll()
-                        .requestMatchers("/auth/register").permitAll()
-                        .requestMatchers("/auth/login").permitAll()
-                        .requestMatchers("/auth/refresh").permitAll()
-                        .requestMatchers("/auth/logout").permitAll()
-                        .requestMatchers("/auth/validate").permitAll()
-                        .requestMatchers("/auth/forgot-password").permitAll()
-                        .requestMatchers("/auth/verify-otp").permitAll()
-                        .requestMatchers("/auth/reset-password").permitAll()
-                        .requestMatchers("/api/schools/**").permitAll()
-                        .requestMatchers("/schools/**").permitAll()
-                        .requestMatchers("/posts/**").permitAll()
-                        .requestMatchers("/attachments/**").permitAll()
-                        .requestMatchers("/interact/**").permitAll()
-                        .anyRequest().authenticated()
-                );
+        @Bean
+        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+                http
+                                .csrf(csrf -> csrf.disable())
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                .authenticationProvider(authenticationProvider())
+                                .exceptionHandling(ex -> ex
+                                                .authenticationEntryPoint(authenticationEntryPoint())
+                                                .accessDeniedHandler(accessDeniedHandler()))
+                                .authorizeHttpRequests(auth -> auth
+                                                .requestMatchers("/api/core/auth/**", "/auth/**").permitAll()
+                                                .requestMatchers("/auth/register").permitAll()
+                                                .requestMatchers("/auth/login").permitAll()
+                                                .requestMatchers("/auth/refresh").permitAll()
+                                                .requestMatchers("/auth/logout").permitAll()
+                                                .requestMatchers("/auth/validate").permitAll()
+                                                .requestMatchers("/auth/forgot-password").permitAll()
+                                                .requestMatchers("/auth/verify-otp").permitAll()
+                                                .requestMatchers("/auth/reset-password").permitAll()
+                                                .requestMatchers("/api/schools/**").permitAll()
+                                                .requestMatchers("/schools/**").permitAll()
+                                                .requestMatchers("/posts/**").permitAll()
+                                                .requestMatchers("/attachments/**").permitAll()
+                                                .requestMatchers("/interact/**").permitAll()
+                                                .anyRequest().authenticated());
 
-        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        return http.build();
-    }
+                http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                return http.build();
+        }
 
-    private void writeErrorResponse(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            HttpStatus status,
-            String message
-    ) throws java.io.IOException {
-        response.setStatus(status.value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
+        private void writeErrorResponse(
+                        HttpServletRequest request,
+                        HttpServletResponse response,
+                        HttpStatus status,
+                        String message) throws java.io.IOException {
+                response.setStatus(status.value());
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.setCharacterEncoding("UTF-8");
 
-        ApiErrorResponse body = ApiErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(status.value())
-                .error(status.getReasonPhrase())
-                .message(message)
-                .path(request.getRequestURI())
-                .fieldErrors(null)
-                .build();
+                ApiErrorResponse body = ApiErrorResponse.builder()
+                                .timestamp(LocalDateTime.now())
+                                .status(status.value())
+                                .error(status.getReasonPhrase())
+                                .message(message)
+                                .path(request.getRequestURI())
+                                .fieldErrors(null)
+                                .build();
 
-        response.getWriter().write(objectMapper.writeValueAsString(body));
-    }
+                response.getWriter().write(objectMapper.writeValueAsString(body));
+        }
 }
