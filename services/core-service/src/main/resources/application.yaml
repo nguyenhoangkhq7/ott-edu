@@ -11,8 +11,9 @@ spring:
     password: ${MYSQL_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  mongodb:
-    uri: ${MONGO_URI:mongodb://mongo-db:27017/chat_history_db?authSource=admin}
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://mongo-db:27017/chat_history_db?authSource=admin}
 
   flyway:
     enabled: true
