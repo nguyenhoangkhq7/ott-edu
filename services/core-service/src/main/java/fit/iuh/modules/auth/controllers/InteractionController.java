@@ -44,8 +44,12 @@ public class InteractionController {
     }
 
     @GetMapping("/comments/post/{postId}")
-    public ResponseEntity<List<Comment>> getComments(@PathVariable String postId) {
-        return ResponseEntity.ok(commentService.getCommentsByPost(postId));
+    public ResponseEntity<List<Comment>> getComments(
+            @PathVariable String postId,
+            Authentication authentication // Thêm dòng này để lấy user hiện tại
+    ) {
+        String currentUserEmail = authentication != null ? authentication.getName() : null;
+        return ResponseEntity.ok(commentService.getCommentsByPost(postId, currentUserEmail));
     }
 
     @DeleteMapping("/comments/{commentId}")
