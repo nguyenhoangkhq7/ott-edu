@@ -1122,151 +1122,127 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
       </div>
 
-      {renderVideoCallPanel()}
+      <div className="flex flex-1 overflow-hidden flex-row">
+        {/* Left column: Chat content */}
+        <div className="flex flex-1 flex-col overflow-hidden relative">
+          {renderVideoCallPanel()}
 
-      <div className="flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white p-4">
-        {isLoadingMessages ? (
-          <div className="flex h-full items-center justify-center gap-2 text-slate-400">
-            <RefreshCw size={16} className="animate-spin" />
-            <span className="text-sm">Đang tải tin nhắn...</span>
+          <div className="flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white p-4">
+            {isLoadingMessages ? (
+              <div className="flex h-full items-center justify-center gap-2 text-slate-400">
+                <RefreshCw size={16} className="animate-spin" />
+                <span className="text-sm">Đang tải tin nhắn...</span>
+              </div>
+            ) : timelineMessages.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                Hãy là người đầu tiên gửi tin nhắn! 👋
+              </div>
+            ) : (
+              timelineMessages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  isOwnMessage={msg.senderId === currentUser?.id}
+                  currentUserId={currentUser?.id}
+                  sender={getSender(msg.senderId)}
+                  onReply={setReplyingTo}
+                  onReact={handleReact}
+                  onRevokeForAll={handleRevokeForAll}
+                  onRevokeForMe={handleRevokeForMe}
+                  onForward={onForwardMessage}
+                  onOpenProfile={onOpenProfile}
+                />
+              ))
+            )}
+            <div ref={messagesEndRef} />
           </div>
-        ) : timelineMessages.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-sm text-slate-400">
-            Hãy là người đầu tiên gửi tin nhắn! 👋
-          </div>
-        ) : (
-          timelineMessages.map((msg) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isOwnMessage={msg.senderId === currentUser?.id}
-              sender={getSender(msg.senderId)}
-              onReply={setReplyingTo}
-              onReact={handleReact}
-              onRevoke={handleRevoke}
-            />
-          ))
-        )}
 
-        <div className="flex-1 overflow-y-auto bg-linear-to-b from-slate-50 to-white p-4">
-          {isLoadingMessages ? (
-            <div className="flex h-full items-center justify-center gap-2 text-slate-400">
-              <RefreshCw size={16} className="animate-spin" />
-              <span className="text-sm">Đang tải tin nhắn...</span>
+          {/* ==================== TYPING INDICATOR ==================== */}
+          {typingUsers && typingUsers.size > 0 && (
+            <div
+              className="px-4 py-2 text-xs font-medium flex items-center gap-1 bg-white/80 backdrop-blur-sm border-t border-slate-100"
+              style={{ color: "#072D84" }}
+            >
+              <span>
+                {Array.from(typingUsers)
+                  .map((userId) => {
+                    const typingUser = conversation?.participants?.find(
+                      (p) => p.id === userId,
+                    );
+                    return typingUser?.name || userId;
+                  })
+                  .join(", ")}
+              </span>
+
+              <span>đang soạn tin nhắn</span>
+
+              <span className="flex items-end ml-1" style={{ gap: "3px" }}>
+                {[0, 0.15, 0.3].map((delay, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: "4px",
+                      height: "4px",
+                      backgroundColor: "#7C3AED",
+                      borderRadius: "9999px",
+                      display: "inline-block",
+                      animation: `wave 1.2s ease-in-out infinite`,
+                      animationDelay: `${delay}s`,
+                    }}
+                  />
+                ))}
+              </span>
+
+              {/* Inject keyframes */}
+              <style>
+                {`
+                @keyframes wave {
+                  0%, 60%, 100% {
+                    transform: translateY(0);
+                    opacity: 0.6;
+                  }
+                  30% {
+                    transform: translateY(-5px);
+                    opacity: 1;
+                  }
+                }
+              `}
+              </style>
             </div>
-          ) : localMessages.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-slate-400">
-              Hãy là người đầu tiên gửi tin nhắn! 👋
-            </div>
-          ) : (
-            localMessages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                isOwnMessage={msg.senderId === currentUser?.id}
-                currentUserId={currentUser?.id}
-                sender={getSender(msg.senderId)}
-                onReply={setReplyingTo}
-                onReact={handleReact}
-                onRevokeForAll={handleRevokeForAll}
-                onRevokeForMe={handleRevokeForMe}
-                onForward={onForwardMessage}
-                onOpenProfile={onOpenProfile}
-              />
-            ))
           )}
-          <div ref={messagesEndRef} />
+
+          {/* ==================== MESSAGE INPUT ==================== */}
+          <MessageInput
+            onSendMessage={handleSendMessage}
+            isSending={isSending}
+            replyingTo={replyingTo}
+            onCancelReply={() => setReplyingTo(null)}
+            socket={socket}
+            conversationId={conversation?.id}
+          />
         </div>
 
-        {/* ==================== TYPING INDICATOR ==================== */}
-        {typingUsers && typingUsers.size > 0 && (
-          <div className="px-4 py-2 text-xs font-medium flex items-center gap-1"
-            style={{ color: "#072D84" }}>
-
-          <span>
-            {Array.from(typingUsers)
-              .map((userId) => {
-                const typingUser = conversation?.participants?.find(
-                  (p) => p.id === userId
-                );
-                return typingUser?.name || userId;
-              })
-              .join(", ")}
-          </span>
-
-          <span>đang soạn tin nhắn</span>
-
-          <span className="flex items-end ml-1" style={{ gap: "3px" }}>
-            {[0, 0.15, 0.3].map((delay, i) => (
-              <span
-                key={i}
-                style={{
-                  width: "4px",
-                  height: "4px",
-                  backgroundColor: "#7C3AED",
-                  borderRadius: "9999px",
-                  display: "inline-block",
-                  animation: `wave 1.2s ease-in-out infinite`,
-                  animationDelay: `${delay}s`,
-                }}
-              />
-            ))}
-          </span>
-
-          {/* Inject keyframes */}
-          <style>
-            {`
-              @keyframes wave {
-                0%, 60%, 100% {
-                  transform: translateY(0);
-                  opacity: 0.6;
-                }
-                30% {
-                  transform: translateY(-5px);
-                  opacity: 1;
-                }
-              }
-            `}
-          </style>
-        </div>
+        {/* Right column: Info Sidebar */}
+        {isInfoSidebarOpen && (
+          <div className="w-80 shrink-0 border-l border-slate-200 overflow-y-auto bg-white">
+            <ConversationInfoSidebar
+              conversationId={conversation.id}
+              isOpen={isInfoSidebarOpen}
+              onClose={() => setIsInfoSidebarOpen(false)}
+              onOpenGroupManage={onOpenGroupManage}
+              conversationType={conversation.type}
+              refreshSignal={onConversationInfoRefreshTick}
+            />
+          </div>
         )}
-
-        {/* ==================== MESSAGE INPUT ==================== */}
-        <MessageInput
-          onSendMessage={handleSendMessage}
-          isSending={isSending}
-          replyingTo={replyingTo}
-          onCancelReply={() => setReplyingTo(null)}
-          socket={socket}
-          conversationId={conversation?.id}
-        />
-
-        <AddMemberModal
-          isOpen={isAddMemberOpen}
-          onClose={() => setIsAddMemberOpen(false)}
-          onAddMember={handleAddMember}
-          existingMemberIds={conversation.participants.map((p) => p.id)}
-        />
       </div>
 
-      <MessageInput
-        onSendMessage={handleSendMessage}
-        isSending={isSending}
-        replyingTo={replyingTo}
-        onCancelReply={() => setReplyingTo(null)}
+      <AddMemberModal
+        isOpen={isAddMemberOpen}
+        onClose={() => setIsAddMemberOpen(false)}
+        onAddMember={handleAddMember}
+        existingMemberIds={conversation.participants.map((p) => p.id)}
       />
-      {/* ==================== INFO SIDEBAR ==================== */}
-
-      {isInfoSidebarOpen && (
-        <ConversationInfoSidebar
-          conversationId={conversation.id}
-          isOpen={isInfoSidebarOpen}
-          onClose={() => setIsInfoSidebarOpen(false)}
-          onOpenGroupManage={onOpenGroupManage}
-          conversationType={conversation.type}
-          refreshSignal={onConversationInfoRefreshTick}
-        />
-      )}
     </div>
   );
 };

@@ -48,7 +48,7 @@ public class Assignment {
     @Column(nullable = false)
     private AssignmentType type;
 
-    @Column(name = "creator_id")
+    @Column(name = "creator_id", nullable = false)
     private Long creatorId;
 
     // teamIds: List<Long> - per class diagram (an assignment can be for multiple teams)
