@@ -200,8 +200,8 @@ export default function TeamDetailPage() {
             {activeTab === 'posts' && <TeamPostsTab teamId={teamId} />}
             {activeTab === 'files' && <TeamFilesTab teamId={teamId} />}
             {activeTab === 'members' && <TeamMembersTab teamId={teamId} teamName={team?.name} />}
-            {activeTab === 'assignments' && <div className="w-full"><AssignmentsTab teamId={teamId} /></div>}
-            {activeTab === 'online-quizzes' && <div className="w-full"><AssignmentsTab teamId={teamId} /></div>}
+            {activeTab === 'assignments' && <div className="w-full"><AssignmentsTab teamId={teamId} filterType="ESSAY" /></div>}
+            {activeTab === 'online-quizzes' && <div className="w-full"><AssignmentsTab teamId={teamId} filterType="QUIZ" /></div>}
 
           </div>
         </div>

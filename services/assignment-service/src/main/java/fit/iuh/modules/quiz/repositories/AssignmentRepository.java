@@ -23,8 +23,9 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
     /**
      * Find all assignments assigned to a specific team (with pagination).
      * Used by STUDENT to view their team's assignments.
+     * Excludes archived assignments.
      */
-    @Query("SELECT DISTINCT a FROM Assignment a JOIN a.teamIds t WHERE t = :teamId")
+    @Query("SELECT DISTINCT a FROM Assignment a JOIN a.teamIds t WHERE t = :teamId AND a.archivedAt IS NULL")
     Page<Assignment> findByTeamId(@Param("teamId") Long teamId, Pageable pageable);
 
     /**

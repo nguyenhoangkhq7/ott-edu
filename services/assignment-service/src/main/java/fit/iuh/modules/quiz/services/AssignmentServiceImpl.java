@@ -98,7 +98,8 @@ public class AssignmentServiceImpl implements AssignmentService {
         Assignment assignment = assignmentRepository.findByIdAndCreatorId(assignmentId, creatorId)
                 .orElseThrow(() -> {
                     Assignment existing = assignmentRepository.findById(assignmentId).orElse(null);
-                    if (existing != null && !existing.getCreatorId().equals(creatorId)) {
+                    if (existing != null
+                            && (existing.getCreatorId() == null || !existing.getCreatorId().equals(creatorId))) {
                         return AccessDeniedException.notAssignmentCreator(creatorId, assignmentId);
                     }
                     return ResourceNotFoundException.assignmentNotFound(assignmentId);
@@ -132,7 +133,8 @@ public class AssignmentServiceImpl implements AssignmentService {
         Assignment assignment = assignmentRepository.findByIdAndCreatorId(assignmentId, creatorId)
                 .orElseThrow(() -> {
                     Assignment existing = assignmentRepository.findById(assignmentId).orElse(null);
-                    if (existing != null && !existing.getCreatorId().equals(creatorId)) {
+                    if (existing != null
+                            && (existing.getCreatorId() == null || !existing.getCreatorId().equals(creatorId))) {
                         return AccessDeniedException.notAssignmentCreator(creatorId, assignmentId);
                     }
                     return ResourceNotFoundException.assignmentNotFound(assignmentId);

@@ -10,7 +10,13 @@ import AssignmentDetail from './AssignmentDetail';
 
 type Tab = 'upcoming' | 'pastdue';
 
-export default function AssignmentsTab({ teamId }: { teamId?: number }) {
+export default function AssignmentsTab({ 
+  teamId, 
+  filterType 
+}: { 
+  teamId?: number;
+  filterType?: 'ESSAY' | 'QUIZ';
+}) {
   const params = useParams();
   const { user } = useAuth();
 
@@ -50,22 +56,34 @@ export default function AssignmentsTab({ teamId }: { teamId?: number }) {
     }
   };
 
-  // Filter assignments by tab
+  // Filter assignments by tab and type
   const getFilteredAssignments = () => {
     const now = new Date();
 
+    let filtered = assignments;
+
+    // Filter by type if specified
+    if (filterType) {
+      filtered = filtered.filter((a) => a.type === filterType);
+    }
+
+    // Filter by due date
     if (activeTab === 'upcoming') {
-      return assignments.filter((a) => new Date(a.dueDate) > now);
+      return filtered.filter((a) => new Date(a.dueDate) > now);
     } else {
-      return assignments.filter((a) => new Date(a.dueDate) <= now);
+      return filtered.filter((a) => new Date(a.dueDate) <= now);
     }
   };
 
   const filteredAssignments = getFilteredAssignments();
 
   const tabCount = {
-    upcoming: assignments.filter((a) => new Date(a.dueDate) > new Date()).length,
-    pastdue: assignments.filter((a) => new Date(a.dueDate) <= new Date()).length,
+    upcoming: assignments
+      .filter((a) => !filterType || a.type === filterType)
+      .filter((a) => new Date(a.dueDate) > new Date()).length,
+    pastdue: assignments
+      .filter((a) => !filterType || a.type === filterType)
+      .filter((a) => new Date(a.dueDate) <= new Date()).length,
   };
 
   return (
@@ -283,7 +301,7 @@ function EmptyState({ activeTab, isTeacher, onCreateClick }: EmptyStateProps) {
           ? 'Hiện tại bạn không có bài tập nào sắp đến hạn. Quay lại sau để xem các bài tập mới.'
           : 'Không có bài tập nào đã qua hạn hoặc đã hoàn thành.'}
       </p>
-      {isTeacher && (
+      {/* {isTeacher && (
         <button
           onClick={onCreateClick}
           className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -293,7 +311,7 @@ function EmptyState({ activeTab, isTeacher, onCreateClick }: EmptyStateProps) {
           </svg>
           Tạo bài tập đầu tiên
         </button>
-      )}
+      )} */}
     </div>
   );
 }
@@ -363,6 +381,7 @@ function AssignmentDetailModal({
           <AssignmentDetail
             assignmentId={assignmentId}
             onClose={onClose}
+            onRefresh={onSuccess}
           />
         </div>
       </div>

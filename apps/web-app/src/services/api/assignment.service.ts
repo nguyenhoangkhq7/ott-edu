@@ -64,10 +64,20 @@ export const assignmentApi = {
   },
 
   /**
-   * Archive an assignment (TEACHER only)
+   * Delete/Archive an assignment (TEACHER only)
    */
-  archive: async (assignmentId: number): Promise<void> => {
-    await axiosV1.patch(`/api/v1/assignments/${assignmentId}/archive`);
+  delete: async (assignmentId: number): Promise<void> => {
+    try {
+      // Try PATCH first (more common for archive operations)
+      await axiosV1.patch(`/api/v1/assignments/${assignmentId}/archive`);
+    } catch (error: any) {
+      // If PATCH fails, try DELETE
+      if (error.response?.status === 405 || error.response?.status === 404) {
+        await axiosV1.delete(`/api/v1/assignments/${assignmentId}/archive`);
+      } else {
+        throw error;
+      }
+    }
   },
 };
 
@@ -96,12 +106,43 @@ export const submissionApi = {
   },
 
   /**
-   * Submit an assignment
+   * Submit an assignment (essay or quiz)
    */
   submit: async (assignmentId: number, data: any): Promise<any> => {
     const response = await axiosV1.post(
-      `/api/v1/submissions/submit/${assignmentId}`,
+      `/api/v1/submissions/assignment/${assignmentId}/submit`,
       data
+    );
+    return response.data;
+  },
+
+  /**
+   * Get pending submissions for teacher grading
+   */
+  getPendingSubmissions: async (assignmentId: number): Promise<any[]> => {
+    const response = await axiosV1.get(
+      `/api/v1/submissions/assignment/${assignmentId}/pending`
+    );
+    return response.data;
+  },
+
+  /**
+   * Grade a submission (TEACHER only)
+   */
+  gradeSubmission: async (submissionId: number, data: { score: number; feedback: string }): Promise<any> => {
+    const response = await axiosV1.post(
+      `/api/v1/submissions/${submissionId}/grade`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Get grade and feedback for a submission (STUDENT view)
+   */
+  getGrade: async (submissionId: number): Promise<any> => {
+    const response = await axiosV1.get(
+      `/api/v1/submissions/${submissionId}/grade`
     );
     return response.data;
   },

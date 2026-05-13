@@ -1,20 +1,27 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/shared/providers/AuthProvider';
 import { assignmentApi, submissionApi } from '@/services/api/assignment.service';
 import { AttemptHistory, AttemptStatus } from '@/shared/types/assignment';
 import { AssignmentDetail as AssignmentDetailType, AssignmentType } from '@/shared/types/quiz';
+import ConfirmDeleteModal from './modals/ConfirmDeleteModal';
+import GradingModal from './modals/GradingModal';
+import EssaySubmissionZone from './components/EssaySubmissionZone';
 
 interface AssignmentDetailProps {
   assignmentId: number;
   onClose?: () => void;
+  onRefresh?: () => void;
 }
 
 export default function AssignmentDetail({
   assignmentId,
   onClose,
+  onRefresh,
 }: AssignmentDetailProps) {
+  const router = useRouter();
   const { user } = useAuth();
   const isTeacher = user?.roles?.includes('ROLE_TEACHER') ?? false;
   const [assignment, setAssignment] = useState<AssignmentDetailType | null>(null);
@@ -24,11 +31,18 @@ export default function AssignmentDetail({
   // STUDENT-specific state
   const [attemptHistory, setAttemptHistory] = useState<AttemptHistory[]>([]);
   const [attemptStatus, setAttemptStatus] = useState<AttemptStatus | null>(null);
-  const [showStartQuizModal, setShowStartQuizModal] = useState(false);
+  
+  // Feature 1: Delete modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
+  // Feature 3 & 4: Submission and grading
+  const [showGradingModal, setShowGradingModal] = useState(false);
+  const [studentGrade, setStudentGrade] = useState<any | null>(null);
+  const [refreshSubmission, setRefreshSubmission] = useState(false);
 
   useEffect(() => {
     loadAssignmentDetail();
-  }, [assignmentId]);
+  }, [assignmentId, refreshSubmission]);
 
   const loadAssignmentDetail = async () => {
     try {
@@ -46,6 +60,17 @@ export default function AssignmentDetail({
         ]);
         setAttemptHistory(history);
         setAttemptStatus(status);
+      }
+
+      // If STUDENT and ESSAY, try to load existing grade
+      if (!isTeacher && detail.type === AssignmentType.ESSAY) {
+        try {
+          // Try to fetch student's grade if they have a submission
+          // This assumes there's a way to get the student's last submission ID
+          // For now, we'll rely on the component to fetch it on demand
+        } catch (err) {
+          // No grade yet
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load assignment');
@@ -109,16 +134,40 @@ export default function AssignmentDetail({
               )}
             </div>
           </div>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {isTeacher && assignment.type === AssignmentType.ESSAY && (
+              <button
+                onClick={() => setShowGradingModal(true)}
+                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Chấm bài"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+            )}
+            {isTeacher && (
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                title="Xóa bài tập"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Instructions */}
@@ -200,7 +249,7 @@ export default function AssignmentDetail({
               {/* Start Quiz Button */}
               {attemptStatus?.canAttempt && (
                 <button
-                  onClick={() => setShowStartQuizModal(true)}
+                  onClick={() => router.push(`/assignments/${assignmentId}/quiz`)}
                   disabled={isDueDate}
                   className={`w-full py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 mb-6 ${
                     isDueDate
@@ -266,23 +315,56 @@ export default function AssignmentDetail({
           {assignment.type === AssignmentType.ESSAY && (
             <div className="bg-white rounded-lg border border-slate-200 p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Nộp bài</h3>
-              <button
-                disabled={isDueDate}
-                className={`w-full py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
-                  isDueDate
-                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                {isDueDate ? 'Quá hạn nộp' : 'Nộp bài luận'}
-              </button>
+              <EssaySubmissionZone
+                assignmentId={assignmentId}
+                isDueDate={isDueDate}
+                onSubmitSuccess={() => {
+                  setRefreshSubmission((prev) => !prev);
+                }}
+              />
+
+              {/* Display Grade and Feedback */}
+              {studentGrade && (
+                <div className="mt-6 pt-6 border-t border-slate-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-slate-900">Kết quả chấm</h4>
+                    <span className="text-3xl font-bold text-blue-600">{studentGrade.score}/{assignment.maxScore}</span>
+                  </div>
+                  
+                  {studentGrade.feedback && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h5 className="text-sm font-semibold text-blue-900 mb-2">Nhận xét từ giáo viên:</h5>
+                      <p className="text-sm text-blue-700 whitespace-pre-wrap">{studentGrade.feedback}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
       )}
+
+      {/* Modals */}
+      <ConfirmDeleteModal
+        isOpen={showDeleteModal}
+        assignmentTitle={assignment?.title || ''}
+        assignmentId={assignmentId}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={() => {
+          if (onRefresh) onRefresh();
+          if (onClose) onClose();
+        }}
+      />
+
+      <GradingModal
+        isOpen={showGradingModal}
+        assignmentId={assignmentId}
+        maxScore={assignment?.maxScore || 0}
+        onClose={() => setShowGradingModal(false)}
+        onGradeSuccess={() => {
+          if (onRefresh) onRefresh();
+        }}
+      />
     </div>
   );
 }
