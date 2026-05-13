@@ -972,32 +972,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-2 text-slate-400">
-          <button
-            type="button"
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
-          >
-            <Phone size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={onStartVideoCall}
-            disabled={!canStartVideoCall}
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-            title={
-              canStartVideoCall
-                ? "Goi video"
-                : "Chi ho tro goi trong doan chat da tao"
-            }
-          >
-            <Video size={20} />
-          </button>
-          <button
-            type="button"
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
-          >
-            <Info size={20} />
-          </button>
-
           {/* Action Buttons */}
           <div className="flex items-center gap-2 text-slate-400">
             {/* 👇 1. NÚT KẾT BẠN (CHỈ HIỆN Ở CHAT 1-1) 👇 */}

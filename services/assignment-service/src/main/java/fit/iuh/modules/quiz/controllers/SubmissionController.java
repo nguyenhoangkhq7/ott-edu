@@ -272,4 +272,60 @@ public class SubmissionController {
                 response.put("submittedAt", java.time.LocalDateTime.now());
                 return new ResponseEntity<>(response, HttpStatus.OK);
         }
+
+        // ============== NEW: Attempt History & Quiz Limits ==============
+
+        /**
+         * GET /api/v1/submissions/attempt-history/{assignmentId}
+         * Get attempt history for the current student on a specific assignment (STUDENT
+         * only)
+         */
+        @PreAuthorize("hasRole('STUDENT')")
+        @GetMapping("/attempt-history/{assignmentId}")
+        @Operation(summary = "Get attempt history for an assignment", description = "Retrieve all attempts by the current student on a specific assignment, including scores, dates, and feedback. "
+                        +
+                        "Students can only view their own attempt history.")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "200", description = "Attempt history retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = java.util.List.class))),
+                        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                        @ApiResponse(responseCode = "404", description = "Assignment not found")
+        })
+        public ResponseEntity<java.util.List<AttemptHistoryDto>> getAttemptHistory(
+                        @Parameter(description = "Assignment ID") @PathVariable Long assignmentId,
+                        Authentication authentication) {
+
+                Long studentAccountId = AuthUtil.extractUserId(authentication);
+                java.util.List<AttemptHistoryDto> history = submissionService.getAttemptHistory(assignmentId,
+                                studentAccountId);
+
+                return new ResponseEntity<>(history, HttpStatus.OK);
+        }
+
+        /**
+         * GET /api/v1/submissions/can-attempt/{assignmentId}
+         * Check if student can attempt a quiz again (respects maxAttempts)
+         */
+        @PreAuthorize("hasRole('STUDENT')")
+        @GetMapping("/can-attempt/{assignmentId}")
+        @Operation(summary = "Check if student can attempt assignment", description = "Check if the current student can make another attempt on a quiz (respects maxAttempts limit). "
+                        +
+                        "Returns remaining attempts count.")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "200", description = "Status retrieved successfully"),
+                        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                        @ApiResponse(responseCode = "404", description = "Assignment not found")
+        })
+        public ResponseEntity<Map<String, Object>> canAttempt(
+                        @Parameter(description = "Assignment ID") @PathVariable Long assignmentId,
+                        Authentication authentication) {
+
+                Long studentAccountId = AuthUtil.extractUserId(authentication);
+                boolean canAttempt = submissionService.canAttemptAssignment(assignmentId, studentAccountId);
+                int remaining = submissionService.getRemainingAttempts(assignmentId, studentAccountId);
+
+                Map<String, Object> response = new HashMap<>();
+                response.put("canAttempt", canAttempt);
+                response.put("remainingAttempts", remaining); // -1 means unlimited
+                return new ResponseEntity<>(response, HttpStatus.OK);
+        }
 }

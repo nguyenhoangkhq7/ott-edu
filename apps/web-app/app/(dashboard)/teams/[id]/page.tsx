@@ -10,9 +10,8 @@ import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
 import LockTeamDialog from '@/modules/teams/LockTeamDialog';
 import EditTeamDialog from '@/modules/teams/EditTeamDialog';
+import AssignmentsTab from '@/modules/assignments/AssignmentsTab';
 import { teamApi, Team } from '@/services/api/teamApi';
-import AssignmentsPage from '@/modules/assignments/AssignmentsPage';
-import { AssignmentType } from '@/shared/types/quiz';
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -201,8 +200,8 @@ export default function TeamDetailPage() {
             {activeTab === 'posts' && <TeamPostsTab teamId={teamId} />}
             {activeTab === 'files' && <TeamFilesTab teamId={teamId} />}
             {activeTab === 'members' && <TeamMembersTab teamId={teamId} teamName={team?.name} />}
-            {activeTab === 'assignments' && <div className="w-full"><AssignmentsPage teamId={teamId} filterType={AssignmentType.ESSAY} /></div>}
-            {activeTab === 'online-quizzes' && <div className="w-full"><AssignmentsPage teamId={teamId} filterType={AssignmentType.QUIZ} /></div>}
+            {activeTab === 'assignments' && <div className="w-full"><AssignmentsTab teamId={teamId} /></div>}
+            {activeTab === 'online-quizzes' && <div className="w-full"><AssignmentsTab teamId={teamId} /></div>}
 
           </div>
         </div>

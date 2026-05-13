@@ -4,7 +4,10 @@ import fit.iuh.common.exceptions.AccessDeniedException;
 import fit.iuh.common.exceptions.ResourceNotFoundException;
 import fit.iuh.modules.quiz.dtos.*;
 import fit.iuh.modules.quiz.models.Assignment;
+import fit.iuh.modules.quiz.models.Question;
+import fit.iuh.modules.quiz.models.AnswerOption;
 import fit.iuh.modules.quiz.repositories.AssignmentRepository;
+import fit.iuh.modules.quiz.repositories.QuestionRepository;
 import fit.iuh.modules.quiz.repositories.SubmissionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -13,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -26,6 +31,9 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     @Autowired
     private AssignmentRepository assignmentRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
 
     @Autowired
     private SubmissionRepository submissionRepository;
@@ -44,7 +52,44 @@ public class AssignmentServiceImpl implements AssignmentService {
         assignment.setTeamIds(request.getTeamIds());
         assignment.setCreatedAt(LocalDateTime.now());
 
+        // Set materialUrls (for ESSAY assignments)
+        assignment.setMaterialUrls(request.getMaterialUrls());
+
+        // Set maxAttempts (for QUIZ assignments)
+        assignment.setMaxAttempts(request.getMaxAttempts());
+
+        // Save assignment first
         Assignment saved = assignmentRepository.save(assignment);
+
+        // Create and save questions if provided (for QUIZ assignments)
+        if (request.getQuestions() != null && !request.getQuestions().isEmpty()) {
+            List<Question> questions = new ArrayList<>();
+            for (QuestionRequest questionReq : request.getQuestions()) {
+                Question question = new Question();
+                question.setContent(questionReq.getContent());
+                question.setPoints(questionReq.getPoints());
+                question.setDisplayOrder(questionReq.getDisplayOrder());
+                question.setType(questionReq.getType());
+                question.setAssignment(saved);
+
+                // Create answer options for this question
+                List<AnswerOption> options = new ArrayList<>();
+                if (questionReq.getOptions() != null) {
+                    for (OptionRequest optionReq : questionReq.getOptions()) {
+                        AnswerOption option = new AnswerOption();
+                        option.setContent(optionReq.getContent());
+                        option.setCorrect(optionReq.getIsCorrect() != null && optionReq.getIsCorrect());
+                        option.setDisplayOrder(optionReq.getDisplayOrder());
+                        option.setQuestion(question);
+                        options.add(option);
+                    }
+                }
+                question.setOptions(options);
+                questions.add(question);
+            }
+            questionRepository.saveAll(questions);
+        }
+
         return toSummaryDto(saved);
     }
 
@@ -65,6 +110,12 @@ public class AssignmentServiceImpl implements AssignmentService {
         assignment.setDueDate(request.getDueDate());
         assignment.setMaxScore(request.getMaxScore());
         assignment.setTeamIds(request.getTeamIds());
+
+        // NEW: Update materialUrls (for ESSAY assignments)
+        assignment.setMaterialUrls(request.getMaterialUrls());
+
+        // NEW: Update maxAttempts (for QUIZ assignments)
+        assignment.setMaxAttempts(request.getMaxAttempts());
 
         Assignment updated = assignmentRepository.save(assignment);
         return toSummaryDto(updated);
@@ -130,6 +181,11 @@ public class AssignmentServiceImpl implements AssignmentService {
         dto.setType(assignment.getType());
         dto.setTeamIds(assignment.getTeamIds());
         dto.setArchivedAt(assignment.getArchivedAt());
+
+        // NEW: Set material URLs and max attempts
+        dto.setMaterialUrls(assignment.getMaterialUrls());
+        dto.setMaxAttempts(assignment.getMaxAttempts());
+
         return dto;
     }
 
@@ -177,6 +233,10 @@ public class AssignmentServiceImpl implements AssignmentService {
         dto.setDueDate(assignment.getDueDate());
         dto.setType(assignment.getType());
         dto.setTeamIds(assignment.getTeamIds());
+
+        // NEW: Set material URLs and max attempts
+        dto.setMaterialUrls(assignment.getMaterialUrls());
+        dto.setMaxAttempts(assignment.getMaxAttempts());
 
         // Convert questions to DTOs (without exposing correct answers)
         if (assignment.getQuestions() != null) {

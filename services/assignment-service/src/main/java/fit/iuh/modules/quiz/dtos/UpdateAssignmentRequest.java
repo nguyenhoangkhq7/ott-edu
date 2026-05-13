@@ -14,6 +14,11 @@ import java.util.List;
  * - Only the assignment creator can update their assignment
  * - creatorId cannot be changed
  * - accountId extraction from SecurityContext in Controller
+ * 
+ * New Fields:
+ * - materialUrls: List<String> - AWS S3 URLs for reference materials (ESSAY
+ * only)
+ * - maxAttempts: Integer - limit attempts for QUIZ (null = unlimited)
  */
 @Data
 public class UpdateAssignmentRequest {
@@ -40,4 +45,12 @@ public class UpdateAssignmentRequest {
     @NotEmpty(message = "At least one team ID is required")
     @Size(min = 1, message = "At least one team must be assigned")
     private List<Long> teamIds;
+
+    // NEW: materialUrls - AWS S3 URLs for teacher materials (ESSAY assignments)
+    private List<String> materialUrls;
+
+    // NEW: maxAttempts - limit attempts for QUIZ (null = unlimited)
+    @Min(value = 1, message = "Max attempts must be at least 1")
+    @Max(value = 100, message = "Max attempts cannot exceed 100")
+    private Integer maxAttempts;
 }

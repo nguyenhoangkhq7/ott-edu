@@ -59,4 +59,56 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
      */
     @Query("SELECT COUNT(s) FROM Submission s WHERE s.assignment.id = :assignmentId AND s.grade IS NOT NULL")
     Long countGradedByAssignmentId(@Param("assignmentId") Long assignmentId);
+
+    // ============== NEW: Attempt History Queries ==============
+
+    /**
+     * Get attempt history for a STUDENT on a SPECIFIC ASSIGNMENT
+     * 
+     * Used for displaying: Attempt #, Date-Time, Score, Status, Feedback
+     * Returns submissions in reverse chronological order (newest first)
+     * 
+     * @param accountId    Student's account ID
+     * @param assignmentId Assignment ID
+     * @return List of submissions (attempts) for this assignment
+     */
+    @Query("SELECT s FROM Submission s " +
+            "WHERE s.accountId = :accountId AND s.assignment.id = :assignmentId " +
+            "ORDER BY s.submittedAt DESC")
+    List<Submission> findAttemptHistoryByAccountAndAssignment(
+            @Param("accountId") Long accountId,
+            @Param("assignmentId") Long assignmentId);
+
+    /**
+     * Count number of SUBMITTED/GRADED attempts for a student on an assignment
+     * 
+     * Used to enforce maxAttempts limit for QUIZ assignments
+     * 
+     * @param accountId    Student's account ID
+     * @param assignmentId Assignment ID
+     * @return Number of completed attempts
+     */
+    @Query("SELECT COUNT(s) FROM Submission s " +
+            "WHERE s.accountId = :accountId AND s.assignment.id = :assignmentId " +
+            "AND (s.status = 'SUBMITTED' OR s.status = 'GRADED')")
+    Long countCompletedAttempts(
+            @Param("accountId") Long accountId,
+            @Param("assignmentId") Long assignmentId);
+
+    /**
+     * Check if a student has already started the assignment (has a DRAFT
+     * submission)
+     * 
+     * Used for resuming quiz or preventing duplicate starts
+     * 
+     * @param accountId    Student's account ID
+     * @param assignmentId Assignment ID
+     * @return Optional containing the draft submission if exists
+     */
+    @Query("SELECT s FROM Submission s " +
+            "WHERE s.accountId = :accountId AND s.assignment.id = :assignmentId " +
+            "AND s.status = 'DRAFT'")
+    Optional<Submission> findDraftByAccountAndAssignment(
+            @Param("accountId") Long accountId,
+            @Param("assignmentId") Long assignmentId);
 }

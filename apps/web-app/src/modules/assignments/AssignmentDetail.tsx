@@ -1,0 +1,288 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '@/shared/providers/AuthProvider';
+import { assignmentApi, submissionApi } from '@/services/api/assignment.service';
+import { AttemptHistory, AttemptStatus } from '@/shared/types/assignment';
+import { AssignmentDetail as AssignmentDetailType, AssignmentType } from '@/shared/types/quiz';
+
+interface AssignmentDetailProps {
+  assignmentId: number;
+  onClose?: () => void;
+}
+
+export default function AssignmentDetail({
+  assignmentId,
+  onClose,
+}: AssignmentDetailProps) {
+  const { user } = useAuth();
+  const isTeacher = user?.roles?.includes('ROLE_TEACHER') ?? false;
+  const [assignment, setAssignment] = useState<AssignmentDetailType | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // STUDENT-specific state
+  const [attemptHistory, setAttemptHistory] = useState<AttemptHistory[]>([]);
+  const [attemptStatus, setAttemptStatus] = useState<AttemptStatus | null>(null);
+  const [showStartQuizModal, setShowStartQuizModal] = useState(false);
+
+  useEffect(() => {
+    loadAssignmentDetail();
+  }, [assignmentId]);
+
+  const loadAssignmentDetail = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const detail = await assignmentApi.getDetail(assignmentId);
+      setAssignment(detail);
+
+      // If STUDENT and QUIZ, load attempt history and check if can attempt
+      if (!isTeacher && detail.type === AssignmentType.QUIZ) {
+        const [history, status] = await Promise.all([
+          submissionApi.getAttemptHistory(assignmentId),
+          submissionApi.canAttempt(assignmentId),
+        ]);
+        setAttemptHistory(history);
+        setAttemptStatus(status);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load assignment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isDueDate = assignment ? new Date(assignment.dueDate) <= new Date() : false;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-600">Đang tải...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !assignment) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+        <p className="text-red-700">{error || 'Assignment not found'}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="bg-white rounded-lg border border-slate-200 p-8">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">{assignment.title}</h1>
+            <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+              <span className="flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Hạn nộp: {new Date(assignment.dueDate).toLocaleString('vi-VN')}
+              </span>
+              <span className="flex items-center gap-1">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Điểm: {assignment.maxScore}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                assignment.type === AssignmentType.QUIZ
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-blue-100 text-blue-700'
+              }`}>
+                {assignment.type === AssignmentType.QUIZ ? 'Trắc nghiệm' : 'Luận'}
+              </span>
+              {isDueDate && (
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                  Quá hạn
+                </span>
+              )}
+            </div>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Instructions */}
+        <div className="prose prose-sm max-w-none">
+          <h3 className="text-sm font-semibold text-slate-900 mb-3">Hướng dẫn</h3>
+          <p className="text-slate-700 whitespace-pre-wrap">{assignment.instructions}</p>
+        </div>
+      </div>
+
+      {/* TEACHER View */}
+      {isTeacher && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <h3 className="text-sm font-semibold text-blue-900 mb-4 flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Thông tin giáo viên
+          </h3>
+          <div className="space-y-2 text-sm text-blue-900">
+            {assignment.type === AssignmentType.QUIZ && assignment.maxAttempts && (
+              <p>Số lần làm tối đa: <strong>{assignment.maxAttempts}</strong></p>
+            )}
+            {assignment.materialUrls && assignment.materialUrls.length > 0 && (
+              <div>
+                <p className="font-medium mb-2">Tài liệu tham khảo ({assignment.materialUrls.length}):</p>
+                <ul className="space-y-1 ml-4">
+                  {assignment.materialUrls.map((url, idx) => (
+                    <li key={idx}>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-900 hover:underline">
+                        {url.split('/').pop()}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* STUDENT View */}
+      {!isTeacher && (
+        <>
+          {/* Materials for ESSAY */}
+          {assignment.type === AssignmentType.ESSAY && assignment.materialUrls && assignment.materialUrls.length > 0 && (
+            <div className="bg-white rounded-lg border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Tài liệu tham khảo</h3>
+              <div className="space-y-2">
+                {assignment.materialUrls.map((url, idx) => (
+                  <a
+                    key={idx}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-3 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    {url.split('/').pop()}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* QUIZ Attempt History */}
+          {assignment.type === AssignmentType.QUIZ && (
+            <div className="bg-white rounded-lg border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-slate-900">Lịch sử làm bài</h3>
+                {attemptStatus && !attemptStatus.canAttempt && (
+                  <span className="text-xs font-semibold px-3 py-1 bg-red-100 text-red-700 rounded-full">
+                    Hết lần làm
+                  </span>
+                )}
+              </div>
+
+              {/* Start Quiz Button */}
+              {attemptStatus?.canAttempt && (
+                <button
+                  onClick={() => setShowStartQuizModal(true)}
+                  disabled={isDueDate}
+                  className={`w-full py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 mb-6 ${
+                    isDueDate
+                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {isDueDate ? 'Quá hạn nộp' : 'Bắt đầu làm bài'}
+                </button>
+              )}
+
+              {/* Attempt History Table */}
+              {attemptHistory.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200">
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900">Lần làm</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900">Ngày nộp</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900">Điểm</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900">Trạng thái</th>
+                        <th className="px-4 py-3 text-left font-semibold text-slate-900">Nhận xét</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attemptHistory.map((attempt) => (
+                        <tr key={attempt.submissionId} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="px-4 py-3 text-slate-900">{attempt.attemptNumber}</td>
+                          <td className="px-4 py-3 text-slate-600">{attempt.getFormattedSubmittedAt()}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-900">{attempt.getScoreDisplay()}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              attempt.status === 'GRADED'
+                                ? 'bg-green-100 text-green-700'
+                                : attempt.status === 'SUBMITTED'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {attempt.status === 'GRADED' ? 'Đã chấm' : attempt.status === 'SUBMITTED' ? 'Đã nộp' : 'Nháp'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{attempt.feedback || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <svg className="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-slate-500">Chưa có lần nộp nào</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ESSAY Submission */}
+          {assignment.type === AssignmentType.ESSAY && (
+            <div className="bg-white rounded-lg border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Nộp bài</h3>
+              <button
+                disabled={isDueDate}
+                className={`w-full py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+                  isDueDate
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                {isDueDate ? 'Quá hạn nộp' : 'Nộp bài luận'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
