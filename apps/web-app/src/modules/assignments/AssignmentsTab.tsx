@@ -48,8 +48,8 @@ export default function AssignmentsTab({
       setLoading(true);
       setError(null);
 
-      const response = await assignmentApi.getByTeam(resolvedTeamId) as any;
-      setAssignments(response.content || response);
+      const response = await assignmentApi.getByTeam(resolvedTeamId) as { content?: Assignment[] } | Assignment[];
+      setAssignments(Array.isArray(response) ? response : (response.content || []));
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       setError(error.response?.data?.message || 'Failed to load assignments');

@@ -15,6 +15,7 @@ export default function MaterialUploadZone({
 }: MaterialUploadZoneProps) {
   const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
     control,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     name: 'materialUrls' as any,
   });
 
