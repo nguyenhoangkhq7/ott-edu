@@ -15,7 +15,7 @@ export default function MaterialUploadZone({
 }: MaterialUploadZoneProps) {
   const { fields: materialFields, append: appendMaterial, remove: removeMaterial } = useFieldArray({
     control,
-    name: 'materialUrls' as "materialUrls",
+    name: 'materialUrls' as any,
   });
 
   // Watch the actual string values from form state

@@ -64,11 +64,11 @@ export default function AssignmentDetail({
     // Poll every 5 seconds to check if teacher has graded
     const pollInterval = setInterval(async () => {
       try {
-        const updated = await submissionApi.getCurrentSubmission(assignmentId);
+        const updated = await submissionApi.getCurrentSubmission(assignmentId) as StudentSubmission | null;
         if (updated) {
           setCurrentSubmission(updated);
           // Stop polling once graded
-          if (updated.grade) {
+          if (updated.score !== undefined && updated.score !== null) {
             clearInterval(pollInterval);
           }
         }
@@ -113,13 +113,13 @@ export default function AssignmentDetail({
   const initializeOrFetchSubmission = async (assignmentId: number) => {
     try {
       // Try to fetch current submission first
-      const submission = await submissionApi.getCurrentSubmission(assignmentId);
+      const submission = await submissionApi.getCurrentSubmission(assignmentId) as StudentSubmission | null;
 
       if (submission) {
         setCurrentSubmission(submission);
       } else {
         // If no submission exists, auto-initialize one
-        const initialized = await submissionApi.startAssignment(assignmentId);
+        const initialized = await submissionApi.startAssignment(assignmentId) as StudentSubmission;
         if (initialized && initialized.id) {
           setCurrentSubmission(initialized);
         }

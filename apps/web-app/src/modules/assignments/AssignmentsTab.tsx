@@ -48,7 +48,7 @@ export default function AssignmentsTab({
       setLoading(true);
       setError(null);
 
-      const response = await assignmentApi.getByTeam(resolvedTeamId);
+      const response = await assignmentApi.getByTeam(resolvedTeamId) as any;
       setAssignments(response.content || response);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };

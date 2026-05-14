@@ -46,7 +46,7 @@ export default function GradingModal({
     try {
       setLoading(true);
       setError(null);
-      const data = await submissionApi.getPendingSubmissions(assignmentId);
+      const data = await submissionApi.getPendingSubmissions(assignmentId) as Submission[];
       setPending(data);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };

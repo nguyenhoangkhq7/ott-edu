@@ -65,7 +65,7 @@ export default function TeacherGradingDashboard({
 
       if (Array.isArray(response)) {
         // Direct array response
-        submissionsArray = response;
+        submissionsArray = response as PendingSubmission[];
       } else if (response && typeof response === 'object') {
         // Paginated response with content property
         const pageResponse = response as { content?: PendingSubmission[] };
