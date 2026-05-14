@@ -191,13 +191,15 @@ export class ChatService {
                 friendStatus = "friend";
               } else {
                 // Check xem 1 trong 2 người có ai gửi lời mời chưa (Check 2 chiều)
-                const pendingRequest = await FriendRequest.findOne({
-                  $or: [
-                    { requesterId: userId, recipientId: pId },
-                    { requesterId: pId, recipientId: userId },
-                  ],
-                  status: "pending",
-                } as Record<string, unknown>).lean();
+                const pendingRequest = await (FriendRequest as any)
+                  .findOne({
+                    $or: [
+                      { requesterId: userId, recipientId: pId },
+                      { requesterId: pId, recipientId: userId },
+                    ],
+                    status: "pending",
+                  })
+                  .lean();
 
                 if (pendingRequest) {
                   friendStatus = "pending";
@@ -474,9 +476,18 @@ export class ChatService {
     if (avatarUrl) payload.avatarUrl = avatarUrl;
     if (metadata) payload.metadata = metadata;
 
-    const conversation = await Conversation.create(payload);
+    const savedConversation = await Conversation.create(payload);
 
-    return conversation;
+    // Phát sự kiện realtime cho tất cả thành viên nhóm mới
+    for (const participantId of allParticipants) {
+      socketManager.emitToUserTarget(
+        participantId.toString(),
+        "new_group_created",
+        savedConversation,
+      );
+    }
+
+    return savedConversation;
   }
 
   static async syncClassConversation(payload: SyncClassConversationRequest) {
@@ -698,17 +709,37 @@ export class ChatService {
       this.getJoinPolicy(conversation as ConversationWithRole) === "open";
 
     if (canAddDirectly) {
+      // ✨ LẤY DANH SÁCH THÀNH VIÊN CŨ TRƯỚC KHI UPDATE
+      const existingMemberIds = conversation.participants.map((p: any) =>
+        p.toString(),
+      );
+
       conversation.participants = [
         ...conversation.participants,
         new mongoose.Types.ObjectId(targetUserId),
       ] as any;
       await conversation.save();
+
+      // Phát sự kiện realtime cho các thành viên mới được thêm vào
+      const membersToAdd = [targetUserId];
+      for (const uId of membersToAdd) {
+        socketManager.emitToUserTarget(uId.toString(), "added_to_group", {
+          conversationId: conversation._id,
+        });
+      }
+
+      // ✨ BÁO CHO THÀNH VIÊN CŨ CẬP NHẬT SỐ LƯỢNG (Group Updated)
+      for (const existingMemberId of existingMemberIds) {
+        socketManager.emitToUserTarget(existingMemberId, "group_updated", {
+          conversationId: conversation._id,
+        });
+      }
+
       return {
         conversation,
         mode: "added" as const,
       };
     }
-
     const targetName = await this.resolveTargetDisplayName(
       targetUser,
       normalizedEmail,
@@ -762,6 +793,12 @@ export class ChatService {
     }
 
     const targetUserId = request.targetUserId.toString();
+
+    // ✨ LẤY DANH SÁCH THÀNH VIÊN CŨ TRƯỚC KHI UPDATE
+    const existingMemberIds = conversation.participants.map((p: any) =>
+      p.toString(),
+    );
+
     if (
       conversation.participants.some((participantId) =>
         this.participantIdEquals(participantId, targetUserId),
@@ -787,9 +824,24 @@ export class ChatService {
     ) as any;
 
     await conversation.save();
+
+    // Phát sự kiện realtime cho các thành viên mới được thêm vào
+    const membersToAdd = [targetUserId];
+    for (const uId of membersToAdd) {
+      socketManager.emitToUserTarget(uId.toString(), "added_to_group", {
+        conversationId: conversation._id,
+      });
+    }
+
+    // ✨ BÁO CHO THÀNH VIÊN CŨ CẬP NHẬT SỐ LƯỢNG (Group Updated)
+    for (const existingMemberId of existingMemberIds) {
+      socketManager.emitToUserTarget(existingMemberId, "group_updated", {
+        conversationId: conversation._id,
+      });
+    }
+
     return conversation;
   }
-
   static async rejectGroupMemberRequest(
     requesterId: string,
     conversationId: string,
@@ -1164,12 +1216,12 @@ export class ChatService {
       throw error;
     }
 
-    // 👇 2. CHỐT CHẶN: KIỂM TRA MÌNH ĐÃ GỬI LỜI MỜI CHƯA
+    // Chỗ 2. KIỂM TRA MÌNH ĐÃ GỬI CHƯA
     const existingReq = await FriendRequest.findOne({
-      requesterId,
-      recipientId: targetId,
+      requesterId: new mongoose.Types.ObjectId(requesterId),
+      recipientId: new mongoose.Types.ObjectId(targetId),
       status: "pending",
-    });
+    } as any);
 
     if (existingReq) {
       const error = new Error(
@@ -1179,12 +1231,12 @@ export class ChatService {
       throw error;
     }
 
-    // 👇 3. CHỐT CHẶN: KIỂM TRA NGƯỜI KIA CÓ ĐANG GỬI CHO MÌNH KHÔNG
+    // Chỗ 3. KIỂM TRA NGƯỜI KIA CÓ ĐANG GỬI CHO MÌNH KHÔNG
     const reverseReq = await FriendRequest.findOne({
-      requesterId: targetId,
-      recipientId: requesterId,
+      requesterId: new mongoose.Types.ObjectId(targetId),
+      recipientId: new mongoose.Types.ObjectId(requesterId),
       status: "pending",
-    });
+    } as any);
 
     if (reverseReq) {
       const error = new Error(
@@ -1195,7 +1247,15 @@ export class ChatService {
     }
 
     // Mọi thứ hoàn hảo thì lưu vào Database
-    return await FriendRequest.create({ requesterId, recipientId: targetId });
+    const newRequest = await FriendRequest.create({
+      requesterId,
+      recipientId: targetId,
+    });
+    socketManager.emitToUserTarget(targetId, "friend_status_updated", {
+      userId: requesterId.toString(),
+      status: "pending",
+    });
+    return newRequest;
   }
 
   // 3. LẤY DANH SÁCH LỜI MỜI
@@ -1203,7 +1263,7 @@ export class ChatService {
     const requests = await FriendRequest.find({
       recipientId: userId,
       status: "pending",
-    })
+    } as any)
       .populate("requesterId", "fullName email avatarUrl code isOnline")
       .lean();
 
@@ -1216,12 +1276,8 @@ export class ChatService {
 
   // 4. CHẤP NHẬN KẾT BẠN
   static async acceptFriendRequest(userId: string, requesterId: string) {
-    const request = await FriendRequest.findOneAndUpdate(
-      // 👇 Thêm ép kiểu Record<string, unknown> vào đây để hết gạch đỏ
-      { requesterId, recipientId: userId, status: "pending" } as Record<
-        string,
-        unknown
-      >,
+    const request = await (FriendRequest as any).findOneAndUpdate(
+      { requesterId, recipientId: userId, status: "pending" },
       { status: "accepted" },
       { new: true },
     );
@@ -1232,8 +1288,6 @@ export class ChatService {
       throw error;
     }
 
-    // 👇 CHỐT CHẶN FIX BỆNH: THÊM ID VÀO MẢNG FRIENDS CỦA NHAU 👇
-    // Dùng $addToSet của MongoDB để ném ID vào mảng (nếu có rồi thì nó tự bỏ qua, không bị trùng)
     await User.findByIdAndUpdate(userId, {
       $addToSet: { friends: new mongoose.Types.ObjectId(requesterId) },
     });
@@ -1241,7 +1295,6 @@ export class ChatService {
     await User.findByIdAndUpdate(requesterId, {
       $addToSet: { friends: new mongoose.Types.ObjectId(userId) },
     });
-    // 👆 KẾT THÚC ĐOẠN FIX BỆNH 👆
 
     // Tự động tạo nhóm chat 1-1
     let conversation = await Conversation.findOne({
@@ -1255,21 +1308,51 @@ export class ChatService {
         participants: [userId, requesterId],
       });
     }
+
+    // ✨ PHÁT SỰ KIỆN REALTIME CHO 2 NGƯỜI HIỆN CHAT 1-1 NGAY LẬP TỨC
+    socketManager.emitToUserTarget(
+      userId.toString(),
+      "friend_request_accepted",
+      {
+        conversationId: conversation._id,
+      },
+    );
+    socketManager.emitToUserTarget(
+      requesterId.toString(),
+      "friend_request_accepted",
+      {
+        conversationId: conversation._id,
+      },
+    );
+
     return conversation;
   }
 
   // 5. TỪ CHỐI KẾT BẠN
   static async rejectFriendRequest(userId: string, requesterId: string) {
-    const request = await FriendRequest.findOneAndUpdate(
+    const request = await (FriendRequest as any).findOneAndUpdate(
       { requesterId, recipientId: userId, status: "pending" },
       { status: "rejected" },
+      { new: true },
     );
-
     if (!request) {
       const error = new Error("Lời mời không tồn tại hoặc đã xử lý");
       (error as any).statusCode = 404;
       throw error;
     }
+
+    // ✨ PHÁT SỰ KIỆN ĐỂ UI 2 BÊN TỰ XÓA LỜI MỜI MÀ KHÔNG CẦN F5
+    socketManager.emitToUserTarget(
+      requesterId.toString(),
+      "friend_request_rejected",
+      { userId: userId.toString() },
+    );
+    socketManager.emitToUserTarget(
+      userId.toString(),
+      "friend_request_rejected",
+      { requesterId: requesterId.toString() },
+    );
+
     return { success: true };
   }
 }

@@ -1450,6 +1450,11 @@ class SocketManager {
       this.io.to(conversationId).emit("newMessage", message);
     }
   }
+
+  // 👇 CHỈ CẦN DÁN THÊM HÀM NÀY VÀO TRƯỚC DẤU NGOẶC ĐÓNG CỦA CLASS 👇
+  public emitToUserTarget(userId: string, eventName: string, payload: any): void {
+    this.emitToUser(userId, eventName, payload);
+  }
 }
 
 export default new SocketManager();

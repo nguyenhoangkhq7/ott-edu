@@ -70,9 +70,9 @@ export class ChatController {
         query.status = { $in: statusValues };
       }
 
-      const total = await CallLog.countDocuments(query);
+      const total = await CallLog.countDocuments(query as any);
 
-      const logs = await CallLog.find(query)
+      const logs = await CallLog.find(query as any)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -395,6 +395,12 @@ export class ChatController {
 
       // Phát sự kiện bằng Socket.io vào ĐÚNG room (room ID chính là conversation ID)
       socketManager.emitMessageToRoom(conversation._id.toString(), message);
+
+      // Nếu là tin nhắn 1-1 (private), cũng emit trực tiếp cho receiverId để chắc chắn họ nhận được
+      // ngay cả khi chưa join room
+      if (receiverId) {
+        socketManager.emitToUserTarget(receiverId, 'newMessage', message);
+      }
 
       return res.status(201).json({ data: message });
     } catch (error: any) {
