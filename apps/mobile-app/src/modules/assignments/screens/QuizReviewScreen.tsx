@@ -8,11 +8,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { type AssignmentDetail, type Submission } from "../assignment.types";
+import { type AssignmentDetail } from "../assignment.types";
+import { type ViewSubmission } from "../assignment.api";
 
 export type QuizReviewScreenProps = {
   detail: AssignmentDetail;
-  submission: Submission;
+  submission: ViewSubmission;
   onBack: () => void;
 };
 
@@ -43,7 +44,7 @@ export default function QuizReviewScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {answers.map((answer, index) => (
+        {answers.map((answer, index: number) => (
           <View key={index} style={styles.questionCard}>
             <View style={styles.questionHeader}>
               <View style={styles.indexBadge}>
@@ -62,7 +63,7 @@ export default function QuizReviewScreen({
               <Text style={styles.answerLabel}>Lựa chọn của bạn:</Text>
               <View style={styles.optionsList}>
                 {/* Note: In this view, we only see the selected options from the backend */}
-                {answer.selectedOptionIds.map((optId, optIdx) => (
+                {answer.selectedOptionIds.map((optId: number, optIdx: number) => (
                   <View key={optIdx} style={styles.selectedOption}>
                     <Ionicons name="checkmark-circle" size={16} color="#10b981" />
                     <Text style={styles.optionText}>Lựa chọn ID: {optId}</Text>

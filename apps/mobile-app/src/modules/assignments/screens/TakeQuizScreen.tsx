@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,

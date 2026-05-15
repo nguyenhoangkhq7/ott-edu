@@ -86,6 +86,8 @@ export type ViewSubmission = {
   dueDate: string;
   studentAnswers: Array<{
     questionId: number;
+    questionContent: string;
+    questionPoints: number;
     selectedOptionIds: number[];
     earnedPoints: number;
   }>;
