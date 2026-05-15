@@ -83,6 +83,10 @@ export type UseMobileMediasoupParams = {
   currentUserId: string;
   /** conversationId sẽ được dùng làm roomId cho SFU */
   conversationId: string | null;
+  /** private call: chỉ cần 1 peer rời là kết thúc cuộc gọi */
+  endOnPeerLeave?: boolean;
+  /** group call: initiator tắt cuộc gọi sẽ kết thúc cho toàn bộ room */
+  isCallInitiator?: boolean;
 };
 
 export type UseMobileMediasoupReturn = {
@@ -108,6 +112,8 @@ export type UseMobileMediasoupReturn = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ENABLE_WEBRTC = process.env.EXPO_PUBLIC_ENABLE_WEBRTC === "true";
 
+let webRtcGlobalsRegistered = false;
+
 // ─── Lazy loaders ─────────────────────────────────────────────────────────────
 function loadWebRtcModule() {
   if (!ENABLE_WEBRTC) return null;
@@ -115,6 +121,14 @@ function loadWebRtcModule() {
     return require("react-native-webrtc") as typeof import("react-native-webrtc");
   } catch {
     return null;
+  }
+}
+
+function ensureWebRtcGlobals(webRtcModule: typeof import("react-native-webrtc")) {
+  if (webRtcGlobalsRegistered) return;
+  if (typeof webRtcModule.registerGlobals === "function") {
+    webRtcModule.registerGlobals();
+    webRtcGlobalsRegistered = true;
   }
 }
 
@@ -171,6 +185,8 @@ export function useMobileMediasoup({
   socket,
   currentUserId,
   conversationId,
+  endOnPeerLeave = false,
+  isCallInitiator = false,
 }: UseMobileMediasoupParams): UseMobileMediasoupReturn {
   // ── state ──
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -199,6 +215,10 @@ export function useMobileMediasoup({
    */
   const consumerUserMapRef = useRef<Map<string, string>>(new Map());
   /**
+   * producerId -> consumerId mapping để xử lý đúng event producerClosed từ server.
+   */
+  const producerConsumerMapRef = useRef<Map<string, string>>(new Map());
+  /**
    * Track thông tin consumerId của từng peer (audio/video)
    * key = userId, value = { audioConsumerId?, videoConsumerId? }
    */
@@ -208,6 +228,7 @@ export function useMobileMediasoup({
 
   const conversationIdRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
+  const isCleaningUpRef = useRef(false);
 
   // ── sync refs ──
   useEffect(() => {
@@ -252,23 +273,26 @@ export function useMobileMediasoup({
   }, []);
 
   /**
-   * Tạo hoặc lấy MediaStream cho 1 remote userId.
-   * Nếu chưa có thì tạo mới (react-native-webrtc MediaStream).
+   * Rebuild remote stream theo kind để RTCView cập nhật ổn định trên mobile.
    */
-  const ensureRemoteStream = useCallback(
-    (userId: string): MediaStream | null => {
-      const webRtcModule = loadWebRtcModule();
-      if (!webRtcModule) return null;
+  const upsertRemoteTrack = useCallback((userId: string, track: import("react-native-webrtc").MediaStreamTrack) => {
+    const webRtcModule = loadWebRtcModule();
+    if (!webRtcModule) return;
 
-      const existing = remoteStreamsRef.current.get(userId);
-      if (existing) return existing;
+    const existing = remoteStreamsRef.current.get(userId) as unknown as import("react-native-webrtc").MediaStream | undefined;
+    const next = new webRtcModule.MediaStream();
 
-      const stream = new webRtcModule.MediaStream() as unknown as MediaStream;
-      remoteStreamsRef.current.set(userId, stream);
-      return stream;
-    },
-    [],
-  );
+    if (existing) {
+      existing.getTracks().forEach((t) => {
+        if (t.kind !== track.kind && t.readyState !== "ended") {
+          next.addTrack(t);
+        }
+      });
+    }
+
+    next.addTrack(track);
+    remoteStreamsRef.current.set(userId, next as unknown as MediaStream);
+  }, []);
 
   /**
    * Xử lý 1 producerId: consume từ recvTransport → add track vào remote stream.
@@ -312,18 +336,17 @@ export function useMobileMediasoup({
 
         // Ghi nhận mapping
         consumerUserMapRef.current.set(consumerId, userId);
+        producerConsumerMapRef.current.set(producerId, consumerId);
         const peerInfo = peerConsumerInfoRef.current.get(userId) ?? {};
         if (kind === "audio") peerInfo.audioConsumerId = consumerId;
         else peerInfo.videoConsumerId = consumerId;
         peerConsumerInfoRef.current.set(userId, peerInfo);
 
         // Thêm track vào remote stream của userId
-        const remoteStream = ensureRemoteStream(userId);
-        if (remoteStream) {
-          (remoteStream as unknown as import("react-native-webrtc").MediaStream).addTrack(
-            consumer.track as unknown as import("react-native-webrtc").MediaStreamTrack,
-          );
-        }
+        upsertRemoteTrack(
+          userId,
+          consumer.track as unknown as import("react-native-webrtc").MediaStreamTrack,
+        );
 
         // Resume consumer trên server (server tạo ở trạng thái paused)
         await socketEmitAck(socket, "resume", {
@@ -336,12 +359,15 @@ export function useMobileMediasoup({
         console.error("[useMobileMediasoup] consumeProducer error:", err);
       }
     },
-    [ensureRemoteStream, syncRemoteParticipants],
+    [syncRemoteParticipants, upsertRemoteTrack],
   );
 
   // ─── Cleanup toàn bộ SFU state ───────────────────────────────────────────────
   const cleanup = useCallback(
     (options?: { preserveError?: boolean }) => {
+      if (isCleaningUpRef.current) return;
+      isCleaningUpRef.current = true;
+
       // Đóng transports
       try { sendTransportRef.current?.close(); } catch { /* noop */ }
       try { recvTransportRef.current?.close(); } catch { /* noop */ }
@@ -357,6 +383,7 @@ export function useMobileMediasoup({
       remoteStreamsRef.current.forEach((s) => stopStream(s as unknown as MediaStream));
       remoteStreamsRef.current.clear();
       consumerUserMapRef.current.clear();
+      producerConsumerMapRef.current.clear();
       peerConsumerInfoRef.current.clear();
       localProducerIdsRef.current.clear();
 
@@ -368,6 +395,8 @@ export function useMobileMediasoup({
       setIsCameraEnabled(true);
       setCameraFacing("front");
       if (!options?.preserveError) setCallError(null);
+
+      isCleaningUpRef.current = false;
     },
     [stopStream],
   );
@@ -376,10 +405,17 @@ export function useMobileMediasoup({
   const leaveRoom = useCallback(() => {
     const roomId = conversationIdRef.current;
     if (roomId && socketRef.current) {
+      if (isCallInitiator && !endOnPeerLeave) {
+        socketRef.current.emit("callEnded", {
+          conversationId: roomId,
+          endedByUserId: currentUserId,
+          reason: "initiator-ended",
+        });
+      }
       socketRef.current.emit("leaveMediaRoom", roomId);
     }
     cleanup();
-  }, [cleanup]);
+  }, [cleanup, currentUserId, endOnPeerLeave, isCallInitiator]);
 
   // ─── joinRoom ────────────────────────────────────────────────────────────────
   const joinRoom = useCallback(async () => {
@@ -401,6 +437,8 @@ export function useMobileMediasoup({
       return;
     }
 
+    ensureWebRtcGlobals(webRtcModule);
+
     const mediasoupClient = loadMediasoupClient();
     if (!mediasoupClient) {
       setCallError(
@@ -410,6 +448,7 @@ export function useMobileMediasoup({
     }
 
     try {
+      isCleaningUpRef.current = false;
       setCallError(null);
       setCallStatus("joining");
 
@@ -547,6 +586,8 @@ export function useMobileMediasoup({
         await consumeProducer(ep.producerId, ep.kind, ep.userId);
       }
 
+      socket.emit("startGroupMediaCall", { conversationId: roomId });
+
       if (isMountedRef.current) {
         setCallStatus(existingProducers.length > 0 ? "connected" : "ready");
       }
@@ -608,17 +649,21 @@ export function useMobileMediasoup({
     };
 
     const handleProducerClosed = ({ producerId }: ProducerClosedPayload) => {
+      const consumerId = producerConsumerMapRef.current.get(producerId);
+      if (!consumerId) return;
+
       // Tìm userId sở hữu consumer tương ứng producerId đã đóng
-      const userId = consumerUserMapRef.current.get(producerId);
+      const userId = consumerUserMapRef.current.get(consumerId);
       if (!userId) return;
 
       // Xoá consumer khỏi tracking
-      consumerUserMapRef.current.delete(producerId);
+      producerConsumerMapRef.current.delete(producerId);
+      consumerUserMapRef.current.delete(consumerId);
 
       const peerInfo = peerConsumerInfoRef.current.get(userId);
       if (peerInfo) {
-        if (peerInfo.audioConsumerId === producerId) peerInfo.audioConsumerId = undefined;
-        if (peerInfo.videoConsumerId === producerId) peerInfo.videoConsumerId = undefined;
+        if (peerInfo.audioConsumerId === consumerId) peerInfo.audioConsumerId = undefined;
+        if (peerInfo.videoConsumerId === consumerId) peerInfo.videoConsumerId = undefined;
 
         // Nếu peer không còn consumer nào → xoá khỏi danh sách
         if (!peerInfo.audioConsumerId && !peerInfo.videoConsumerId) {
@@ -629,9 +674,15 @@ export function useMobileMediasoup({
       }
 
       syncRemoteParticipants();
+      setCallStatus(remoteStreamsRef.current.size > 0 ? "connected" : "ready");
     };
 
     const handleMediaPeerLeft = ({ userId }: MediaPeerLeftPayload) => {
+      if (endOnPeerLeave && userId !== currentUserId) {
+        cleanup();
+        return;
+      }
+
       peerConsumerInfoRef.current.delete(userId);
       stopStream(remoteStreamsRef.current.get(userId) as unknown as MediaStream);
       remoteStreamsRef.current.delete(userId);
@@ -639,7 +690,24 @@ export function useMobileMediasoup({
       consumerUserMapRef.current.forEach((uid, consumerId) => {
         if (uid === userId) consumerUserMapRef.current.delete(consumerId);
       });
+      producerConsumerMapRef.current.forEach((mappedConsumerId, producerId) => {
+        if (mappedConsumerId && !consumerUserMapRef.current.has(mappedConsumerId)) {
+          producerConsumerMapRef.current.delete(producerId);
+        }
+      });
       syncRemoteParticipants();
+      setCallStatus(remoteStreamsRef.current.size > 0 ? "connected" : "ready");
+    };
+
+    const handleCallEnded = ({
+      conversationId: endedConversationId,
+    }: {
+      conversationId: string;
+      endedByUserId?: string;
+      reason?: string;
+    }) => {
+      if (!conversationIdRef.current || endedConversationId !== conversationIdRef.current) return;
+      cleanup();
     };
 
     const handleMediaError = (err: { code: string; message: string }) => {
@@ -653,14 +721,18 @@ export function useMobileMediasoup({
     socket.on("producerClosed", handleProducerClosed);
     socket.on("mediaPeerLeft", handleMediaPeerLeft);
     socket.on("mediaError", handleMediaError);
+    socket.on("callEnded", handleCallEnded);
+    socket.on("videoCallEnded", handleCallEnded);
 
     return () => {
       socket.off("newProducer", handleNewProducer);
       socket.off("producerClosed", handleProducerClosed);
       socket.off("mediaPeerLeft", handleMediaPeerLeft);
       socket.off("mediaError", handleMediaError);
+      socket.off("callEnded", handleCallEnded);
+      socket.off("videoCallEnded", handleCallEnded);
     };
-  }, [consumeProducer, currentUserId, socket, stopStream, syncRemoteParticipants]);
+  }, [cleanup, consumeProducer, currentUserId, endOnPeerLeave, socket, stopStream, syncRemoteParticipants]);
 
   // ─── Cleanup khi unmount ─────────────────────────────────────────────────────
   useEffect(() => {

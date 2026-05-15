@@ -13,6 +13,8 @@ interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
   currentUser: User | null;
+  currentUserId?: string;
+  privatePeer?: User | null;
   onSendMessage: (text: string, attachments?: Attachment[], replyToId?: string) => Promise<void>;
   isLoadingMessages: boolean;
   isSending: boolean;
@@ -21,12 +23,22 @@ interface ChatWindowProps {
   onForwardMessage?: (message: Message) => void;
   onOpenProfile?: (user: User) => void;
   onOpenGroupManage?: () => void;
+  /** Gọi thoại 1-1 */
+  onStartVoiceCall?: () => void;
+  /** Gọi video 1-1 */
+  onStartVideoCall?: () => void;
+  /** Gọi nhóm SFU (group/class chat) */
+  onStartGroupCall?: () => void;
+  /** Trạng thái cuộc gọi đang diễn ra (để disable nút khi đang gọi) */
+  isCallActive?: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
   conversation,
   messages,
   currentUser,
+  currentUserId,
+  privatePeer,
   onSendMessage,
   isLoadingMessages,
   isSending,
@@ -35,6 +47,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onForwardMessage,
   onOpenProfile,
   onOpenGroupManage,
+  onStartVoiceCall,
+  onStartVideoCall,
+  onStartGroupCall,
+  isCallActive = false,
 }) => {
   const flatListRef = useRef<FlatList>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -140,14 +156,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }
 
   const isPrivate = conversation.type === 'private';
+  const selfId = currentUserId || currentUser?.id;
   const otherParticipant = isPrivate
-    ? conversation.participants.find((p) => p.id !== currentUser?.id)
+    ? (privatePeer || conversation.participants.find((p) => p.id !== selfId) || null)
     : null;
 
-  const chatName = conversation.name || (isPrivate ? otherParticipant?.name : conversation.participants.map((p) => p.name).join(', '));
-  const chatAvatar = conversation.avatarUrl || (isPrivate
-    ? otherParticipant?.avatarUrl || `https://i.pravatar.cc/150?u=${otherParticipant?.id}`
-    : `https://i.pravatar.cc/150?img=30`);
+  const chatName = isPrivate
+    ? (otherParticipant?.name || 'Người dùng')
+    : (conversation.name || conversation.participants.map((p) => p.name).join(', '));
+  const chatAvatar = isPrivate
+    ? (otherParticipant?.avatarUrl || `https://i.pravatar.cc/150?u=${otherParticipant?.id}`)
+    : (conversation.avatarUrl || `https://i.pravatar.cc/150?img=30`);
   const headerUser = isPrivate ? otherParticipant || null : conversation.participants.find((p) => p.id === conversation.ownerId) || null;
 
   const invertedMessages = [...localMessages].reverse();
@@ -210,6 +229,63 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               : `${conversation?.participants?.length || 0} thành viên`}
           </Text>
         </TouchableOpacity>
+
+        {/* Nút gọi thoại 1-1 */}
+        {isPrivate && (
+          <TouchableOpacity
+            style={[
+              styles.callBtn,
+              isCallActive && styles.callBtnActive,
+              !onStartVoiceCall && styles.callBtnDimmed,
+            ]}
+            onPress={onStartVoiceCall}
+            disabled={isCallActive || !onStartVoiceCall}
+          >
+            <Ionicons
+              name={isCallActive ? 'call' : 'call-outline'}
+              size={20}
+              color={isCallActive ? '#22C55E' : '#3B82F6'}
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* Nút gọi video 1-1 */}
+        {isPrivate && (
+          <TouchableOpacity
+            style={[
+              styles.callBtn,
+              isCallActive && styles.callBtnActive,
+              !onStartVideoCall && styles.callBtnDimmed,
+            ]}
+            onPress={onStartVideoCall}
+            disabled={isCallActive || !onStartVideoCall}
+          >
+            <Ionicons
+              name={isCallActive ? 'videocam' : 'videocam-outline'}
+              size={22}
+              color={isCallActive ? '#22C55E' : '#3B82F6'}
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* Nút gọi nhóm – luôn hiện trong group/class chat */}
+        {!isPrivate && (
+          <TouchableOpacity
+            style={[
+              styles.callBtn,
+              isCallActive && styles.callBtnActive,
+              !onStartGroupCall && styles.callBtnDimmed,
+            ]}
+            onPress={onStartGroupCall}
+            disabled={isCallActive || !onStartGroupCall}
+          >
+            <Ionicons
+              name={isCallActive ? 'videocam' : 'videocam-outline'}
+              size={22}
+              color={isCallActive ? '#22C55E' : '#3B82F6'}
+            />
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.infoBtn}
@@ -345,6 +421,17 @@ const styles = StyleSheet.create({
   infoBtn: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
+  },
+  callBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 2,
+  },
+  callBtnActive: {
+    backgroundColor: 'rgba(34,197,94,0.12)',
+  },
+  callBtnDimmed: {
+    opacity: 0.35,
   },
   messageList: { flex: 1 },
   emptyMessages: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },

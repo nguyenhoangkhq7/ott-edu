@@ -15,6 +15,7 @@ interface SidebarProps {
   conversations: Conversation[];
   suggestedUsers: User[];
   currentUser: User | null;
+  currentUserId?: string;
   activeConversationId: string | null;
   onSelectConversation: (id: string) => void;
   onStartPrivateChat: (user: User) => void;
@@ -24,7 +25,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentMode, onModeChange, searchQuery, onSearchQueryChange,
-  conversations, suggestedUsers, currentUser, activeConversationId,
+  conversations, suggestedUsers, currentUser, currentUserId, activeConversationId,
   onSelectConversation, onStartPrivateChat, isLoading, error,
 }) => {
   const filtered = conversations.filter((c) => {
@@ -174,6 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     key={conv.id}
                     conversation={conv}
                     currentUser={currentUser}
+                    currentUserId={currentUserId}
                     isActive={activeConversationId === conv.id}
                     onSelect={onSelectConversation}
                   />

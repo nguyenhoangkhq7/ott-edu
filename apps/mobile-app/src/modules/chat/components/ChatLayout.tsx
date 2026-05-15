@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Modal, Pressable, Text } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { Sidebar } from './Sidebar';
 import { ChatWindow } from './ChatWindow';
 import { ForwardMessageModal } from './ForwardMessageModal';
 import { ChatUserProfileModal } from './ChatUserProfileModal';
 import { ChatGroupManageModal } from './ChatGroupManageModal';
+import { GroupCallScreen } from './GroupCallScreen';
 import { ChatMode, Conversation, Message, User } from '../types';
 import {
   fetchConversations,
@@ -45,6 +46,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
   const [showGroupManageModal, setShowGroupManageModal] = useState(false);
   const [groupOwnerTarget, setGroupOwnerTarget] = useState<User | null>(null);
+  const [isGroupCallActive, setIsGroupCallActive] = useState(false);
+  const [callConversationId, setCallConversationId] = useState<string | null>(null);
+  const [callInitiatorUserId, setCallInitiatorUserId] = useState<string | null>(null);
+  const [incomingCallRequest, setIncomingCallRequest] = useState<{
+    conversationId: string;
+    initiatorUserId: string;
+  } | null>(null);
 
   // chatMongoId: MongoDB ObjectId của user hiện tại trong chat-service
   // (khác với currentUserId dạng số từ core-service)
@@ -155,6 +163,16 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           })
         );
       });
+
+      socket.on('incomingGroupMediaCall', (payload: { conversationId: string; initiatorUserId: string }) => {
+        if (!payload?.conversationId || payload.initiatorUserId === chatMongoId) return;
+        setIncomingCallRequest({
+          conversationId: payload.conversationId,
+          initiatorUserId: payload.initiatorUserId,
+        });
+        setActiveConversationId(payload.conversationId);
+        setActiveView('chat');
+      });
     };
 
     setupSocket();
@@ -163,6 +181,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       if (socket) {
         socket.off('newMessage');
         socket.off('messageRevoked');
+        socket.off('incomingGroupMediaCall');
         socket.disconnect();
       }
     };
@@ -345,9 +364,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     if (!currentUserId || isSending) return;
 
     const activeConversation = conversations.find((c) => c.id === activeConversationId);
+    const selfChatId = chatMongoId || currentUserId;
     const targetReceiver =
       draftReceiver ||
-      activeConversation?.participants.find((p) => p.id !== currentUserId) ||
+      activeConversation?.participants.find((p) => p.id !== selfChatId) ||
       null;
 
     if (!activeConversation && !targetReceiver) return;
@@ -359,7 +379,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const optimisticMessage: Message = {
       id: `optimistic_${Date.now()}`,
       conversationId: optimisticConversationId,
-      senderId: currentUserId,
+      senderId: selfChatId,
       content: text,
       createdAt: new Date().toISOString(),
       status: 'sent',
@@ -403,12 +423,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           return [updatedConv, ...otherConvs];
         });
       } else if (targetReceiver) {
-        const refreshed = await fetchConversations(currentUserId);
+        const refreshed = await fetchConversations(selfChatId);
         setConversations(refreshed);
         const createdConversation = refreshed.find(
           (conv) =>
             conv.type === 'private' &&
-            conv.participants.some((p) => p.id === currentUserId) &&
+            conv.participants.some((p) => p.id === selfChatId) &&
             conv.participants.some((p) => p.id === targetReceiver.id)
         );
         if (createdConversation) {
@@ -437,6 +457,27 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           avatarUrl: draftReceiver.avatarUrl,
         }
       : null);
+  const privatePeer = React.useMemo(() => {
+    if (!activeConversation || activeConversation.type !== 'private') return null;
+    const selfId = chatMongoId || currentUser?.id || currentUserId;
+    return (
+      activeConversation.participants.find((p) => p.id !== selfId) ||
+      activeConversation.participants.find((p) =>
+        (currentUser?.email ? p.email !== currentUser.email : false) ||
+        (currentUser?.code ? p.code !== currentUser.code : false) ||
+        (currentUser?.name ? p.name !== currentUser.name : false)
+      ) ||
+      activeConversation.participants[0] ||
+      null
+    );
+  }, [activeConversation, chatMongoId, currentUser?.id, currentUserId]);
+  const isPrivateConversation = activeConversation?.type === 'private';
+  const callConversation = conversations.find((c) => c.id === callConversationId) || activeConversation;
+  const callConversationType = callConversation?.type ?? 'class';
+  const participantNames = React.useMemo(() => {
+    if (!callConversation) return {};
+    return Object.fromEntries(callConversation.participants.map((p) => [p.id, p.name]));
+  }, [callConversation]);
 
   const suggestedUsers = React.useMemo(() => {
     const privatePeerIds = new Set<string>();
@@ -470,6 +511,46 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       .slice(0, 20);
   }, [conversations, currentUserId, searchQuery]);
 
+  const handleStartVideoCall = useCallback(() => {
+    if (!activeConversation || activeConversation.id.startsWith('draft_')) return;
+    setCallConversationId(activeConversation.id);
+    setCallInitiatorUserId(chatMongoId || currentUserId);
+    setIsGroupCallActive(true);
+  }, [activeConversation, chatMongoId, currentUserId]);
+
+  const handleStartVoiceCall = useCallback(() => {
+    handleStartVideoCall();
+  }, [handleStartVideoCall]);
+
+  const handleStartGroupCall = useCallback(() => {
+    if (!activeConversationId) return;
+    setCallConversationId(activeConversationId);
+    setCallInitiatorUserId(chatMongoId || currentUserId);
+    setIsGroupCallActive(true);
+  }, [activeConversationId, chatMongoId, currentUserId]);
+
+  const handleAcceptIncomingCall = useCallback(() => {
+    if (!incomingCallRequest) return;
+    setCallConversationId(incomingCallRequest.conversationId);
+    setCallInitiatorUserId(incomingCallRequest.initiatorUserId);
+    setIncomingCallRequest(null);
+    setIsGroupCallActive(true);
+  }, [incomingCallRequest]);
+
+  const handleDeclineIncomingCall = useCallback(() => {
+    if (!incomingCallRequest || !socketRef.current) {
+      setIncomingCallRequest(null);
+      return;
+    }
+    socketRef.current.emit('callEnded', {
+      conversationId: incomingCallRequest.conversationId,
+      endedByUserId: chatMongoId,
+      reason: 'declined',
+    });
+    socketRef.current.emit('leaveMediaRoom', incomingCallRequest.conversationId);
+    setIncomingCallRequest(null);
+  }, [chatMongoId, incomingCallRequest]);
+
   return (
     <View style={styles.container}>
       {activeView === 'sidebar' ? (
@@ -481,6 +562,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           conversations={conversations}
           suggestedUsers={suggestedUsers}
           currentUser={currentUser}
+          currentUserId={chatMongoId || currentUser?.id || currentUserId}
           activeConversationId={activeConversationId}
           onSelectConversation={handleSelectConversation}
           onStartPrivateChat={handleStartPrivateChat}
@@ -492,6 +574,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           conversation={activeConversation}
           messages={messages}
           currentUser={currentUser}
+          currentUserId={chatMongoId || currentUser?.id || currentUserId}
+          privatePeer={privatePeer}
           onSendMessage={handleSendMessage}
           isLoadingMessages={isLoadingMessages}
           isSending={isSending}
@@ -500,8 +584,61 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           onForwardMessage={setForwardMessageTarget}
           onOpenProfile={handleOpenProfile}
           onOpenGroupManage={handleOpenGroupManage}
+          onStartVoiceCall={isPrivateConversation ? handleStartVoiceCall : undefined}
+          onStartVideoCall={isPrivateConversation ? handleStartVideoCall : undefined}
+          onStartGroupCall={!isPrivateConversation ? handleStartGroupCall : undefined}
+          isCallActive={isGroupCallActive}
         />
       )}
+
+      <Modal
+        visible={isGroupCallActive}
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => {
+          setIsGroupCallActive(false);
+          setCallConversationId(null);
+          setCallInitiatorUserId(null);
+        }}
+      >
+        {callConversationId && (
+          <GroupCallScreen
+            conversationId={callConversationId}
+            currentUserId={chatMongoId}
+            socket={socketRef.current}
+            participantNames={participantNames}
+            conversationType={callConversationType}
+            initiatorUserId={callInitiatorUserId}
+            onLeave={() => {
+              setIsGroupCallActive(false);
+              setCallConversationId(null);
+              setCallInitiatorUserId(null);
+            }}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={Boolean(incomingCallRequest)}
+        onRequestClose={handleDeclineIncomingCall}
+      >
+        <View style={styles.incomingOverlay}>
+          <View style={styles.incomingCard}>
+            <Text style={styles.incomingTitle}>Cuộc gọi đến</Text>
+            <Text style={styles.incomingText}>Bạn có cuộc gọi video đến</Text>
+            <View style={styles.incomingActions}>
+              <Pressable style={[styles.incomingBtn, styles.declineBtn]} onPress={handleDeclineIncomingCall}>
+                <Text style={styles.incomingBtnText}>Từ chối</Text>
+              </Pressable>
+              <Pressable style={[styles.incomingBtn, styles.acceptBtn]} onPress={handleAcceptIncomingCall}>
+                <Text style={styles.incomingBtnText}>Chấp nhận</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {forwardMessageTarget && (
         <ForwardMessageModal
@@ -539,5 +676,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  incomingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(2, 6, 23, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+  },
+  incomingCard: {
+    width: '100%',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  incomingTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  incomingText: {
+    marginTop: 6,
+    color: '#334155',
+    fontSize: 14,
+  },
+  incomingActions: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  incomingBtn: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  acceptBtn: {
+    backgroundColor: '#16a34a',
+  },
+  declineBtn: {
+    backgroundColor: '#334155',
+  },
+  incomingBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

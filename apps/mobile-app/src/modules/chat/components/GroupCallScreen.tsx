@@ -32,6 +32,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import type { Socket } from "socket.io-client";
 import { useMobileMediasoup, type RemoteParticipant } from "../useMobileMediasoup";
 
@@ -44,6 +45,8 @@ interface GroupCallScreenProps {
   socket: Socket | null;
   /** Map từ userId → tên hiển thị (optional, fallback là userId ngắn) */
   participantNames?: Record<string, string>;
+  conversationType?: "private" | "class";
+  initiatorUserId?: string | null;
   /** Callback khi người dùng nhấn nút "Rời phòng" */
   onLeave?: () => void;
 }
@@ -116,7 +119,7 @@ function VideoTile({ streamURL, label, isMirror, style, isMuted }: VideoTileProp
 // ─── Control Button ───────────────────────────────────────────────────────────
 
 interface ControlButtonProps {
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   isActive?: boolean;
@@ -158,7 +161,11 @@ function ControlButton({
           { transform: [{ scale }] },
         ]}
       >
-        <Text style={styles.controlBtnIcon}>{icon}</Text>
+        <Ionicons
+          name={icon}
+          size={22}
+          color="#f8fafc"
+        />
       </Animated.View>
       <Text style={styles.controlBtnLabel}>{label}</Text>
     </Pressable>
@@ -168,8 +175,8 @@ function ControlButton({
 // ─── Grid layout calculator ───────────────────────────────────────────────────
 
 function calcGridLayout(count: number, screenWidth: number) {
-  if (count === 1) return { columns: 1, tileWidth: screenWidth, tileHeight: 420 };
-  if (count === 2) return { columns: 1, tileWidth: screenWidth, tileHeight: 210 };
+  if (count === 1) return { columns: 1, tileWidth: screenWidth, tileHeight: 560 };
+  if (count === 2) return { columns: 1, tileWidth: screenWidth, tileHeight: 260 };
   if (count <= 4) return { columns: 2, tileWidth: screenWidth / 2, tileHeight: 220 };
   return { columns: 2, tileWidth: screenWidth / 2, tileHeight: 180 };
 }
@@ -181,6 +188,8 @@ export function GroupCallScreen({
   currentUserId,
   socket,
   participantNames = {},
+  conversationType = "class",
+  initiatorUserId = null,
   onLeave,
 }: GroupCallScreenProps) {
   const screenWidth = useMemo(() => Dimensions.get("window").width, []);
@@ -199,7 +208,13 @@ export function GroupCallScreen({
     toggleCamera,
     switchCamera,
     clearCallError,
-  } = useMobileMediasoup({ socket, currentUserId, conversationId });
+  } = useMobileMediasoup({
+    socket,
+    currentUserId,
+    conversationId,
+    endOnPeerLeave: conversationType === "private",
+    isCallInitiator: Boolean(initiatorUserId && initiatorUserId === currentUserId),
+  });
 
   const [hasJoined, setHasJoined] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -235,16 +250,22 @@ export function GroupCallScreen({
   );
 
   const isJoining = callStatus === "joining";
+  const isOneToOne = remoteParticipants.length <= 1;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      {/* ── Header ── */}
+      <View style={styles.backdropTop} />
+      <View style={styles.backdropBottom} />
+
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Cuộc gọi nhóm</Text>
-        <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>
-            {remoteParticipants.length + 1} người
+        <View>
+          <Text style={styles.headerTitle}>{isOneToOne ? "Cuộc gọi video" : "Cuộc gọi nhóm"}</Text>
+          <Text style={styles.headerSubTitle}>
+            {remoteParticipants.length + 1} người tham gia
           </Text>
+        </View>
+        <View style={styles.headerBadge}>
+          <Text style={styles.headerBadgeText}>{callStatus === "connected" ? "Đang gọi" : "Đang kết nối"}</Text>
         </View>
       </View>
 
@@ -314,7 +335,7 @@ export function GroupCallScreen({
           )}
           {!isCameraEnabled && (
             <View style={styles.pipCamOff}>
-              <Text style={styles.pipCamOffText}>📷 Tắt</Text>
+              <Ionicons name="videocam-off" size={18} color="#fff" />
             </View>
           )}
         </View>
@@ -342,29 +363,29 @@ export function GroupCallScreen({
       {/* ── Controls ── */}
       <View style={styles.controls}>
         <ControlButton
-          icon={isMicrophoneEnabled ? "🎙️" : "🔇"}
+          icon={isMicrophoneEnabled ? "mic" : "mic-off"}
           label={isMicrophoneEnabled ? "Tắt Mic" : "Bật Mic"}
           onPress={toggleMicrophone}
           isActive={isMicrophoneEnabled}
           disabled={!localStreamURL}
         />
         <ControlButton
-          icon={isCameraEnabled ? "📹" : "🚫"}
+          icon={isCameraEnabled ? "videocam" : "videocam-off"}
           label={isCameraEnabled ? "Tắt Cam" : "Bật Cam"}
           onPress={toggleCamera}
           isActive={isCameraEnabled}
           disabled={!localStreamURL}
         />
         <ControlButton
-          icon="🔄"
+          icon="camera-reverse"
           label={cameraFacing === "front" ? "Đổi Cam" : "Cam trước"}
           onPress={switchCamera}
           disabled={!localStreamURL}
         />
         <ControlButton
-          icon="📵"
-          label="Rời phòng"
-          onPress={() => setConfirmLeave(true)}
+          icon="call"
+          label="Kết thúc"
+          onPress={conversationType === "private" ? handleLeave : () => setConfirmLeave(true)}
           isDanger
         />
       </View>
@@ -373,7 +394,7 @@ export function GroupCallScreen({
       <Modal
         transparent
         animationType="fade"
-        visible={confirmLeave}
+        visible={confirmLeave && conversationType !== "private"}
         onRequestClose={() => setConfirmLeave(false)}
       >
         <View style={styles.modalOverlay}>
@@ -414,31 +435,58 @@ const PIP_HEIGHT = 140;
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#0f0e17",
+    backgroundColor: "#0b1220",
+  },
+  backdropTop: {
+    position: "absolute",
+    top: -120,
+    left: -60,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: "rgba(96,165,250,0.20)",
+  },
+  backdropBottom: {
+    position: "absolute",
+    bottom: -150,
+    right: -80,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: "rgba(14,165,233,0.12)",
   },
   // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 10,
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    marginHorizontal: 10,
+    marginTop: 4,
+    borderRadius: 16,
+    backgroundColor: "rgba(15,23,42,0.55)",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
   },
   headerTitle: {
-    color: "#f0f0f0",
-    fontSize: 16,
+    color: "#e2e8f0",
+    fontSize: 17,
     fontWeight: "700",
-    letterSpacing: 0.3,
+  },
+  headerSubTitle: {
+    marginTop: 2,
+    color: "#94a3b8",
+    fontSize: 12,
   },
   headerBadge: {
-    backgroundColor: "#6366f1",
+    backgroundColor: "rgba(34,197,94,0.18)",
     borderRadius: 99,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
   },
   headerBadgeText: {
-    color: "#fff",
+    color: "#86efac",
     fontSize: 12,
     fontWeight: "600",
   },
@@ -483,6 +531,7 @@ const styles = StyleSheet.create({
   grid: {
     flex: 1,
     overflow: "hidden",
+    marginTop: 10,
   },
   gridRow: {
     flexDirection: "row",
@@ -502,10 +551,11 @@ const styles = StyleSheet.create({
   },
   // Tile
   tile: {
-    backgroundColor: "#1e1b2e",
+    backgroundColor: "#111827",
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#2d2b3d",
+    borderWidth: 2,
+    borderColor: "rgba(148,163,184,0.18)",
+    borderRadius: 16,
   },
   tileVideo: {
     flex: 1,
@@ -514,7 +564,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#312e55",
+    backgroundColor: "#1f2937",
   },
   tileAvatarText: {
     fontSize: 40,
@@ -523,11 +573,15 @@ const styles = StyleSheet.create({
   },
   tileLabelRow: {
     position: "absolute",
-    bottom: 6,
-    left: 8,
+    bottom: 10,
+    left: 10,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    backgroundColor: "rgba(15,23,42,0.68)",
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   tileLabelText: {
     color: "#fff",
@@ -550,14 +604,14 @@ const styles = StyleSheet.create({
   // PIP
   pip: {
     position: "absolute",
-    bottom: Platform.OS === "android" ? 110 : 130,
-    right: 14,
+    bottom: Platform.OS === "android" ? 120 : 138,
+    right: 16,
     width: PIP_WIDTH,
     height: PIP_HEIGHT,
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: "hidden",
     borderWidth: 2,
-    borderColor: "#6366f1",
+    borderColor: "rgba(255,255,255,0.75)",
     elevation: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -581,13 +635,9 @@ const styles = StyleSheet.create({
   },
   pipCamOff: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "#000000",
     justifyContent: "center",
     alignItems: "center",
-  },
-  pipCamOffText: {
-    color: "#fff",
-    fontSize: 12,
   },
   // Status
   statusRow: {
@@ -595,7 +645,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   statusDot: {
     width: 8,
@@ -617,30 +667,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(15, 14, 23, 0.95)",
+    backgroundColor: "rgba(15,23,42,0.84)",
     borderTopWidth: 1,
-    borderTopColor: "#1e1b2e",
+    borderTopColor: "rgba(148,163,184,0.2)",
   },
   controlBtn: {
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: "#1e1b2e",
+    backgroundColor: "rgba(30,41,59,0.95)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#312e55",
   },
   controlBtnDanger: {
-    backgroundColor: "#7f1d1d",
-    borderColor: "#b91c1c",
+    backgroundColor: "#dc2626",
+    borderColor: "#ef4444",
   },
   controlBtnInactive: {
     backgroundColor: "#374151",
     borderColor: "#4b5563",
-  },
-  controlBtnIcon: {
-    fontSize: 22,
   },
   controlBtnLabel: {
     color: "#94a3b8",
