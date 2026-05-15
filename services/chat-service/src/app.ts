@@ -15,6 +15,9 @@ const app: Application = express();
 
 connectDB();
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 function buildAllowedOrigins(): string[] {
   const defaults = [
     "http://localhost:3000",
@@ -46,8 +49,7 @@ app.use((req, res, next) => {
     credentials: true,
   })(req, res, next);
 });
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
 
 function toSingleHeaderValue(value: string | string[] | undefined): string {
   if (Array.isArray(value)) {

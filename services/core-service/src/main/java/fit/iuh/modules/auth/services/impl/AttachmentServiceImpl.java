@@ -1,24 +1,31 @@
 package fit.iuh.modules.auth.services.impl;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
 import fit.iuh.models.Attachment;
 import fit.iuh.models.AttachmentTargetType;
 import fit.iuh.models.Profile;
 import fit.iuh.modules.auth.repositories.AttachmentRepository;
 import fit.iuh.modules.auth.repositories.ProfileRepository;
 import fit.iuh.modules.auth.services.AttachmentService;
+import fit.iuh.modules.auth.services.SocketEventService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
-
-import java.io.IOException;
-import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +33,9 @@ public class AttachmentServiceImpl implements AttachmentService {
 
     private final AttachmentRepository attachmentRepository;
     private final ProfileRepository profileRepository;
+
+    // ✨ SOCKET EVENT SERVICE
+    private final SocketEventService socketEventService;
 
     // 👉 1. KHAI BÁO S3 CLIENT VÀ CẤU HÌNH
     private final S3Client s3Client;
@@ -49,10 +59,10 @@ public class AttachmentServiceImpl implements AttachmentService {
 
             // 3. Upload file TẬN TAY lên AWS S3
             s3Client.putObject(PutObjectRequest.builder()
-                            .bucket(bucketName)
-                            .key(key)
-                            .contentType(file.getContentType()) // Bắt đúng định dạng (pdf, docx, img...)
-                            .build(),
+                    .bucket(bucketName)
+                    .key(key)
+                    .contentType(file.getContentType()) // Bắt đúng định dạng (pdf, docx, img...)
+                    .build(),
                     RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
             // 4. Lấy link S3 thật để trả về cho Frontend tải xuống
@@ -69,7 +79,33 @@ public class AttachmentServiceImpl implements AttachmentService {
                     .targetType(AttachmentTargetType.CLASS_FOLDER)
                     .build();
 
-            return attachmentRepository.save(attachment);
+            attachment = attachmentRepository.save(attachment);
+
+            // ✨ EMIT SOCKET EVENT
+            Map<String, Object> fileData = new HashMap<>();
+            fileData.put("id", attachment.getId());
+            fileData.put("fileName", attachment.getFileName());
+            fileData.put("fileType", attachment.getFileType());
+            fileData.put("size", attachment.getSize());
+            fileData.put("fileUrl", attachment.getFileUrl());
+            fileData.put("userId", attachment.getUserId());
+            fileData.put("createdAt", java.time.LocalDateTime.now());
+
+            // Enrich with author name
+            profileRepository.findByAccount_Email(userEmail).ifPresent(profile -> {
+                String fullName = "";
+                if (profile.getLastName() != null) {
+                    fullName += profile.getLastName() + " ";
+                }
+                if (profile.getFirstName() != null) {
+                    fullName += profile.getFirstName();
+                }
+                fileData.put("authorName", fullName.trim());
+            });
+
+            socketEventService.emitFileUploaded(classId, fileData);
+
+            return attachment;
 
         } catch (IOException e) {
             throw new RuntimeException("Lỗi upload file tài liệu lên S3: " + e.getMessage());
@@ -81,7 +117,9 @@ public class AttachmentServiceImpl implements AttachmentService {
         // 1. Lấy danh sách file từ MongoDB
         List<Attachment> attachments = attachmentRepository.findByClassIdAndTargetType(classId, AttachmentTargetType.CLASS_FOLDER);
 
-        if (attachments.isEmpty()) return attachments;
+        if (attachments.isEmpty()) {
+            return attachments;
+        }
 
         // 2. Gom danh sách email người đăng
         Set<String> userEmails = attachments.stream()
@@ -114,11 +152,12 @@ public class AttachmentServiceImpl implements AttachmentService {
         Attachment attachment = attachmentRepository.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài liệu để xóa"));
 
+        String classId = attachment.getClassId();
+
         // (Tùy chọn: Bỏ comment nếu muốn BẮT BUỘC người nào up người đó mới được xóa)
         // if (attachment.getUserId() != null && !attachment.getUserId().equals(email)) {
         //     throw new RuntimeException("Bạn không có quyền xóa tài liệu này!");
         // }
-
         // 2. Xóa file vật lý trên AWS S3
         try {
             String fileUrl = attachment.getFileUrl();
@@ -140,5 +179,10 @@ public class AttachmentServiceImpl implements AttachmentService {
 
         // 3. Cuối cùng, xóa thông tin file trong Database
         attachmentRepository.deleteById(attachmentId);
+
+        // ✨ EMIT SOCKET EVENT
+        if (classId != null) {
+            socketEventService.emitFileDeleted(classId, attachmentId);
+        }
     }
 }
