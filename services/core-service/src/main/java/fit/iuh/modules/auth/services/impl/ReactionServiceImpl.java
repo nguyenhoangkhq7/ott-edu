@@ -1,14 +1,20 @@
 package fit.iuh.modules.auth.services.impl;
 
-import fit.iuh.models.*;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+
+import fit.iuh.models.Comment;
+import fit.iuh.models.Post;
+import fit.iuh.models.Reaction;
+import fit.iuh.models.ReactionType;
+import fit.iuh.models.TargetType;
 import fit.iuh.modules.auth.repositories.CommentRepository;
 import fit.iuh.modules.auth.repositories.PostRepository;
 import fit.iuh.modules.auth.repositories.ReactionRepository;
 import fit.iuh.modules.auth.services.ReactionService;
+import fit.iuh.modules.auth.services.SocketEventService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -17,6 +23,8 @@ public class ReactionServiceImpl implements ReactionService {
     private final ReactionRepository reactionRepository;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    // ✨ SOCKET EVENT SERVICE
+    private final SocketEventService socketEventService;
 
     @Override
     public void toggleReaction(String targetId, TargetType targetType, ReactionType reactionType, String authorEmail) {
@@ -25,6 +33,7 @@ public class ReactionServiceImpl implements ReactionService {
 
         boolean isNewReaction = false;
         boolean isUnliked = false;
+        String classId = null;
 
         if (existingOpt.isPresent()) {
             Reaction existing = existingOpt.get();
@@ -46,17 +55,35 @@ public class ReactionServiceImpl implements ReactionService {
         if (targetType == TargetType.POST) {
             Post post = postRepository.findById(targetId).orElse(null);
             if (post != null) {
-                if (isNewReaction) post.setReactionCount(post.getReactionCount() + 1);
-                if (isUnliked) post.setReactionCount(Math.max(0, post.getReactionCount() - 1));
+                classId = post.getClassId();
+                if (isNewReaction) {
+                    post.setReactionCount(post.getReactionCount() + 1);
+                }
+                if (isUnliked) {
+                    post.setReactionCount(Math.max(0, post.getReactionCount() - 1));
+                }
                 postRepository.save(post);
             }
         } else if (targetType == TargetType.COMMENT) {
             Comment comment = commentRepository.findById(targetId).orElse(null);
             if (comment != null) {
-                if (isNewReaction) comment.setReactionCount(comment.getReactionCount() + 1);
-                if (isUnliked) comment.setReactionCount(Math.max(0, comment.getReactionCount() - 1));
+                Post post = postRepository.findById(comment.getPostId()).orElse(null);
+                if (post != null) {
+                    classId = post.getClassId();
+                }
+                if (isNewReaction) {
+                    comment.setReactionCount(comment.getReactionCount() + 1);
+                }
+                if (isUnliked) {
+                    comment.setReactionCount(Math.max(0, comment.getReactionCount() - 1));
+                }
                 commentRepository.save(comment);
             }
+        }
+
+        // ✨ EMIT SOCKET EVENT
+        if (classId != null) {
+            socketEventService.emitReactionUpdated(classId, targetId, reactionType.name(), isNewReaction || !isUnliked);
         }
     }
 }

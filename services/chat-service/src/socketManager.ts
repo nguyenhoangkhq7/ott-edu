@@ -95,7 +95,10 @@ type ResumeConsumerPayload = {
 
 type MediaAck =
   | ((response: { ok: true; data: unknown }) => void)
-  | ((response: { ok: false; error: { code: string; message: string } }) => void);
+  | ((response: {
+      ok: false;
+      error: { code: string; message: string };
+    }) => void);
 
 type MediaPeer = {
   socketId: string;
@@ -146,7 +149,11 @@ class SocketManager {
     return session.callerId === userId || session.calleeId === userId;
   }
 
-  private emitToUser(userId: string, eventName: string, payload: unknown): boolean {
+  private emitToUser(
+    userId: string,
+    eventName: string,
+    payload: unknown,
+  ): boolean {
     if (!this.io) {
       return false;
     }
@@ -175,7 +182,9 @@ class SocketManager {
     this.activeCallByUser.delete(session.calleeId);
   }
 
-  private mapReasonToCallStatus(reason: string): "ended" | "declined" | "unavailable" | "failed" {
+  private mapReasonToCallStatus(
+    reason: string,
+  ): "ended" | "declined" | "unavailable" | "failed" {
     switch (reason) {
       case "declined":
         return "declined";
@@ -217,7 +226,10 @@ class SocketManager {
     }
   }
 
-  private async markCallConnected(callId: string, connectedAt: number): Promise<void> {
+  private async markCallConnected(
+    callId: string,
+    connectedAt: number,
+  ): Promise<void> {
     try {
       await CallLog.findOneAndUpdate(
         { callId } as any,
@@ -234,15 +246,24 @@ class SocketManager {
     }
   }
 
-  private async finalizeCallLog(callId: string, reason: string, endedAtMs?: number): Promise<void> {
+  private async finalizeCallLog(
+    callId: string,
+    reason: string,
+    endedAtMs?: number,
+  ): Promise<void> {
     try {
       const endedAtDate = new Date(endedAtMs || Date.now());
-      const current = await CallLog.findOne({ callId } as any).select("startedAt").lean();
+      const current = await CallLog.findOne({ callId } as any)
+        .select("startedAt")
+        .lean();
 
       const startedAtMs = current?.startedAt
         ? new Date(current.startedAt).getTime()
         : endedAtDate.getTime();
-      const durationSec = Math.max(0, Math.round((endedAtDate.getTime() - startedAtMs) / 1000));
+      const durationSec = Math.max(
+        0,
+        Math.round((endedAtDate.getTime() - startedAtMs) / 1000),
+      );
 
       await CallLog.findOneAndUpdate(
         { callId } as any,
@@ -312,8 +333,8 @@ class SocketManager {
       return false;
     }
 
-    const participantIds = (conversation.participants || []).map((participant) =>
-      participant.toString(),
+    const participantIds = (conversation.participants || []).map(
+      (participant) => participant.toString(),
     );
 
     return (
@@ -397,7 +418,9 @@ class SocketManager {
 
   private safeAck(
     ack: unknown,
-    payload: { ok: true; data: unknown } | { ok: false; error: { code: string; message: string } },
+    payload:
+      | { ok: true; data: unknown }
+      | { ok: false; error: { code: string; message: string } },
   ): void {
     if (typeof ack === "function") {
       (ack as MediaAck)(payload as any);
@@ -438,7 +461,9 @@ class SocketManager {
       this.mediasoupWorkers.push(worker);
     }
 
-    console.log(`[Mediasoup] started ${this.mediasoupWorkers.length} worker(s).`);
+    console.log(
+      `[Mediasoup] started ${this.mediasoupWorkers.length} worker(s).`,
+    );
   }
 
   private getMediasoupWorker(): Worker {
@@ -455,7 +480,9 @@ class SocketManager {
     return worker;
   }
 
-  private async getOrCreateMediaRoom(conversationId: string): Promise<MediaRoom> {
+  private async getOrCreateMediaRoom(
+    conversationId: string,
+  ): Promise<MediaRoom> {
     const existing = this.mediaRooms.get(conversationId);
     if (existing) {
       return existing;
@@ -480,7 +507,11 @@ class SocketManager {
     return room.peers.get(socketId) || null;
   }
 
-  private ensureMediaPeer(room: MediaRoom, socketId: string, userId: string): MediaPeer {
+  private ensureMediaPeer(
+    room: MediaRoom,
+    socketId: string,
+    userId: string,
+  ): MediaPeer {
     const existing = room.peers.get(socketId);
     if (existing) {
       existing.userId = userId;
@@ -545,7 +576,8 @@ class SocketManager {
     room: MediaRoom,
     excludingSocketId: string,
   ): Array<{ producerId: string; kind: string; userId: string }> {
-    const results: Array<{ producerId: string; kind: string; userId: string }> = [];
+    const results: Array<{ producerId: string; kind: string; userId: string }> =
+      [];
 
     room.peers.forEach((peer, peerSocketId) => {
       if (peerSocketId === excludingSocketId) {
@@ -629,7 +661,12 @@ class SocketManager {
         if (userId) {
           const activeCallId = this.activeCallByUser.get(userId);
           if (activeCallId) {
-            this.endCallSession(activeCallId, userId, "peer-disconnected", false);
+            this.endCallSession(
+              activeCallId,
+              userId,
+              "peer-disconnected",
+              false,
+            );
           }
 
           this.onlineUsers.delete(userId);
@@ -645,57 +682,105 @@ class SocketManager {
         console.log(`Socket ${socket.id} joined room ${conversationId}`);
       });
 
-      socket.on("joinMediaRoom", async (data: JoinMediaRoomPayload, ack?: MediaAck) => {
-        if (!userId) {
-          this.emitMediaError(socket, "UNAUTHORIZED", "Missing user identity.", ack);
-          return;
-        }
-
-        const conversationId = data?.conversationId?.trim();
-        if (!conversationId) {
-          this.emitMediaError(socket, "INVALID_PAYLOAD", "conversationId is required.", ack);
-          return;
-        }
-
-        try {
-          await this.mediasoupReady;
-          const room = await this.getOrCreateMediaRoom(conversationId);
-          const peer = this.ensureMediaPeer(room, socket.id, userId);
-
-          if (data?.rtpCapabilities) {
-            peer.rtpCapabilities = data.rtpCapabilities;
-          }
-
-          socket.join(conversationId);
-
-          const existingProducers = this.listExistingProducers(room, socket.id);
-          
-          // Notify other peers in the room about the new user joining
-          socket.to(conversationId).emit("mediaPeerJoined", {
-            userId,
-            socketId: socket.id,
-            conversationId,
-          });
-          
-          this.safeAck(ack, {
-            ok: true,
-            data: {
-              rtpCapabilities: room.router.rtpCapabilities,
-              existingProducers,
-            },
-          });
-        } catch (error) {
-          console.error("[Mediasoup] joinMediaRoom error:", error);
-          this.emitMediaError(socket, "MEDIA_JOIN_FAILED", "Unable to join media room.", ack);
+      // ✨ JOIN TEAM/CLASS ROOM for realtime updates (Posts, Comments, Files)
+      socket.on("join_room", (data: { roomId: string }) => {
+        const { roomId } = data;
+        if (roomId) {
+          socket.join(roomId);
+          console.log(
+            `[SocketManager] Socket ${socket.id} (userId: ${userId}) joined team room: ${roomId}`,
+          );
         }
       });
+
+      // ✨ LEAVE TEAM/CLASS ROOM
+      socket.on("leave_room", (data: { roomId: string }) => {
+        const { roomId } = data;
+        if (roomId) {
+          socket.leave(roomId);
+          console.log(
+            `[SocketManager] Socket ${socket.id} (userId: ${userId}) left team room: ${roomId}`,
+          );
+        }
+      });
+
+      socket.on(
+        "joinMediaRoom",
+        async (data: JoinMediaRoomPayload, ack?: MediaAck) => {
+          if (!userId) {
+            this.emitMediaError(
+              socket,
+              "UNAUTHORIZED",
+              "Missing user identity.",
+              ack,
+            );
+            return;
+          }
+
+          const conversationId = data?.conversationId?.trim();
+          if (!conversationId) {
+            this.emitMediaError(
+              socket,
+              "INVALID_PAYLOAD",
+              "conversationId is required.",
+              ack,
+            );
+            return;
+          }
+
+          try {
+            await this.mediasoupReady;
+            const room = await this.getOrCreateMediaRoom(conversationId);
+            const peer = this.ensureMediaPeer(room, socket.id, userId);
+
+            if (data?.rtpCapabilities) {
+              peer.rtpCapabilities = data.rtpCapabilities;
+            }
+
+            socket.join(conversationId);
+
+            const existingProducers = this.listExistingProducers(
+              room,
+              socket.id,
+            );
+
+            // Notify other peers in the room about the new user joining
+            socket.to(conversationId).emit("mediaPeerJoined", {
+              userId,
+              socketId: socket.id,
+              conversationId,
+            });
+
+            this.safeAck(ack, {
+              ok: true,
+              data: {
+                rtpCapabilities: room.router.rtpCapabilities,
+                existingProducers,
+              },
+            });
+          } catch (error) {
+            console.error("[Mediasoup] joinMediaRoom error:", error);
+            this.emitMediaError(
+              socket,
+              "MEDIA_JOIN_FAILED",
+              "Unable to join media room.",
+              ack,
+            );
+          }
+        },
+      );
 
       socket.on(
         "getRtpCapabilities",
         async (conversationId: string, ack?: MediaAck) => {
           const roomId = conversationId?.trim();
           if (!roomId) {
-            this.emitMediaError(socket, "INVALID_PAYLOAD", "conversationId is required.", ack);
+            this.emitMediaError(
+              socket,
+              "INVALID_PAYLOAD",
+              "conversationId is required.",
+              ack,
+            );
             return;
           }
 
@@ -705,7 +790,12 @@ class SocketManager {
             this.safeAck(ack, { ok: true, data: room.router.rtpCapabilities });
           } catch (error) {
             console.error("[Mediasoup] getRtpCapabilities error:", error);
-            this.emitMediaError(socket, "MEDIA_RTP_FAILED", "Unable to get RTP capabilities.", ack);
+            this.emitMediaError(
+              socket,
+              "MEDIA_RTP_FAILED",
+              "Unable to get RTP capabilities.",
+              ack,
+            );
           }
         },
       );
@@ -714,7 +804,12 @@ class SocketManager {
         "createWebRtcTransport",
         async (data: CreateWebRtcTransportPayload, ack?: MediaAck) => {
           if (!userId) {
-            this.emitMediaError(socket, "UNAUTHORIZED", "Missing user identity.", ack);
+            this.emitMediaError(
+              socket,
+              "UNAUTHORIZED",
+              "Missing user identity.",
+              ack,
+            );
             return;
           }
 
@@ -803,19 +898,34 @@ class SocketManager {
 
           const room = this.mediaRooms.get(conversationId);
           if (!room) {
-            this.emitMediaError(socket, "ROOM_NOT_FOUND", "Media room not found.", ack);
+            this.emitMediaError(
+              socket,
+              "ROOM_NOT_FOUND",
+              "Media room not found.",
+              ack,
+            );
             return;
           }
 
           const peer = this.getMediaPeer(room, socket.id);
           if (!peer) {
-            this.emitMediaError(socket, "PEER_NOT_FOUND", "Media peer not found.", ack);
+            this.emitMediaError(
+              socket,
+              "PEER_NOT_FOUND",
+              "Media peer not found.",
+              ack,
+            );
             return;
           }
 
           const transport = peer.transports.get(data.transportId);
           if (!transport) {
-            this.emitMediaError(socket, "TRANSPORT_NOT_FOUND", "Transport not found.", ack);
+            this.emitMediaError(
+              socket,
+              "TRANSPORT_NOT_FOUND",
+              "Transport not found.",
+              ack,
+            );
             return;
           }
 
@@ -836,12 +946,22 @@ class SocketManager {
 
       socket.on("produce", async (data: ProducePayload, ack?: MediaAck) => {
         if (!userId) {
-          this.emitMediaError(socket, "UNAUTHORIZED", "Missing user identity.", ack);
+          this.emitMediaError(
+            socket,
+            "UNAUTHORIZED",
+            "Missing user identity.",
+            ack,
+          );
           return;
         }
 
         const conversationId = data?.conversationId?.trim();
-        if (!conversationId || !data?.transportId || !data?.kind || !data?.rtpParameters) {
+        if (
+          !conversationId ||
+          !data?.transportId ||
+          !data?.kind ||
+          !data?.rtpParameters
+        ) {
           this.emitMediaError(
             socket,
             "INVALID_PAYLOAD",
@@ -853,19 +973,34 @@ class SocketManager {
 
         const room = this.mediaRooms.get(conversationId);
         if (!room) {
-          this.emitMediaError(socket, "ROOM_NOT_FOUND", "Media room not found.", ack);
+          this.emitMediaError(
+            socket,
+            "ROOM_NOT_FOUND",
+            "Media room not found.",
+            ack,
+          );
           return;
         }
 
         const peer = this.getMediaPeer(room, socket.id);
         if (!peer) {
-          this.emitMediaError(socket, "PEER_NOT_FOUND", "Media peer not found.", ack);
+          this.emitMediaError(
+            socket,
+            "PEER_NOT_FOUND",
+            "Media peer not found.",
+            ack,
+          );
           return;
         }
 
         const transport = peer.transports.get(data.transportId);
         if (!transport) {
-          this.emitMediaError(socket, "TRANSPORT_NOT_FOUND", "Transport not found.", ack);
+          this.emitMediaError(
+            socket,
+            "TRANSPORT_NOT_FOUND",
+            "Transport not found.",
+            ack,
+          );
           return;
         }
 
@@ -921,19 +1056,34 @@ class SocketManager {
 
         const room = this.mediaRooms.get(conversationId);
         if (!room) {
-          this.emitMediaError(socket, "ROOM_NOT_FOUND", "Media room not found.", ack);
+          this.emitMediaError(
+            socket,
+            "ROOM_NOT_FOUND",
+            "Media room not found.",
+            ack,
+          );
           return;
         }
 
         const peer = this.getMediaPeer(room, socket.id);
         if (!peer) {
-          this.emitMediaError(socket, "PEER_NOT_FOUND", "Media peer not found.", ack);
+          this.emitMediaError(
+            socket,
+            "PEER_NOT_FOUND",
+            "Media peer not found.",
+            ack,
+          );
           return;
         }
 
         const transport = peer.transports.get(data.transportId);
         if (!transport) {
-          this.emitMediaError(socket, "TRANSPORT_NOT_FOUND", "Transport not found.", ack);
+          this.emitMediaError(
+            socket,
+            "TRANSPORT_NOT_FOUND",
+            "Transport not found.",
+            ack,
+          );
           return;
         }
 
@@ -949,7 +1099,10 @@ class SocketManager {
         }
 
         try {
-          const canConsumeResult = room.router.canConsume({ producerId: data.producerId, rtpCapabilities });
+          const canConsumeResult = room.router.canConsume({
+            producerId: data.producerId,
+            rtpCapabilities,
+          });
           if (!canConsumeResult) {
             console.warn(
               "[Mediasoup] canConsume failed for producer",
@@ -1022,74 +1175,108 @@ class SocketManager {
         }
       });
 
-      socket.on("resume", async (data: ResumeConsumerPayload, ack?: MediaAck) => {
-        const conversationId = data?.conversationId?.trim();
-        if (!conversationId || !data?.consumerId) {
-          this.emitMediaError(
-            socket,
-            "INVALID_PAYLOAD",
-            "conversationId and consumerId are required.",
-            ack,
-          );
-          return;
-        }
-
-        const room = this.mediaRooms.get(conversationId);
-        if (!room) {
-          this.emitMediaError(socket, "ROOM_NOT_FOUND", "Media room not found.", ack);
-          return;
-        }
-
-        const peer = this.getMediaPeer(room, socket.id);
-        if (!peer) {
-          this.emitMediaError(socket, "PEER_NOT_FOUND", "Media peer not found.", ack);
-          return;
-        }
-
-        const consumer = peer.consumers.get(data.consumerId);
-        if (!consumer) {
-          this.emitMediaError(socket, "CONSUMER_NOT_FOUND", "Consumer not found.", ack);
-          return;
-        }
-
-        try {
-          await consumer.resume();
-          this.safeAck(ack, { ok: true, data: { resumed: true } });
-        } catch (error) {
-          console.error("[Mediasoup] resume error:", error);
-          this.emitMediaError(socket, "MEDIA_RESUME_FAILED", "Unable to resume.", ack);
-        }
-      });
-
-      socket.on("closeProducer", (data: { conversationId: string; producerId: string }, ack?: MediaAck) => {
-        const conversationId = data?.conversationId?.trim();
-        if (!conversationId || !data?.producerId) {
-          this.emitMediaError(socket, "INVALID_PAYLOAD", "conversationId and producerId are required.", ack);
-          return;
-        }
-
-        const room = this.mediaRooms.get(conversationId);
-        if (!room) return;
-
-        const peer = this.getMediaPeer(room, socket.id);
-        if (!peer) return;
-
-        const producer = peer.producers.get(data.producerId);
-        if (producer) {
-          try {
-            producer.close();
-          } catch (error) {
-            console.warn("[Mediasoup] close producer error:", error);
+      socket.on(
+        "resume",
+        async (data: ResumeConsumerPayload, ack?: MediaAck) => {
+          const conversationId = data?.conversationId?.trim();
+          if (!conversationId || !data?.consumerId) {
+            this.emitMediaError(
+              socket,
+              "INVALID_PAYLOAD",
+              "conversationId and consumerId are required.",
+              ack,
+            );
+            return;
           }
-          peer.producers.delete(data.producerId);
-          
-          socket.to(conversationId).emit("producerClosed", {
-            producerId: data.producerId,
-          });
-        }
-        
-        this.safeAck(ack, { ok: true, data: { closed: true } });
-      });
+
+          const room = this.mediaRooms.get(conversationId);
+          if (!room) {
+            this.emitMediaError(
+              socket,
+              "ROOM_NOT_FOUND",
+              "Media room not found.",
+              ack,
+            );
+            return;
+          }
+
+          const peer = this.getMediaPeer(room, socket.id);
+          if (!peer) {
+            this.emitMediaError(
+              socket,
+              "PEER_NOT_FOUND",
+              "Media peer not found.",
+              ack,
+            );
+            return;
+          }
+
+          const consumer = peer.consumers.get(data.consumerId);
+          if (!consumer) {
+            this.emitMediaError(
+              socket,
+              "CONSUMER_NOT_FOUND",
+              "Consumer not found.",
+              ack,
+            );
+            return;
+          }
+
+          try {
+            await consumer.resume();
+            this.safeAck(ack, { ok: true, data: { resumed: true } });
+          } catch (error) {
+            console.error("[Mediasoup] resume error:", error);
+            this.emitMediaError(
+              socket,
+              "MEDIA_RESUME_FAILED",
+              "Unable to resume.",
+              ack,
+            );
+          }
+        },
+      );
+
+      socket.on(
+        "closeProducer",
+        (
+          data: { conversationId: string; producerId: string },
+          ack?: MediaAck,
+        ) => {
+          const conversationId = data?.conversationId?.trim();
+          if (!conversationId || !data?.producerId) {
+            this.emitMediaError(
+              socket,
+              "INVALID_PAYLOAD",
+              "conversationId and producerId are required.",
+              ack,
+            );
+            return;
+          }
+
+          const room = this.mediaRooms.get(conversationId);
+          if (!room) return;
+
+          const peer = this.getMediaPeer(room, socket.id);
+          if (!peer) return;
+
+          const producer = peer.producers.get(data.producerId);
+          if (producer) {
+            try {
+              producer.close();
+            } catch (error) {
+              console.warn("[Mediasoup] close producer error:", error);
+            }
+            peer.producers.delete(data.producerId);
+
+            socket.to(conversationId).emit("producerClosed", {
+              producerId: data.producerId,
+            });
+          }
+
+          this.safeAck(ack, { ok: true, data: { closed: true } });
+        },
+      );
 
       socket.on("leaveMediaRoom", (conversationId: string) => {
         const roomId = conversationId?.trim();
@@ -1127,52 +1314,55 @@ class SocketManager {
       });
 
       // For group calls: broadcast incoming call event when joining media room
-      socket.on("startGroupMediaCall", async (data: { conversationId: string }) => {
-        if (!userId) {
-          socket.emit("videoCallError", {
-            code: "UNAUTHORIZED",
-            message: "Missing user identity for starting group call.",
-          });
-          return;
-        }
-
-        const conversationId = data?.conversationId?.trim();
-        if (!conversationId) {
-          socket.emit("videoCallError", {
-            code: "INVALID_PAYLOAD",
-            message: "conversationId is required.",
-          });
-          return;
-        }
-
-        try {
-          const room = this.mediaRooms.get(conversationId);
-          if (!room) {
+      socket.on(
+        "startGroupMediaCall",
+        async (data: { conversationId: string }) => {
+          if (!userId) {
             socket.emit("videoCallError", {
-              code: "ROOM_NOT_FOUND",
-              message: "Media room not found.",
+              code: "UNAUTHORIZED",
+              message: "Missing user identity for starting group call.",
             });
             return;
           }
 
-          // Broadcast group call started to all peers in the room
-          socket.to(conversationId).emit("incomingGroupMediaCall", {
-            conversationId,
-            initiatorUserId: userId,
-            initiatedAt: new Date().toISOString(),
-          });
+          const conversationId = data?.conversationId?.trim();
+          if (!conversationId) {
+            socket.emit("videoCallError", {
+              code: "INVALID_PAYLOAD",
+              message: "conversationId is required.",
+            });
+            return;
+          }
 
-          socket.emit("groupMediaCallStarted", {
-            conversationId,
-          });
-        } catch (error) {
-          console.error("[Mediasoup] startGroupMediaCall error:", error);
-          socket.emit("videoCallError", {
-            code: "GROUP_CALL_FAILED",
-            message: "Unable to start group media call.",
-          });
-        }
-      });
+          try {
+            const room = this.mediaRooms.get(conversationId);
+            if (!room) {
+              socket.emit("videoCallError", {
+                code: "ROOM_NOT_FOUND",
+                message: "Media room not found.",
+              });
+              return;
+            }
+
+            // Broadcast group call started to all peers in the room
+            socket.to(conversationId).emit("incomingGroupMediaCall", {
+              conversationId,
+              initiatorUserId: userId,
+              initiatedAt: new Date().toISOString(),
+            });
+
+            socket.emit("groupMediaCallStarted", {
+              conversationId,
+            });
+          } catch (error) {
+            console.error("[Mediasoup] startGroupMediaCall error:", error);
+            socket.emit("videoCallError", {
+              code: "GROUP_CALL_FAILED",
+              message: "Unable to start group media call.",
+            });
+          }
+        },
+      );
 
       // Signaling: Caller bắt đầu gọi cho Callee trong private conversation hiện tại
       socket.on("startVideoCall", async (data: StartVideoCallPayload) => {
@@ -1451,8 +1641,30 @@ class SocketManager {
     }
   }
 
+  // ✨ BROADCAST TO ROOM - Phát sự kiện realtime tới toàn bộ clients trong room (classId)
+  public broadcastToRoom(
+    classId: string,
+    eventName: string,
+    payload: any,
+  ): void {
+    if (!this.io) {
+      console.error("[SocketManager] broadcastToRoom: io not initialized");
+      return;
+    }
+
+    // Broadcast tới tất cả clients trong room với tên là classId
+    this.io.to(classId).emit(eventName, payload);
+    console.log(
+      `[SocketManager] ✓ Broadcasted event '${eventName}' to room '${classId}'`,
+    );
+  }
+
   // 👇 CHỈ CẦN DÁN THÊM HÀM NÀY VÀO TRƯỚC DẤU NGOẶC ĐÓNG CỦA CLASS 👇
-  public emitToUserTarget(userId: string, eventName: string, payload: any): void {
+  public emitToUserTarget(
+    userId: string,
+    eventName: string,
+    payload: any,
+  ): void {
     this.emitToUser(userId, eventName, payload);
   }
 }

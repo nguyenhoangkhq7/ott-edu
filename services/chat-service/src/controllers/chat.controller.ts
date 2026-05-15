@@ -777,4 +777,23 @@ static async acceptFriendRequest(req: any, res: any) {
     }
   }
   
+  // API: POST /api/socket-events/emit
+  // ✨ REALTIME EVENTS ENDPOINT - Nhận sự kiện từ Core Service
+  static async emitSocketEvent(req: Request, res: Response) {
+    try {
+      const { eventName, classId, payload } = req.body;
+
+      if (!eventName || !classId) {
+        return res.status(400).json({ error: "Thiếu eventName hoặc classId" });
+      }
+
+      // Broadcast event tới tất cả clients trong room (classId)
+      socketManager.broadcastToRoom(classId, eventName, payload);
+
+      return res.status(200).json({ success: true, message: `Event '${eventName}' broadcasted to class ${classId}` });
+    } catch (error: any) {
+      console.error("[ChatController] emitSocketEvent error:", error);
+      return res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  }
 }

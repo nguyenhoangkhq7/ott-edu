@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Image from 'next/image'; 
 import { httpService } from '@/services/api/http.service'; 
 import { useAppContext } from '@/shared/providers/AppContext';
+import { useSocket, useSocketListener, useSocketRoomJoin } from '@/shared/hooks/useSocket';
 import Cookies from 'js-cookie';
 
 // ================= API INTERFACES =================
@@ -582,6 +583,10 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
   const teamId = routeTeamId?.toString() ?? contextClassId ?? null;
 
+  // ✨ SOCKET.IO SETUP - Real-time Posts Updates
+  const socket = useSocket();
+  useSocketRoomJoin(socket, teamId);
+
   const fetchPosts = useCallback(async () => {
     if (!isLoaded || !teamId) return;
 
@@ -629,6 +634,31 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   useEffect(() => { 
     const load = async () => { await fetchPosts(); };
     load();
+  }, [fetchPosts]);
+
+  // ✨ SOCKET LISTENERS - Real-time Updates for Posts, Comments, Reactions
+  useSocketListener(socket, 'post_updated', async (data: { action?: string; id?: string }) => {
+    console.log('[Socket] post_updated event received:', data);
+    if (data.action === 'created' || data.action === 'updated') {
+      await fetchPosts();
+    } else if (data.action === 'deleted') {
+      setPosts(prev => prev.filter(p => p.id !== data.id));
+    }
+  }, [fetchPosts]);
+
+  useSocketListener(socket, 'comment_updated', async (data: { postId?: string }) => {
+    console.log('[Socket] comment_updated event received:', data);
+    if (data.postId) {
+      await loadCommentsForPost(data.postId);
+    }
+  }, []);
+
+  useSocketListener(socket, 'reaction_updated', async (data: { targetId?: string }) => {
+    console.log('[Socket] reaction_updated event received:', data);
+    if (data.targetId) {
+      // Refresh reaction count by reloading posts or just the targeted post
+      await fetchPosts();
+    }
   }, [fetchPosts]);
 
   const scrollToTop = () => feedStartRef.current?.scrollIntoView({ behavior: "smooth" });

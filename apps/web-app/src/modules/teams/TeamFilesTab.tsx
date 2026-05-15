@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import apiClient from '@/services/api/axios';
 import { useAppContext } from '@/shared/providers/AppContext';
+import { useSocket, useSocketListener, useSocketRoomJoin } from '@/shared/hooks/useSocket';
 import Cookies from 'js-cookie';
 
 // --- TYPES FOR LINT FIX ---
@@ -144,6 +145,10 @@ export default function TeamFilesTab({ teamId: routeTeamId }: TeamFilesTabProps)
   const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
   const [classId, setClassId] = useState<string | null>(null);
 
+  // ✨ SOCKET.IO SETUP - Real-time Files Updates
+  const socket = useSocket();
+  useSocketRoomJoin(socket, classId);
+
   useEffect(() => {
     const resolvedTeamId = routeTeamId?.toString() ?? contextClassId ?? null;
     setClassId(resolvedTeamId);
@@ -196,6 +201,14 @@ export default function TeamFilesTab({ teamId: routeTeamId }: TeamFilesTabProps)
 
   useEffect(() => { 
     fetchFiles(); 
+  }, [fetchFiles]);
+
+  // ✨ SOCKET LISTENER - Real-time Updates for Files
+  useSocketListener(socket, 'file_updated', async (data: { action?: string }) => {
+    console.log('[Socket] file_updated event received:', data);
+    if (data.action === 'uploaded' || data.action === 'deleted') {
+      await fetchFiles();
+    }
   }, [fetchFiles]);
 
   const filteredFiles = useMemo(() => {

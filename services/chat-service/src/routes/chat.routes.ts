@@ -3,6 +3,9 @@ import { ChatController } from "../controllers/chat.controller.ts";
 
 const router = Router();
 
+// ✨ REALTIME EVENTS ENDPOINT - Nhận sự kiện từ Core Service
+router.post("/socket-events/emit", ChatController.emitSocketEvent);
+
 // LƯU Ý: Những routes này nên được định nghĩa phía sau middleware auth.
 // Ví dụ: app.use('/api', authMiddleware, chatRoutes)
 // để đảm bảo mọi request đều có thông tin người dùng.
