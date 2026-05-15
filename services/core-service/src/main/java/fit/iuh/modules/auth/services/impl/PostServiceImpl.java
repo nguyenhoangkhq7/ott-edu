@@ -1,28 +1,41 @@
 package fit.iuh.modules.auth.services.impl;
 
-import fit.iuh.models.*;
-import fit.iuh.modules.auth.dtos.post.PostRequest;
-import fit.iuh.modules.auth.repositories.*;
-import fit.iuh.modules.auth.services.PostService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import fit.iuh.models.Attachment;
+import fit.iuh.models.AttachmentTargetType;
+import fit.iuh.models.Post;
+import fit.iuh.models.Profile;
+import fit.iuh.models.TargetType;
+import fit.iuh.modules.auth.dtos.post.PostRequest;
+import fit.iuh.modules.auth.repositories.AttachmentRepository;
+import fit.iuh.modules.auth.repositories.CommentRepository;
+import fit.iuh.modules.auth.repositories.PostRepository;
+import fit.iuh.modules.auth.repositories.ProfileRepository;
+import fit.iuh.modules.auth.repositories.ReactionRepository;
+import fit.iuh.modules.auth.services.PostService;
+import fit.iuh.modules.auth.services.SocketEventService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j; // ✨ Bổ sung thư viện Log
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
 @Service
 @RequiredArgsConstructor
+@Slf4j // ✨ Thêm Annotation log để in thông báo ra console
 public class PostServiceImpl implements PostService {
 
     private final PostRepository postRepository;
@@ -32,6 +45,9 @@ public class PostServiceImpl implements PostService {
 
     // Khai báo thêm ProfileRepository để query bảng SQL
     private final ProfileRepository profileRepository;
+
+    // ✨ SOCKET EVENT SERVICE
+    private final SocketEventService socketEventService;
 
     // TÍCH HỢP S3 CLIENT
     private final S3Client s3Client;
@@ -56,6 +72,7 @@ public class PostServiceImpl implements PostService {
                 .build();
 
         post = postRepository.save(post);
+        List<Attachment> uploadedFiles = new ArrayList<>();
 
         if (files != null && !files.isEmpty()) {
             for (MultipartFile file : files) {
@@ -66,10 +83,10 @@ public class PostServiceImpl implements PostService {
 
                     // 2. Upload file lên S3
                     s3Client.putObject(PutObjectRequest.builder()
-                                    .bucket(bucketName)
-                                    .key(key)
-                                    .contentType(file.getContentType())
-                                    .build(),
+                            .bucket(bucketName)
+                            .key(key)
+                            .contentType(file.getContentType())
+                            .build(),
                             RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
 
                     // 3. Lấy đường link thật (Real URL)
@@ -84,14 +101,52 @@ public class PostServiceImpl implements PostService {
                             .targetId(post.getId())
                             .targetType(AttachmentTargetType.POST)
                             .build();
-                    attachmentRepository.save(attachment);
+                    attachment = attachmentRepository.save(attachment);
+                    uploadedFiles.add(attachment); // Đưa vào mảng để gửi realtime
 
                 } catch (IOException e) {
                     throw new RuntimeException("Lỗi upload file lên S3: " + e.getMessage());
                 }
             }
         }
+        post.setAttachments(uploadedFiles);
+
+        // ✨ EMIT SOCKET EVENT - Bắn TRỌN VẸN object Post
+        enrichPostWithAuthorInfo(post);
+        Map<String, Object> postData = new HashMap<>();
+        // Thay vì gắn tay từng trường, mình có thể bọc toàn bộ thông tin quan trọng vào
+        postData.put("id", post.getId());
+        postData.put("classId", post.getClassId());
+        postData.put("authorName", post.getAuthorName());
+        postData.put("authorId", post.getAuthorId());
+        postData.put("authorAvatar", post.getAuthorAvatar());
+        postData.put("content", post.getContent());
+        postData.put("type", post.getType());
+        postData.put("isPinned", post.getIsPinned());
+        postData.put("commentCount", post.getCommentCount());
+        postData.put("reactionCount", post.getReactionCount());
+        postData.put("createdAt", post.getCreatedAt());
+        postData.put("attachments", post.getAttachments());
+
+        socketEventService.emitPostCreated(post.getClassId(), postData);
+        log.info("✓ [PostService] Bắn tín hiệu tạo Post (ID: {}) tới SocketEventService", post.getId());
+
         return post;
+    }
+
+    // ✨ HELPER: Enriching Post with Author Information
+    private void enrichPostWithAuthorInfo(Post post) {
+        profileRepository.findByAccount_Email(post.getAuthorId()).ifPresent(profile -> {
+            String fullName = "";
+            if (profile.getLastName() != null) {
+                fullName += profile.getLastName() + " ";
+            }
+            if (profile.getFirstName() != null) {
+                fullName += profile.getFirstName();
+            }
+            post.setAuthorName(fullName.trim());
+            post.setAuthorAvatar(profile.getAvatarUrl());
+        });
     }
 
     @Override
@@ -132,8 +187,12 @@ public class PostServiceImpl implements PostService {
             if (profile != null) {
                 // Nối LastName và FirstName
                 String fullName = "";
-                if (profile.getLastName() != null) fullName += profile.getLastName() + " ";
-                if (profile.getFirstName() != null) fullName += profile.getFirstName();
+                if (profile.getLastName() != null) {
+                    fullName += profile.getLastName() + " ";
+                }
+                if (profile.getFirstName() != null) {
+                    fullName += profile.getFirstName();
+                }
 
                 post.setAuthorName(fullName.trim());
                 post.setAuthorAvatar(profile.getAvatarUrl());
@@ -157,7 +216,28 @@ public class PostServiceImpl implements PostService {
         }
 
         post.setContent(newContent);
-        return postRepository.save(post);
+        post = postRepository.save(post);
+
+        // Lấy lại danh sách file cũ để gửi sang Realtime
+        List<Attachment> files = attachmentRepository.findByTargetIdAndTargetType(post.getId(), AttachmentTargetType.POST);
+        post.setAttachments(files);
+
+        // ✨ EMIT SOCKET EVENT
+        enrichPostWithAuthorInfo(post);
+        Map<String, Object> postData = new HashMap<>();
+        postData.put("id", post.getId());
+        postData.put("classId", post.getClassId());
+        postData.put("authorName", post.getAuthorName());
+        postData.put("authorAvatar", post.getAuthorAvatar());
+        postData.put("content", post.getContent());
+        postData.put("type", post.getType());
+        postData.put("attachments", post.getAttachments());
+        postData.put("updatedAt", post.getUpdatedAt());
+
+        socketEventService.emitPostUpdated(post.getClassId(), postId, postData);
+        log.info("✓ [PostService] Bắn tín hiệu sửa Post (ID: {}) tới SocketEventService", post.getId());
+
+        return post;
     }
 
     @Override
@@ -170,10 +250,16 @@ public class PostServiceImpl implements PostService {
             throw new RuntimeException("Bạn không có quyền xóa bài viết này");
         }
 
+        String classId = post.getClassId();
+
         commentRepository.deleteByPostId(postId);
         reactionRepository.deleteByTargetIdAndTargetType(postId, TargetType.POST);
         attachmentRepository.deleteByTargetIdAndTargetType(postId, AttachmentTargetType.POST);
 
         postRepository.deleteById(postId);
+
+        // ✨ EMIT SOCKET EVENT
+        socketEventService.emitPostDeleted(classId, postId);
+        log.info("✓ [PostService] Bắn tín hiệu xóa Post (ID: {}) tới SocketEventService", postId);
     }
 }

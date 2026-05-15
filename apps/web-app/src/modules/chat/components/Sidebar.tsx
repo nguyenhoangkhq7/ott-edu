@@ -6,8 +6,9 @@ import { RefreshCw, Users, UserPlus } from "lucide-react";
 import Image from "next/image";
 import { CreateGroupModal } from "./CreateGroupModal";
 import { FriendRequestsModal } from "./FriendRequestsModal";
-import { createGroupConversation } from "../chatApi";
-import { useState } from "react";
+import { createGroupConversation, fetchFriendRequests } from "../chatApi";
+import { useState, useEffect } from "react";
+import { Socket } from "socket.io-client";
 
 interface SidebarProps {
   currentMode: ChatMode;
@@ -23,6 +24,7 @@ interface SidebarProps {
   isLoading?: boolean;
   error?: string | null;
   onRefreshConversations?: () => Promise<void> | void;
+  socket?: Socket | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -39,9 +41,61 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isLoading = false,
   error = null,
   onRefreshConversations,
+  socket = null,
 }) => {
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isFriendRequestOpen, setIsFriendRequestOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Fetch so luong loi moi ket ban
+  const fetchPendingCount = async () => {
+    try {
+      const requests = await fetchFriendRequests();
+      setPendingCount(requests.length);
+    } catch (error) {
+      console.error("Loi tai loi moi ket ban:", error);
+    }
+  };
+
+  // Fetch pending count khi component mount
+ useEffect(() => {
+    const initLoad = async () => {
+      try {
+        await fetchPendingCount();
+      } catch (error) {
+        console.error("Lỗi lấy số lượng:", error);
+      }
+    };
+    
+    initLoad();
+  }, []);
+
+  // Lang nghe su kien socket de update realtime
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleFriendStatusUpdated = () => {
+      fetchPendingCount();
+    };
+
+    const handleFriendRequestAccepted = () => {
+      fetchPendingCount();
+    };
+
+    const handleFriendRequestRejected = () => {
+      fetchPendingCount();
+    };
+
+    socket.on("friend_status_updated", handleFriendStatusUpdated);
+    socket.on("friend_request_accepted", handleFriendRequestAccepted);
+    socket.on("friend_request_rejected", handleFriendRequestRejected);
+
+    return () => {
+      socket.off("friend_status_updated", handleFriendStatusUpdated);
+      socket.off("friend_request_accepted", handleFriendRequestAccepted);
+      socket.off("friend_request_rejected", handleFriendRequestRejected);
+    };
+  }, [socket]);
 
   const handleCreateGroup = async (name: string, selectedIds: string[]) => {
     try {
@@ -115,7 +169,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             title="Lời mời kết bạn"
           >
             <UserPlus size={20} />
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 border border-white"></span>
+            {pendingCount > 0 && (
+              <span className="absolute top-0 right-0 h-5 w-5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center text-white text-xs font-semibold">
+                {pendingCount > 9 ? "9+" : pendingCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

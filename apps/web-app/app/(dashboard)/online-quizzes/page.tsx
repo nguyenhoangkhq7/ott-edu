@@ -1,7 +1,8 @@
 import AssignmentsPage from "@/modules/assignments/AssignmentsPage";
+import { AssignmentType } from "@/shared/types/quiz";
 
 export default function OnlineQuizzesPage() {
-  return <AssignmentsPage />;
+  return <AssignmentsPage filterType={AssignmentType.QUIZ} />;
 }
 
 export const metadata = {
