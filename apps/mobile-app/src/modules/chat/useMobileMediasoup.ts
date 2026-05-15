@@ -26,11 +26,13 @@ import type { MediaStream } from "react-native-webrtc";
 
 // ─── Mediasoup-client types (loaded lazily) ───────────────────────────────────
 type Device = import("mediasoup-client").Device;
-type Transport = import("mediasoup-client").Transport;
-type RtpCapabilities = import("mediasoup-client/lib/RtpParameters").RtpCapabilities;
-type DtlsParameters = import("mediasoup-client/lib/Transport").DtlsParameters;
-type IceParameters = import("mediasoup-client/lib/Transport").IceParameters;
-type IceCandidate = import("mediasoup-client/lib/Transport").IceCandidate;
+type Transport = import("mediasoup-client/types").Transport;
+type RtpCapabilities = import("mediasoup-client/types").RtpCapabilities;
+type DtlsParameters = import("mediasoup-client/types").DtlsParameters;
+type IceParameters = import("mediasoup-client/types").IceParameters;
+type IceCandidate = import("mediasoup-client/types").IceCandidate;
+type RtpParameters = import("mediasoup-client/types").RtpParameters;
+type RNMediaStreamTrack = import("react-native-webrtc").MediaStreamTrack;
 
 // ─── Internal types ────────────────────────────────────────────────────────────
 type TransportOptions = {
@@ -275,7 +277,7 @@ export function useMobileMediasoup({
   /**
    * Rebuild remote stream theo kind để RTCView cập nhật ổn định trên mobile.
    */
-  const upsertRemoteTrack = useCallback((userId: string, track: import("react-native-webrtc").MediaStreamTrack) => {
+  const upsertRemoteTrack = useCallback((userId: string, track: RNMediaStreamTrack) => {
     const webRtcModule = loadWebRtcModule();
     if (!webRtcModule) return;
 
@@ -331,7 +333,7 @@ export function useMobileMediasoup({
           id: consumerId,
           producerId,
           kind,
-          rtpParameters: rtpParameters as import("mediasoup-client/lib/RtpParameters").RtpParameters,
+          rtpParameters: rtpParameters as RtpParameters,
         });
 
         // Ghi nhận mapping
@@ -345,7 +347,7 @@ export function useMobileMediasoup({
         // Thêm track vào remote stream của userId
         upsertRemoteTrack(
           userId,
-          consumer.track as unknown as import("react-native-webrtc").MediaStreamTrack,
+          consumer.track as unknown as RNMediaStreamTrack,
         );
 
         // Resume consumer trên server (server tạo ở trạng thái paused)
@@ -561,7 +563,7 @@ export function useMobileMediasoup({
 
       if (audioTrack) {
         const audioProducer = await sendTransport.produce({
-          track: audioTrack as unknown as MediaStreamTrack,
+          track: audioTrack as unknown as RNMediaStreamTrack,
           appData: { userId: currentUserId, kind: "audio" },
         });
         localProducerIdsRef.current.set(audioProducer.id, "audio");
@@ -569,7 +571,7 @@ export function useMobileMediasoup({
 
       if (videoTrack) {
         const videoProducer = await sendTransport.produce({
-          track: videoTrack as unknown as MediaStreamTrack,
+          track: videoTrack as unknown as RNMediaStreamTrack,
           encodings: [
             { maxBitrate: 100_000 },
             { maxBitrate: 300_000 },
@@ -626,7 +628,7 @@ export function useMobileMediasoup({
     const stream = localStreamRef.current;
     if (!stream) return;
     const videoTrack = (stream as unknown as import("react-native-webrtc").MediaStream)
-      .getVideoTracks()[0] as (import("react-native-webrtc").MediaStreamTrack & {
+      .getVideoTracks()[0] as (RNMediaStreamTrack & {
         _switchCamera?: () => void;
       }) | undefined;
 
