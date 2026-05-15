@@ -32,10 +32,20 @@ function buildAllowedOrigins(): string[] {
 
 const allowedOrigins = buildAllowedOrigins();
 
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-}));
+// Chỉ áp dụng CORS cho REST API routes, KHÔNG cho /socket.io
+// Socket.IO tự quản lý CORS thông qua cấu hình riêng
+app.use((req, res, next) => {
+  // Bypass CORS middleware cho Socket.IO
+  if (req.path.startsWith("/socket.io")) {
+    return next();
+  }
+  
+  // Áp dụng CORS cho API routes
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })(req, res, next);
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

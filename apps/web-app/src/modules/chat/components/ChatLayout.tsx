@@ -247,7 +247,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       // Cập nhật lastMessage ở sidebar và đưa lên đầu danh sách
       setConversations((prev) => {
         const index = prev.findIndex((c) => c.id === incoming.conversationId);
-        if (index === -1) return prev;
+        
+        // Nếu conversation chưa tồn tại (tin nhắn từ conversation mới), 
+        // reload danh sách để hiển thị conversation mới
+        if (index === -1) {
+          // Gọi loadConversations để tải lại danh sách conversations
+          loadConversations();
+          return prev;
+        }
 
         const shouldIncrement = !isActive && !isSelf;
         const updatedConv = {
@@ -362,11 +369,37 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     };
 
     nextSocket.on("newMessage", handleNewMessage);
-    nextSocket.on("newMessage", handleNewMessage);
+    // XÓA DÒNG LẶP NEW MESSAGE CỦA HẬU Ở ĐÂY ĐỂ TRÁNH NHẬN 2 LẦN TIN NHẮN
     nextSocket.on("messageRevoked", handleMessageRevoked);
     nextSocket.on("userStatusChanged", handleUserStatusChanged);
     nextSocket.on("userTyping", handleUserTyping);
     nextSocket.on("userStoppedTyping", handleUserStoppedTyping);
+    
+    // Group & Friend Realtime Listeners
+    nextSocket.on("friend_status_updated", () => refreshAfterGroupChange());
+    nextSocket.on("new_group_created", () => {
+      refreshAfterGroupChange();
+      loadConversations();
+    });
+    nextSocket.on("added_to_group", () => {
+      refreshAfterGroupChange();
+      loadConversations();
+    });
+
+    // ✨ CÁC LỖ TAI REALTIME MỚI BỔ SUNG ✨
+    nextSocket.on("friend_request_accepted", () => {
+      loadConversations();
+      refreshAfterGroupChange();
+    });
+    
+    nextSocket.on("group_updated", () => {
+      loadConversations();
+      refreshAfterGroupChange();
+    });
+    
+    nextSocket.on("friend_request_rejected", () => {
+      refreshAfterGroupChange();
+    });
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
@@ -375,6 +408,16 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       nextSocket.off("userStatusChanged", handleUserStatusChanged);
       nextSocket.off("userTyping", handleUserTyping);
       nextSocket.off("userStoppedTyping", handleUserStoppedTyping);
+      
+      nextSocket.off("friend_status_updated");
+      nextSocket.off("new_group_created");
+      nextSocket.off("added_to_group");
+      
+      // ✨ DỌN DẸP SẠCH SẼ 3 LỖ TAI MỚI ✨
+      nextSocket.off("friend_request_accepted");
+      nextSocket.off("group_updated");
+      nextSocket.off("friend_request_rejected");
+
       nextSocket.disconnect();
       socketRef.current = null;
       setSocket(null);
@@ -843,12 +886,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const canStartVideoCall = isCallableConversation && callStatus === "idle";
 
   const handleStartVideoCall = useCallback(async () => {
-    if (!activeConversation || activeConversation.id.startsWith("draft_")) {
-      return;
-    }
+  if (!activeConversation || activeConversation.id.startsWith("draft_")) {
+    return; 
+  }
 
-    await startGroupCall(activeConversation.id);
-  }, [activeConversation, startGroupCall]);
+  await startGroupCall(activeConversation.id);
+}, [activeConversation, startGroupCall]);
 
   const incomingCaller = React.useMemo(() => {
     if (!incomingCall) {
@@ -918,6 +961,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onStartPrivateChat={handleStartPrivateChat}
         isLoading={isLoadingConversations}
         error={error}
+        socket={socket}
       />
       <ChatWindow
         conversation={activeConversation}
