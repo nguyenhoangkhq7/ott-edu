@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 export default function BottomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  // 1. CẬP NHẬT MẢNG SẮP XẾP: Thay 'assignments' thành 'calendar'
+  // 1. Mảng sắp xếp thứ tự hiển thị các Tab dưới Menu
   const orderedRoutes = ['activity', 'chat', 'teams', 'calendar', 'more'];
 
   const sortedRoutes = state.routes.slice().sort((a, b) => {
@@ -18,6 +18,20 @@ export default function BottomTabBar({ state, descriptors, navigation }: BottomT
     <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.safeArea}>
       <View style={styles.container}>
         {sortedRoutes.map((route) => {
+          const { options } = descriptors[route.key];
+          
+          // 🚀 ÉP KIỂU SANG 'any' ĐỂ DÙNG TRƯỜNG HREF CỦA EXPO ROUTER MÀ KHÔNG BỊ LỖI ĐỎ
+          const expoOptions = options as any;
+
+          // 🛡️ BỘ LỌC CHỐT CHẶN: Nếu cấu hình layout bảo ẩn (href = null) hoặc là phòng chat chi tiết [id] thì bỏ qua luôn
+          if (
+            expoOptions.href === null || 
+            expoOptions.tabBarButton?.() === null || 
+            route.name.includes('[id]')
+          ) {
+            return null;
+          }
+
           const originalIndex = state.routes.findIndex(r => r.key === route.key);
           const isFocused = state.index === originalIndex;
           const baseRouteName = route.name.split('/')[0];
@@ -46,17 +60,14 @@ export default function BottomTabBar({ state, descriptors, navigation }: BottomT
           } else if (baseRouteName === 'teams') {
             iconName = isFocused ? 'people' : 'people-outline'; 
             label = 'Teams';
-          } 
-          // 2. CẬP NHẬT Ở ĐÂY: Bắt route 'calendar' và đổi Icon thành hình quyển lịch
-          else if (baseRouteName === 'calendar') {
+          } else if (baseRouteName === 'calendar') {
             iconName = isFocused ? 'calendar' : 'calendar-outline';
             label = 'Calendar';
-          } 
-          else if (baseRouteName === 'more') {
+          } else if (baseRouteName === 'more') {
             iconName = isFocused ? 'ellipsis-horizontal' : 'ellipsis-horizontal-outline';
             label = 'More';
           } else {
-              return null; 
+            return null; 
           }
 
           const activeColor = '#1f67f0'; 
@@ -75,11 +86,11 @@ export default function BottomTabBar({ state, descriptors, navigation }: BottomT
                 color={isFocused ? activeColor : inactiveColor} 
               />
               <Text style={[
-                  styles.tabLabel, 
-                  { 
-                      color: isFocused ? activeColor : inactiveColor,
-                      fontWeight: isFocused ? '600' : '400' 
-                  }
+                styles.tabLabel, 
+                { 
+                  color: isFocused ? activeColor : inactiveColor,
+                  fontWeight: isFocused ? '600' : '400' 
+                }
               ]}>
                 {label}
               </Text>

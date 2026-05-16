@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -39,6 +39,7 @@ export default function ChatScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 1. Tạo identity từ thông tin User MySQL (Java)
   const identity = useMemo(() => {
     if (!user?.email) {
       return null;
@@ -116,6 +117,7 @@ export default function ChatScreen() {
     );
   }, [activeConversation, chatUser]);
 
+  // 🚀 LOGIC BOOTSTRAP: Lấy ID MongoDB xịn từ Chat Service
   useEffect(() => {
     if (!identity) {
       setChatUser(null);
@@ -131,14 +133,17 @@ export default function ChatScreen() {
       setError(null);
 
       try {
+        // ✨ Bước 1: Gọi lên Node.js để lấy User ID MongoDB (Chuỗi 24 ký tự)
         const me = await fetchCurrentChatUser(identity);
+        
+        // ✨ Bước 2: Dùng ID MongoDB này để lấy danh sách hội thoại
         const nextConversations = await fetchConversations(me.id, identity);
 
         if (!mounted) {
           return;
         }
 
-        setChatUser(me);
+        setChatUser(me); // Bây giờ chatUser.id chắc chắn là chuỗi 24 ký tự
         setConversations(nextConversations);
 
         const firstPrivateConversation = nextConversations.find(
@@ -181,11 +186,16 @@ export default function ChatScreen() {
     };
   }, [identity]);
 
+  // 🚀 LOGIC SOCKET: Kết nối bằng ID MongoDB (Fix lỗi CastError ID số 4)
   useEffect(() => {
-    if (!chatUser) {
+    // 🛡️ CHỐT CHẶN: Chỉ kết nối Socket nếu ID đủ 24 ký tự (Chuẩn MongoDB)
+    if (!chatUser || chatUser.id.length !== 24) {
+      if (chatUser) console.warn("⚠️ Cảnh báo: ID chưa đúng chuẩn MongoDB, tạm dừng kết nối Socket.");
       setSocket(null);
       return;
     }
+
+    console.log("🔌 Đang kết nối Socket với ID MongoDB xịn:", chatUser.id);
 
     const nextSocket = io(CHAT_SERVICE_URL, {
       auth: { userId: chatUser.id },
@@ -199,10 +209,13 @@ export default function ChatScreen() {
     setSocket(nextSocket);
 
     return () => {
+      console.log("🔌 Ngắt kết nối Socket ID:", chatUser.id);
       nextSocket.disconnect();
       setSocket(null);
     };
   }, [chatUser]);
+
+  // --- CÁC PHẦN DƯỚI ĐÂY GIỮ NGUYÊN ---
 
   useEffect(() => {
     if (!incomingCall) {
@@ -495,6 +508,7 @@ export default function ChatScreen() {
   );
 }
 
+// Giữ nguyên Styles bên dưới...
 const styles = StyleSheet.create({
   container: {
     flex: 1,

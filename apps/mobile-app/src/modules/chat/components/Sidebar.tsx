@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, TextInput, ScrollView, ActivityIndicator,
   TouchableOpacity, Image, StyleSheet,
+  DeviceEventEmitter, // 🚀 THÊM CÁI LOA PHÓNG THANH NÀY VÀO
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router'; 
 import { ChatMode, Conversation, User } from '../types';
 import { ConversationItem } from './ConversationItem';
+import { useAuth } from '../../auth/AuthProvider'; 
+import { fetchFriendRequests } from '../../friends/friends.api'; 
 
 interface SidebarProps {
   currentMode: ChatMode;
@@ -27,6 +31,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
   conversations, suggestedUsers, currentUser, activeConversationId,
   onSelectConversation, onStartPrivateChat, isLoading, error,
 }) => {
+  const router = useRouter(); 
+
+  // 👇 --- BẮT ĐẦU LOGIC REALTIME CHO CHẤM ĐỎ KẾT BẠN BẰNG LOA NỘI BỘ --- 👇
+  const { user } = useAuth();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const identity = useMemo(() => {
+    if (!user) return null;
+    return {
+      email: user.email || "",
+      code: user.code ?? undefined,
+      id: (user as any)?._id || (user as any)?.mongoId || (user as any)?.id || ""
+    };
+  }, [user]);
+
+  // 🚀 ĐÃ XÓA DÒNG `useSocket` Ở ĐÂY ĐỂ TRÁNH XUNG ĐỘT KẾT NỐI
+
+  useEffect(() => {
+    if (!identity) return;
+
+    // Hàm gọi ngầm API để đếm số lượng lời mời
+    const loadPendingCount = async () => {
+      try {
+        const reqs = await fetchFriendRequests(identity);
+        setPendingCount(reqs?.length || 0);
+      } catch (err) {
+        // Lỗi thì im lặng bỏ qua để UI không bị sượng
+      }
+    };
+
+    loadPendingCount(); // Tải lần đầu tiên
+
+    // 🚀 LẮNG NGHE TIẾNG LOA TỪ TRẠM CHÍNH (ChatLayout) PHÁT RA
+    const subscription = DeviceEventEmitter.addListener('SYNC_FRIENDS_DATA', () => {
+      console.log("🔴 [Chấm Đỏ - Sidebar] Nghe tiếng loa, đang lấy lại số lượng lời mời...");
+      loadPendingCount();
+    });
+
+    return () => {
+      // Tắt loa khi chuyển màn hình khác
+      subscription.remove(); 
+    };
+  }, [identity]);
+  // 👆 --- KẾT THÚC LOGIC CHẤM ĐỎ --- 👆
+
   const filtered = conversations.filter((c) => {
     if (c.type !== currentMode) return false;
     if (!searchQuery) return true;
@@ -39,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* ── Header ── */}
+      {/* ── Header MỚI ── */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Tin nhắn</Text>
@@ -47,9 +96,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Text style={styles.unreadHint}>{totalUnread} chưa đọc</Text>
           )}
         </View>
-        <TouchableOpacity style={styles.composeBtn}>
-          <Ionicons name="create-outline" size={22} color="#2563EB" />
-        </TouchableOpacity>
+
+        {/* 🎯 CỤM NÚT ĐIỀU HƯỚNG */}
+        <View style={styles.headerActions}>
+          
+          {/* 🚀 NÚT KẾT BẠN ĐÃ ĐƯỢC ĐỘ CHẤM ĐỎ */}
+          <TouchableOpacity 
+            style={[styles.actionBtn, { backgroundColor: '#10B981' }]}
+            onPress={() => router.push('/(dashboard)/friends')}
+          >
+            <View style={{ position: 'relative' }}>
+              <Ionicons name="person-add" size={18} color="#FFFFFF" style={{ marginLeft: 2 }} />
+              
+              {/* Nếu có lời mời thì hiện Badge lên */}
+              {pendingCount > 0 && (
+                <View style={styles.badgeContainer}>
+                  <Text style={styles.badgeText}>
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {/* Nút Tạo Nhóm */}
+          <TouchableOpacity 
+            style={[styles.actionBtn, { backgroundColor: '#2563EB' }]}
+            onPress={() => router.push('/(dashboard)/create-group')}
+          >
+            <Ionicons name="create" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Search ── */}
@@ -193,7 +270,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center', 
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 12,
@@ -210,13 +287,44 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
   },
-  composeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#EFF6FF',
+  
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  actionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  
+  // 🚀 CSS CHO CÁI CHẤM ĐỎ BADGE NÈ LÃO ĐẠI
+  badgeContainer: {
+    position: 'absolute',
+    top: -8,
+    right: -10,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#10B981', // Viền cùng màu với nút để tạo hiệu ứng "khoét lỗ" siêu đẹp
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 
   searchWrap: { paddingHorizontal: 16, marginBottom: 10 },
