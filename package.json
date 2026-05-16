@@ -1,0 +1,12 @@
+{
+  "name": "ott-edu",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "lint:web": "npm --prefix apps/web-app run lint",
+    "lint:mobile": "npm --prefix apps/mobile-app run lint --if-present",
+    "lint:chat": "npm --prefix services/chat-service run lint --if-present",
+    "build:web": "npm --prefix apps/web-app run build",
+    "build:chat": "npm --prefix services/chat-service run build"
+  }
+}
