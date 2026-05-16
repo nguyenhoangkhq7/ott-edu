@@ -9,6 +9,7 @@ import { format, isToday, isYesterday } from 'date-fns';
 interface ConversationItemProps {
   conversation: Conversation;
   currentUser: User | null;
+  currentUserId?: string;
   isActive: boolean;
   onSelect: (id: string) => void;
 }
@@ -21,21 +22,30 @@ const formatTime = (iso: string) => {
 };
 
 export const ConversationItem: React.FC<ConversationItemProps> = ({
-  conversation, currentUser, isActive, onSelect,
+  conversation, currentUser, currentUserId, isActive, onSelect,
 }) => {
-  const isPrivate = conversation.type === 'private';
+    const isPrivate = conversation.type === 'private';
+  const selfId = currentUserId || currentUser?.id;
+  const selfParticipant = isPrivate
+    ? conversation.participants.find((p) =>
+      p.id === selfId ||
+      p.id === currentUser?.id ||
+      (Boolean(currentUser?.code) && p.code === currentUser?.code) ||
+      (Boolean(currentUser?.email) && p.email === currentUser?.email) ||
+      p.name === currentUser?.name
+    )
+    : null;
   const other = isPrivate
-    ? conversation.participants.find((p) => p.id !== currentUser?.id)
+    ? conversation.participants.find((p) => p.id !== selfParticipant?.id) || conversation.participants[0] || null
     : null;
 
-  const displayName = conversation.name ||
-    (isPrivate ? other?.name || 'Người dùng ẩn'
-      : conversation.participants.map((p) => p.name).join(', '));
+  const displayName = isPrivate
+    ? (other?.name || 'Nguoi dung an')
+    : (conversation.name || conversation.participants.map((p) => p.name).join(', '));
 
-  const avatarUri = conversation.avatarUrl ||
-    (isPrivate
-      ? other?.avatarUrl || `https://i.pravatar.cc/150?u=${other?.id}`
-      : `https://i.pravatar.cc/150?img=30`);
+  const avatarUri = isPrivate
+    ? (other?.avatarUrl || `https://i.pravatar.cc/150?u=${other?.id}`)
+    : (conversation.avatarUrl || `https://i.pravatar.cc/150?img=30`);
 
   const lastMsg = conversation.lastMessage;
   const isMe = lastMsg?.senderId === currentUser?.id;
@@ -209,3 +219,4 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: '#FFF', fontSize: 11, fontWeight: '700' },
 });
+

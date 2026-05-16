@@ -29,6 +29,13 @@ export interface Reaction {
   emoji: string;
 }
 
+export interface LinkPreview {
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
 export interface Message {
   id: string;
   conversationId: string;
@@ -37,6 +44,7 @@ export interface Message {
   createdAt: string;
   status: "sent" | "delivered" | "read";
   attachments?: Attachment[];
+  linkPreview?: LinkPreview;
   replyTo?: Message | null;
   isRevoked: boolean;
   revokedFor: string[];
@@ -115,6 +123,7 @@ export interface ApiMessage {
   createdAt: string;
   updatedAt?: string;
   attachments?: ApiAttachment[];
+  linkPreview?: LinkPreview;
   replyTo?: ApiMessage | null;
   isRevoked: boolean;
   revokedFor?: string[];
