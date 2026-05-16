@@ -15,13 +15,16 @@ import { Socket } from "socket.io-client";
 import { Conversation, Message, User, Attachment, Reaction } from "../types";
 import { MessageBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
-// 🚀 IMPORT MODAL THÊM THÀNH VIÊN
+import { ChatInfoSidebar } from "./ChatInfoSidebar";
+// 🚀 IMPORT MODAL THÊM THÀNH VIÊN CỦA BẠN
 import AddMemberModal from "./AddMemberModal";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
   currentUser: User | null;
+  currentUserId?: string;
+  privatePeer?: User | null;
   onSendMessage: (
     text: string,
     attachments?: Attachment[],
@@ -34,12 +37,24 @@ interface ChatWindowProps {
   onForwardMessage?: (message: Message) => void;
   onOpenProfile?: (user: User) => void;
   onOpenGroupManage?: () => void;
+  /** Gọi thoại 1-1 */
+  onStartVoiceCall?: () => void;
+  /** Gọi video 1-1 */
+  onStartVideoCall?: () => void;
+  /** Gọi nhóm SFU (group/class chat) */
+  onStartGroupCall?: () => void;
+  /** Trạng thái cuộc gọi đang diễn ra (để disable nút khi đang gọi) */
+  isCallActive?: boolean;
+  typingUsers?: Record<string, string>;
+  onTyping?: (isTyping: boolean) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
   conversation,
   messages,
   currentUser,
+  currentUserId,
+  privatePeer,
   onSendMessage,
   isLoadingMessages,
   isSending,
@@ -48,32 +63,37 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onForwardMessage,
   onOpenProfile,
   onOpenGroupManage,
+  onStartVoiceCall,
+  onStartVideoCall,
+  onStartGroupCall,
+  isCallActive = false,
+  typingUsers = {},
+  onTyping,
 }) => {
   const flatListRef = useRef<FlatList>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
 
-  // 🚀 STATE ĐIỀU KHIỂN MODAL THÊM NGƯỜI
+  // 🚀 STATE ĐIỀU KHIỂN MODAL THÊM NGƯỜI CỦA BẠN
   const [showAddMember, setShowAddMember] = useState(false);
 
   // 🚀 KHAI BÁO IDENTITY (Fix lỗi "Cannot find name 'identity'")
-  // Được tính toán dựa trên currentUser truyền từ props vào
   const identity = useMemo(() => {
     if (!currentUser?.email) return null;
     return {
       email: currentUser.email,
       code: currentUser.code || "",
       // Lấy ID MongoDB (chuỗi dài) để đồng bộ với Chat Service
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       id: (currentUser as any)?._id || currentUser?.id || "",
     };
   }, [currentUser]);
 
-  // Sync messages from parent
   useEffect(() => {
     setLocalMessages(messages);
   }, [messages]);
 
-  // Socket listeners for react + revoke
   useEffect(() => {
     if (!socket || !conversation) return;
 
@@ -109,7 +129,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       socket.off("messageReacted", handleReacted);
       socket.off("messageRevoked", handleRevoked);
     };
-  }, [socket, conversation]);
+  }, [socket, conversation, currentUser?.id]);
 
   const handleReact = (messageId: string, emoji: string) => {
     setLocalMessages((prev) =>
@@ -160,7 +180,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       setLocalMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
-            ? { ...m, revokedFor: [...(m.revokedFor || []), currentUser.id] }
+            ? { ...m, revokedFor: [...(m.revokedFor || []), currentUser!.id] }
             : m,
         ),
       );
@@ -170,8 +190,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   if (!conversation) {
     return (
-      <View style={styles.emptyScreen}>
-        <View style={styles.emptyIcon}>
+      <View style={styles.emptyContainer}>
+        <View style={styles.emptyIconWrap}>
           <Ionicons name="chatbubbles" size={36} color="#3b82f6" />
         </View>
         <ActivityIndicator
@@ -184,81 +204,61 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }
 
   const isPrivate = conversation.type === "private";
+  const selfId = currentUserId || currentUser?.id;
   const otherParticipant = isPrivate
-    ? conversation.participants.find((p) => p.id !== currentUser?.id)
+    ? privatePeer || conversation.participants.find((p) => p.id !== selfId) || null
     : null;
 
-  const chatName =
-    conversation.name ||
-    (isPrivate
-      ? otherParticipant?.name
-      : conversation.participants.map((p) => p.name).join(", "));
-  const chatAvatar =
-    conversation.avatarUrl ||
-    (isPrivate
-      ? otherParticipant?.avatarUrl ||
-        `https://i.pravatar.cc/150?u=${otherParticipant?.id}`
-      : `https://i.pravatar.cc/150?img=30`);
-  const headerUser = isPrivate
-    ? otherParticipant || null
-    : conversation.participants.find((p) => p.id === conversation.ownerId) ||
-      null;
+  const chatName = isPrivate
+    ? otherParticipant?.name || "Người dùng"
+    : conversation.name || conversation.participants.map((p) => p.name).join(", ");
+    
+  const chatAvatar = isPrivate
+    ? otherParticipant?.avatarUrl || `https://i.pravatar.cc/150?u=${otherParticipant?.id}`
+    : conversation.avatarUrl || `https://i.pravatar.cc/150?img=30`;
 
   const invertedMessages = [...localMessages].reverse();
 
+  const typingNames = Object.values(typingUsers);
+  const typingText = typingNames.length > 0
+    ? `${typingNames.length > 1 ? `${typingNames.length} người` : typingNames[0]} đang soạn tin nhắn`
+    : null;
+
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={26} color="#0F172A" />
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn}>
+          <Ionicons name="chevron-back" size={26} color="#0f172a" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.headerAvatarWrap}
           activeOpacity={0.85}
-          onPress={() => {
-            if (isPrivate && headerUser) {
-              onOpenProfile?.(headerUser);
-              return;
-            }
-            if (!isPrivate) {
-              onOpenGroupManage?.();
-            }
-          }}
+          onPress={() => setIsSidebarVisible(true)}
         >
           <Image source={{ uri: chatAvatar }} style={styles.headerAvatar} />
           {isPrivate && otherParticipant?.isOnline && (
-            <View style={styles.onlineDot} />
+            <View style={styles.onlineStatus} />
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.headerInfo}
           activeOpacity={0.7}
-          onPress={() => {
-            if (isPrivate && headerUser) {
-              onOpenProfile?.(headerUser);
-              return;
-            }
-            if (!isPrivate) {
-              onOpenGroupManage?.();
-            }
-          }}
+          onPress={() => setIsSidebarVisible(true)}
         >
-          <Text style={styles.headerName} numberOfLines={1}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
             {chatName}
           </Text>
           <Text
             style={[
-              styles.headerStatus,
-              isPrivate &&
-                otherParticipant?.isOnline &&
-                styles.headerStatusOnline,
+              styles.headerSub,
+              isPrivate && otherParticipant?.isOnline && styles.headerSubOnline,
             ]}
           >
             {isPrivate
@@ -279,24 +279,75 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           </TouchableOpacity>
         )}
 
+        {/* Nút gọi thoại 1-1 */}
+        {isPrivate && (
+          <TouchableOpacity
+            style={[
+              styles.callBtn,
+              isCallActive && styles.callBtnActive,
+              !onStartVoiceCall && styles.callBtnDimmed,
+            ]}
+            onPress={onStartVoiceCall}
+            disabled={isCallActive || !onStartVoiceCall}
+          >
+            <Ionicons
+              name={isCallActive ? "call" : "call-outline"}
+              size={20}
+              color={isCallActive ? "#22C55E" : "#3B82F6"}
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* Nút gọi video 1-1 */}
+        {isPrivate && (
+          <TouchableOpacity
+            style={[
+              styles.callBtn,
+              isCallActive && styles.callBtnActive,
+              !onStartVideoCall && styles.callBtnDimmed,
+            ]}
+            onPress={onStartVideoCall}
+            disabled={isCallActive || !onStartVideoCall}
+          >
+            <Ionicons
+              name={isCallActive ? "videocam" : "videocam-outline"}
+              size={22}
+              color={isCallActive ? "#22C55E" : "#3B82F6"}
+            />
+          </TouchableOpacity>
+        )}
+
+        {/* Nút gọi nhóm – luôn hiện trong group/class chat */}
+        {!isPrivate && (
+          <TouchableOpacity
+            style={[
+              styles.callBtn,
+              isCallActive && styles.callBtnActive,
+              !onStartGroupCall && styles.callBtnDimmed,
+            ]}
+            onPress={onStartGroupCall}
+            disabled={isCallActive || !onStartGroupCall}
+          >
+            <Ionicons
+              name={isCallActive ? "videocam" : "videocam-outline"}
+              size={22}
+              color={isCallActive ? "#22C55E" : "#3B82F6"}
+            />
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
-          style={styles.infoBtn}
-          onPress={() => {
-            if (isPrivate && headerUser) {
-              onOpenProfile?.(headerUser);
-              return;
-            }
-            onOpenGroupManage?.();
-          }}
+          style={styles.headerBtn}
+          onPress={() => setIsSidebarVisible(true)}
         >
-          <Ionicons name="ellipsis-horizontal" size={22} color="#94A3B8" />
+          <Ionicons name="ellipsis-horizontal" size={22} color="#94a3b8" />
         </TouchableOpacity>
       </View>
 
       {/* Messages */}
-      <View style={styles.messageList}>
+      <View style={styles.messagesList}>
         {isLoadingMessages ? (
-          <View style={styles.emptyScreen}>
+          <View style={styles.loadingCenter}>
             <ActivityIndicator size="large" color="#3b82f6" />
           </View>
         ) : (
@@ -305,10 +356,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             data={invertedMessages}
             keyExtractor={(item) => item.id}
             inverted
-            contentContainerStyle={{
-              paddingHorizontal: 4,
-              paddingVertical: 12,
-            }}
+            contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
@@ -341,18 +389,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               );
             }}
             ListEmptyComponent={() => (
-              <View
-                style={[styles.emptyMessages, { transform: [{ scaleY: -1 }] }]}
-              >
-                <View style={styles.emptyMsgIcon}>
+              <View style={styles.listEmpty}>
+                <View style={styles.emptyStateIconWrap}>
                   <Ionicons
                     name="chatbubbles-outline"
                     size={38}
                     color="#93C5FD"
                   />
                 </View>
-                <Text style={styles.emptyMsgTitle}>Chưa có tin nhắn</Text>
-                <Text style={styles.emptyMsgText}>
+                <Text style={styles.emptyStateTitle}>Chưa có tin nhắn</Text>
+                <Text style={styles.emptyStateSub}>
                   Gửi lời chào để bắt đầu trò chuyện 👋
                 </Text>
               </View>
@@ -361,15 +407,34 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         )}
       </View>
 
+      {/* Typing Indicator Bar */}
+      {typingText && (
+        <View style={styles.typingIndicatorBar}>
+          <Text style={styles.typingText}>
+            {typingText}
+            <Text style={styles.typingDots}> ● ●</Text>
+          </Text>
+        </View>
+      )}
+
       {/* Input */}
       <MessageInput
         onSend={onSendMessage}
         replyingTo={replyingTo}
         onCancelReply={() => setReplyingTo(null)}
         disabled={isLoadingMessages}
+        onTyping={onTyping}
       />
 
-      {/* 🚀 RENDER MODAL THÊM THÀNH VIÊN */}
+      {/* Sidebar */}
+      <ChatInfoSidebar
+        isVisible={isSidebarVisible}
+        onClose={() => setIsSidebarVisible(false)}
+        conversationId={conversation.id}
+        currentChatUserId={currentUser?.id}
+      />
+
+      {/* 🚀 RENDER MODAL THÊM THÀNH VIÊN CỦA BẠN */}
       {showAddMember && identity && (
         <AddMemberModal
           visible={showAddMember}
@@ -382,15 +447,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   );
 };
 
+// 🚀 MERGE TẤT CẢ STYLES CỦA CẢ 2 BÊN VÀO MỘT
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F8FAFC" },
-  emptyScreen: {
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  emptyContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F8FAFC",
   },
-  emptyIcon: {
+  emptyIconWrap: {
     width: 80,
     height: 80,
     borderRadius: 40,
@@ -412,7 +478,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  backBtn: {
+  headerBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -426,7 +492,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     backgroundColor: "#E2E8F0",
   },
-  onlineDot: {
+  onlineStatus: {
     position: "absolute",
     bottom: 0,
     right: 0,
@@ -438,14 +504,14 @@ const styles = StyleSheet.create({
     borderColor: "#FFF",
   },
   headerInfo: { flex: 1 },
-  headerName: {
+  headerTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#0F172A",
     letterSpacing: -0.2,
   },
-  headerStatus: { fontSize: 12, color: "#94A3B8", marginTop: 1 },
-  headerStatusOnline: { color: "#22C55E", fontWeight: "600" },
+  headerSub: { fontSize: 12, color: "#94A3B8", marginTop: 1 },
+  headerSubOnline: { color: "#22C55E", fontWeight: "600" },
   infoBtn: {
     width: 40,
     height: 40,
@@ -453,13 +519,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  messageList: { flex: 1 },
-  emptyMessages: {
+  callBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 2,
+  },
+  callBtnActive: {
+    backgroundColor: "rgba(34,197,94,0.12)",
+  },
+  callBtnDimmed: {
+    opacity: 0.35,
+  },
+  messagesList: { flex: 1 },
+  loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
+  listContent: { paddingHorizontal: 4, paddingVertical: 12 },
+  listEmpty: {
     alignItems: "center",
     paddingTop: 80,
     paddingHorizontal: 40,
+    transform: [{ scaleY: -1 }],
   },
-  emptyMsgIcon: {
+  emptyStateIconWrap: {
     width: 72,
     height: 72,
     borderRadius: 36,
@@ -468,11 +551,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 14,
   },
-  emptyMsgTitle: {
+  emptyStateTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: "#334155",
     marginBottom: 6,
   },
-  emptyMsgText: { fontSize: 13, color: "#94A3B8", textAlign: "center" },
+  emptyStateSub: { fontSize: 13, color: "#94A3B8", textAlign: "center" },
+  typingIndicatorBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: "rgba(248, 250, 252, 0.95)",
+  },
+  typingText: {
+    fontSize: 13,
+    color: "#4F46E5",
+    fontWeight: "500",
+  },
+  typingDots: {
+    color: "#818CF8",
+    fontSize: 14,
+  },
 });

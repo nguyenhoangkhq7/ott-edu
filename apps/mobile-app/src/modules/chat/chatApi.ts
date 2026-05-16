@@ -4,7 +4,7 @@ export async function requestOrAddGroupMember(
   payload: { email?: string; accountId?: string }
 ): Promise<{ conversation: Conversation; mode: 'added' | 'requested' }> {
   const { data } = await chatApiClient.post<{ data: { conversation: ApiConversation; mode: 'added' | 'requested' } }>(
-    `/conversations/${conversationId}/members`,
+    `conversations/${conversationId}/members`,
     payload
   );
   return {
@@ -45,6 +45,7 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     createdAt: apiMsg.createdAt,
     status: 'sent',
     attachments: apiMsg.attachments || [],
+    linkPreview: apiMsg.linkPreview,
     replyTo: apiMsg.replyTo ? mapApiMessageToMessage(apiMsg.replyTo) : null,
     isRevoked: apiMsg.isRevoked || false,
     revokedFor: apiMsg._hiddenForMe ? ['__self__'] : (apiMsg.revokedFor || []),
@@ -80,12 +81,12 @@ export function mapApiConversationToConversation(
 }
 
 export async function fetchConversations(currentUserId: string): Promise<Conversation[]> {
-  const { data } = await chatApiClient.get<{ data: ApiConversation[] }>('/conversations');
+  const { data } = await chatApiClient.get<{ data: ApiConversation[] }>('conversations');
   return data.data.map((conv) => mapApiConversationToConversation(conv, currentUserId));
 }
 
 export async function fetchMessages(conversationId: string): Promise<Message[]> {
-  const { data } = await chatApiClient.get<{ data: ApiMessage[] }>(`/messages/${conversationId}`);
+  const { data } = await chatApiClient.get<{ data: ApiMessage[] }>(`messages/${conversationId}`);
   return data.data.map(mapApiMessageToMessage);
 }
 
@@ -97,7 +98,7 @@ export async function sendMessage(
   replyToMessageId?: string,
   isForwarded?: boolean
 ): Promise<Message> {
-  const { data } = await chatApiClient.post<{ data: ApiMessage }>('/messages', {
+  const { data } = await chatApiClient.post<{ data: ApiMessage }>('messages', {
     receiverId,
     conversationId,
     content,
@@ -119,25 +120,25 @@ export async function fetchConversationRole(conversationId: string): Promise<{
     ownerId: string | null;
     myRole: 'owner' | 'member' | null;
     canManageGroup: boolean;
-  } }>(`/conversations/${conversationId}/role`);
+  } }>(`conversations/${conversationId}/role`);
 
   return data.data;
 }
 
 export async function removeGroupMember(conversationId: string, memberId: string): Promise<Conversation> {
   const { data } = await chatApiClient.post<{ data: ApiConversation }>(
-    `/conversations/${conversationId}/members/${memberId}/remove`,
+    `conversations/${conversationId}/members/${memberId}/remove`,
   );
   return mapApiConversationToConversation(data.data, memberId);
 }
 
 export async function dissolveGroup(conversationId: string): Promise<void> {
-  await chatApiClient.post(`/conversations/${conversationId}/dissolve`, {});
+  await chatApiClient.post(`conversations/${conversationId}/dissolve`, {});
 }
 
 export async function leaveGroup(conversationId: string, newOwnerId?: string): Promise<Conversation> {
   const { data } = await chatApiClient.post<{ data: ApiConversation }>(
-    `/conversations/${conversationId}/leave`,
+    `conversations/${conversationId}/leave`,
     newOwnerId ? { newOwnerId } : {},
   );
   return mapApiConversationToConversation(data.data, '');
@@ -158,12 +159,34 @@ export async function uploadFileToChatService(
   formData.append('file', { uri: fileUri, name: fileName, type: fileType } as any);
 
   const { data } = await chatApiClient.post<{ data: { fileUrl: string; s3Key: string } }>(
-    '/upload-file',
+    'upload-file',
     formData,
     {
       params: { fileName, fileType },
       headers: { 'Content-Type': 'multipart/form-data' },
     }
   );
+  return data.data;
+}
+
+// Sidebar / Info APIs (Kho ảnh, file, link)
+
+export async function fetchConversationInfo(conversationId: string): Promise<ApiConversation> {
+  const { data } = await chatApiClient.get<{ data: ApiConversation }>(`chat/info/${conversationId}`);
+  return data.data;
+}
+
+export async function fetchMediaItems(conversationId: string, limit = 50): Promise<ApiMessage[]> {
+  const { data } = await chatApiClient.get<{ data: ApiMessage[] }>(`chat/info/${conversationId}/media`, { params: { limit } });
+  return data.data;
+}
+
+export async function fetchFileItems(conversationId: string, limit = 50): Promise<ApiMessage[]> {
+  const { data } = await chatApiClient.get<{ data: ApiMessage[] }>(`chat/info/${conversationId}/files`, { params: { limit } });
+  return data.data;
+}
+
+export async function fetchLinkItems(conversationId: string, limit = 50): Promise<ApiMessage[]> {
+  const { data } = await chatApiClient.get<{ data: ApiMessage[] }>(`chat/info/${conversationId}/links`, { params: { limit } });
   return data.data;
 }

@@ -16,9 +16,7 @@ import java.util.List;
  * accountId: Long (external ref tới Account trong core-service)
  */
 @Entity
-@Table(name = "submissions",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"assignment_id", "account_id"})
-)
+@Table(name = "submissions", uniqueConstraints = @UniqueConstraint(columnNames = { "assignment_id", "account_id" }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -40,6 +38,9 @@ public class Submission {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "file_url", length = 2048)
+    private String fileUrl; // For essay submissions
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

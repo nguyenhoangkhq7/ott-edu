@@ -16,4 +16,10 @@ public class AssignmentDetailDto {
     private AssignmentType type;
     private List<Long> teamIds;
     private List<QuestionDto> questions;
+
+    // NEW: materialUrls - AWS S3 links for reference materials
+    private List<String> materialUrls;
+
+    // NEW: maxAttempts - quiz attempt limit
+    private Integer maxAttempts;
 }

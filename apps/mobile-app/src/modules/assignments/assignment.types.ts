@@ -1,3 +1,5 @@
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
 export enum QuestionType {
   SINGLE_CHOICE = "SINGLE_CHOICE",
   MULTI_CHOICE = "MULTI_CHOICE",
@@ -14,6 +16,8 @@ export enum AssignmentType {
   QUIZ = "QUIZ",
   ESSAY = "ESSAY",
 }
+
+// ─── Shared / Student Types ───────────────────────────────────────────────────
 
 export type AnswerOption = {
   id: number;
@@ -73,3 +77,98 @@ export type SubmissionResult = {
 };
 
 export type LocalAnswers = Record<number, number[]>;
+
+// ─── Pagination Envelope ──────────────────────────────────────────────────────
+
+/**
+ * Spring Data Page<T> response envelope.
+ * The gateway wraps this inside ApiSuccessEnvelope, so by the time
+ * our Axios interceptor runs, `data` here IS the raw Spring Page object.
+ */
+export type PageResponse<T> = {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number; // 0-indexed current page
+  size: number;
+};
+
+// ─── Teacher — Request Payloads ───────────────────────────────────────────────
+
+export type QuestionOptionRequest = {
+  content: string;
+  isCorrect: boolean;
+  displayOrder: number;
+};
+
+export type QuestionRequest = {
+  content: string;
+  type: QuestionType;
+  points: number;
+  displayOrder: number;
+  options: QuestionOptionRequest[];
+};
+
+export type CreateAssignmentPayload = {
+  title: string;
+  instructions?: string;
+  type: AssignmentType;
+  /** ISO-8601 datetime string, e.g. "2025-12-31T23:59:00" */
+  dueDate: string;
+  maxScore: number;
+  teamIds: number[];
+  /** QUIZ only – null/undefined means unlimited */
+  maxAttempts?: number;
+  /** QUIZ only – list of questions with options */
+  questions?: QuestionRequest[];
+};
+
+export type GradeSubmissionPayload = {
+  score: number;
+  feedback: string;
+};
+
+export type EssaySubmitPayload = {
+  fileUrl: string;
+  confirm: boolean;
+};
+
+// ─── Teacher — Response DTOs ──────────────────────────────────────────────────
+
+/** Maps to AssignmentTeacherViewDto.java */
+export type AssignmentTeacherView = {
+  id: number;
+  title: string;
+  type: AssignmentType;
+  dueDate: string;
+  maxScore: number;
+  archived: boolean;
+  teamIds: number[];
+  totalSubmissions: number;
+  gradedCount: number;
+  pendingCount: number;
+  createdAt: string;
+};
+
+/** Maps to SubmissionGradingListDto.java */
+export type SubmissionGradingItem = {
+  submissionId: number;
+  studentAccountId: number;
+  assignmentId: number;
+  status: SubmissionStatus;
+  submittedAt: string;
+  isLate: boolean;
+  fileUrl: string | null;
+  isGraded: boolean;
+  currentScore: number | null;
+  gradeRevision: number;
+};
+
+/** Maps to GradeDetailsDto.java */
+export type GradeDetails = {
+  id: number;
+  score: number;
+  feedback: string;
+  gradedAt: string;
+  revision: number;
+};

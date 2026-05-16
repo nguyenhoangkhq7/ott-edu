@@ -1,668 +1,614 @@
-import React, { useEffect, useMemo, useState } from "react";
+/**
+ * AssignmentsTab — main entry point for the Assignments feature inside a Team.
+ *
+ * Renders the correct UI based on the authenticated user's role:
+ *   • ROLE_TEACHER → sees FAB to create, taps card → GradingListScreen
+ *   • ROLE_STUDENT → taps card → AssignmentDetailScreen (essay/quiz flow)
+ *
+ * Assignments are displayed in two separate sections:
+ *   1. Bài tập (ESSAY) — teacher-graded essays
+ *   2. Bài kiểm tra (QUIZ) — auto-graded quizzes
+ *
+ * Layout: sits below the TeamDetailScreen tab bar → NO SafeAreaView needed
+ * (the parent TeamDetailScreen handles safe-area at the top).
+ */
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
+  RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { format } from "date-fns";
 
+import { useAuth } from "../../auth/AuthProvider";
 import { assignmentApi } from "../../assignments/assignment.api";
-import type {
-  AnswerOption,
-  Assignment,
-  AssignmentDetail,
-  LocalAnswers,
-  Question,
-  QuestionType,
-  SubmissionResult,
-} from "../../assignments/assignment.types";
+import type { Assignment } from "../../assignments/assignment.types";
+import { AssignmentType } from "../../assignments/assignment.types";
+import AssignmentDetailScreen from "../../assignments/screens/AssignmentDetailScreen";
+import AssignmentListScreen from "../../assignments/screens/AssignmentListScreen";
+import CreateAssignmentScreen from "../../assignments/screens/CreateAssignmentScreen";
+import GradingListScreen from "../../assignments/screens/GradingListScreen";
+import TakeQuizScreen from "../../assignments/screens/TakeQuizScreen";
+import QuizReviewScreen from "../../assignments/screens/QuizReviewScreen";
+import type { AssignmentDetail } from "../../assignments/assignment.types";
+import type { ViewSubmission } from "../../assignments/assignment.api";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type AssignmentsTabProps = {
   teamId: number;
   teamTitle: string;
 };
 
-type ViewMode = "list" | "detail" | "quiz" | "result";
+type Screen =
+  | { name: "list" }
+  | { name: "detail"; assignment: Assignment }
+  | { name: "grading"; assignment: Assignment }
+  | { name: "create" }
+  | { name: "quiz"; detail: AssignmentDetail; submissionId?: number }
+  | { name: "review"; detail: AssignmentDetail; submission: ViewSubmission };
 
-function formatDate(value?: string): string {
-  if (!value) {
-    return "Chưa có hạn";
-  }
+// ─── Section data ─────────────────────────────────────────────────────────────
 
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
+type AssignmentSection = {
+  title: string;
+  icon: string;
+  color: string;
+  bg: string;
+  data: Assignment[];
+  empty: string;
+};
 
-  return format(parsed, "dd/MM/yyyy HH:mm");
-}
+// ─── Assignment Card ──────────────────────────────────────────────────────────
 
-function isSelected(answers: LocalAnswers, questionId: number, optionId: number): boolean {
-  return (answers[questionId] || []).includes(optionId);
-}
+function AssignmentCard({
+  item,
+  isTeacher,
+  onPress,
+}: {
+  item: Assignment;
+  isTeacher: boolean;
+  onPress: (item: Assignment) => void;
+}) {
+  const isQuiz = item.type === AssignmentType.QUIZ;
+  const due = item.dueDate ? new Date(item.dueDate) : null;
+  const isPast = due ? due.getTime() < Date.now() : false;
 
-function getOptionLabel(option: AnswerOption): string {
-  return option.content?.trim() || `Option ${option.displayOrder}`;
-}
+  const dueDateColor = !due
+    ? "#94a3b8"
+    : isPast
+    ? "#ef4444"
+    : due.getTime() - Date.now() < 86_400_000 * 2
+    ? "#f59e0b"
+    : "#10b981";
 
-export default function AssignmentsTab({ teamId, teamTitle }: AssignmentsTabProps) {
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [loadingStart, setLoadingStart] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<ViewMode>("list");
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
-  const [assignmentDetail, setAssignmentDetail] = useState<AssignmentDetail | null>(null);
-  const [submissionId, setSubmissionId] = useState<number | null>(null);
-  const [answers, setAnswers] = useState<LocalAnswers>({});
-  const [result, setResult] = useState<SubmissionResult | null>(null);
-  const [savingQuestionId, setSavingQuestionId] = useState<number | null>(null);
-  const [reloadTick, setReloadTick] = useState(0);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const fetchAssignments = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await assignmentApi.getAssignments(teamId);
-        if (mounted) {
-          setAssignments(Array.isArray(data) ? data : []);
-        }
-      } catch (fetchError) {
-        if (mounted) {
-          setError(fetchError instanceof Error ? fetchError.message : "Không thể tải danh sách bài kiểm tra.");
-          setAssignments([]);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchAssignments();
-
-    return () => {
-      mounted = false;
-    };
-  }, [teamId, reloadTick]);
-
-  const quizQuestions = useMemo(() => {
-    return (assignmentDetail?.questions || []).slice().sort((left, right) => left.displayOrder - right.displayOrder);
-  }, [assignmentDetail]);
-
-  const openAssignment = async (assignment: Assignment) => {
-    try {
-      setLoadingDetail(true);
-      setError(null);
-      const detail = await assignmentApi.getAssignmentDetail(assignment.id);
-      setSelectedAssignment(assignment);
-      setAssignmentDetail(detail);
-      setMode("detail");
-      setAnswers({});
-      setSubmissionId(null);
-      setResult(null);
-    } catch (detailError) {
-      setError(detailError instanceof Error ? detailError.message : "Không thể mở bài kiểm tra.");
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
-
-  const startQuiz = async () => {
-    if (!assignmentDetail || !selectedAssignment || selectedAssignment.archived) {
-      return;
-    }
-
-    try {
-      setLoadingStart(true);
-      setError(null);
-      const submission = await assignmentApi.startAssignment(assignmentDetail.id);
-      setSubmissionId(submission.id);
-      setMode("quiz");
-    } catch (startError) {
-      setError(startError instanceof Error ? startError.message : "Không thể bắt đầu bài kiểm tra.");
-    } finally {
-      setLoadingStart(false);
-    }
-  };
-
-  const updateAnswer = async (question: Question, optionId: number) => {
-    if (!submissionId) {
-      return;
-    }
-
-    const current = answers[question.id] || [];
-    let nextSelected: number[] = [];
-
-    if (question.type === "MULTI_CHOICE") {
-      nextSelected = current.includes(optionId)
-        ? current.filter((value) => value !== optionId)
-        : [...current, optionId];
-    } else {
-      nextSelected = [optionId];
-    }
-
-    setAnswers((prev) => ({
-      ...prev,
-      [question.id]: nextSelected,
-    }));
-
-    try {
-      setSavingQuestionId(question.id);
-      await assignmentApi.saveAnswer(submissionId, question.id, nextSelected);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Không thể lưu đáp án.");
-    } finally {
-      setSavingQuestionId((currentQuestionId) => (currentQuestionId === question.id ? null : currentQuestionId));
-    }
-  };
-
-  const submitQuiz = async () => {
-    if (!submissionId) {
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setError(null);
-      const submissionResult = await assignmentApi.submitAssignment(submissionId);
-      setResult(submissionResult);
-      setMode("result");
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Không thể nộp bài.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const renderList = () => {
-    if (loading) {
-      return (
-        <View style={styles.stateBox}>
-          <ActivityIndicator color="#4f46e5" size="large" />
-          <Text style={styles.stateTitle}>Đang tải bài kiểm tra...</Text>
-        </View>
-      );
-    }
-
-    if (error && assignments.length === 0) {
-      return (
-        <View style={styles.stateBox}>
-          <View style={styles.stateIcon}><Ionicons name="cloud-offline-outline" size={28} color="#ef4444" /></View>
-          <Text style={styles.stateTitle}>Không tải được danh sách</Text>
-          <Text style={styles.stateText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => setReloadTick((value) => value + 1)}>
-            <Text style={styles.retryBtnText}>Thử lại</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    if (assignments.length === 0) {
-      return (
-        <View style={styles.stateBox}>
-          <View style={styles.stateIcon}><Ionicons name="document-text-outline" size={28} color="#94a3b8" /></View>
-          <Text style={styles.stateTitle}>Chưa có bài kiểm tra</Text>
-          <Text style={styles.stateText}>Lớp {teamTitle} hiện chưa có online quiz nào.</Text>
-        </View>
-      );
-    }
-
-    return (
-      <FlatList
-        data={assignments}
-        keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item, index }) => {
-          const archived = item.archived;
-          return (
-            <TouchableOpacity
-              style={[styles.assignmentCard, archived && styles.archivedCard]}
-              activeOpacity={0.85}
-              onPress={() => openAssignment(item)}
-              disabled={loadingDetail}
-            >
-              <View style={[styles.cardBadge, { backgroundColor: archived ? "#e2e8f0" : ["#ede9fe", "#dcfce7", "#dbeafe", "#fee2e2"][index % 4] }]}>
-                <Ionicons name={archived ? "lock-closed-outline" : "school-outline"} size={18} color={archived ? "#64748b" : "#4f46e5"} />
-              </View>
-              <View style={styles.cardBody}>
-                <View style={styles.cardHeaderRow}>
-                  <Text style={[styles.cardTitle, archived && styles.archivedText]} numberOfLines={2}>
-                    {item.title}
-                  </Text>
-                  {archived && <Text style={styles.lockTag}>Đã khóa</Text>}
-                </View>
-                <Text style={styles.cardDesc} numberOfLines={2}>
-                  {item.instructions || "Bài kiểm tra trực tuyến"}
-                </Text>
-                <View style={styles.cardMetaRow}>
-                  <Text style={styles.cardMeta}>{formatDate(item.dueDate)}</Text>
-                  <Text style={styles.cardMeta}>Tối đa {item.maxScore} điểm</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-      />
-    );
-  };
-
-  const renderDetail = () => {
-    if (!selectedAssignment || !assignmentDetail) {
-      return null;
-    }
-
-    return (
-      <ScrollView contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.detailHero}>
-          <Text style={styles.detailLabel}>ONLINE QUIZ</Text>
-          <Text style={styles.detailTitle}>{assignmentDetail.title}</Text>
-          <Text style={styles.detailDesc}>{assignmentDetail.instructions || "Không có mô tả."}</Text>
-
-          <View style={styles.detailStatsRow}>
-            <View style={styles.detailStatCard}>
-              <Text style={styles.detailStatValue}>{quizQuestions.length}</Text>
-              <Text style={styles.detailStatLabel}>Câu hỏi</Text>
-            </View>
-            <View style={styles.detailStatCard}>
-              <Text style={styles.detailStatValue}>{assignmentDetail.maxScore}</Text>
-              <Text style={styles.detailStatLabel}>Tổng điểm</Text>
-            </View>
-            <View style={styles.detailStatCard}>
-              <Text style={styles.detailStatValue}>{formatDate(assignmentDetail.dueDate).slice(0, 10)}</Text>
-              <Text style={styles.detailStatLabel}>Hạn nộp</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.infoStrip}>
-          <Ionicons name={selectedAssignment.archived ? "lock-closed-outline" : "time-outline"} size={18} color="#4f46e5" />
-          <Text style={styles.infoStripText}>
-            {selectedAssignment.archived
-              ? "Bài kiểm tra này đã bị khóa."
-              : "Mở bài kiểm tra để làm bài và lưu đáp án tự động."}
-          </Text>
-        </View>
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.secondaryAction} onPress={() => setMode("list")}>
-            <Text style={styles.secondaryActionText}>Quay lại</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.primaryAction, selectedAssignment.archived && styles.disabledAction]}
-            onPress={startQuiz}
-            disabled={selectedAssignment.archived || loadingStart}
-          >
-            {loadingStart ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text style={styles.primaryActionText}>Bắt đầu làm bài</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    );
-  };
-
-  const renderQuiz = () => {
-    if (!assignmentDetail) {
-      return null;
-    }
-
-    return (
-      <ScrollView contentContainerStyle={styles.quizContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.quizBanner}>
-          <Text style={styles.quizBannerLabel}>Đang làm bài</Text>
-          <Text style={styles.quizBannerTitle}>{assignmentDetail.title}</Text>
-          <Text style={styles.quizBannerText}>Tự động lưu đáp án theo từng câu.</Text>
-        </View>
-
-        {quizQuestions.map((question, index) => (
-          <View key={question.id} style={styles.questionCard}>
-            <View style={styles.questionHeader}>
-              <Text style={styles.questionIndex}>Câu {index + 1}</Text>
-              <Text style={styles.questionPoints}>{question.points} điểm</Text>
-            </View>
-            <Text style={styles.questionContent}>{question.content}</Text>
-
-            <View style={styles.optionList}>
-              {question.options
-                .slice()
-                .sort((left, right) => left.displayOrder - right.displayOrder)
-                .map((option) => {
-                  const selected = isSelected(answers, question.id, option.id);
-                  const isMulti = question.type === "MULTI_CHOICE";
-                  return (
-                    <TouchableOpacity
-                      key={option.id}
-                      style={[styles.optionItem, selected && styles.optionItemSelected]}
-                      onPress={() => updateAnswer(question, option.id)}
-                      activeOpacity={0.85}
-                    >
-                      <View style={[styles.optionMarker, selected && styles.optionMarkerSelected]}>
-                        <Text style={[styles.optionMarkerText, selected && styles.optionMarkerTextSelected]}>
-                          {isMulti ? (selected ? "✓" : "") : selected ? "●" : ""}
-                        </Text>
-                      </View>
-                      <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{getOptionLabel(option)}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-            </View>
-
-            {savingQuestionId === question.id && (
-              <View style={styles.savingRow}>
-                <ActivityIndicator size="small" color="#4f46e5" />
-                <Text style={styles.savingText}>Đang lưu...</Text>
-              </View>
-            )}
-          </View>
-        ))}
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.secondaryAction} onPress={() => setMode("detail")}>
-            <Text style={styles.secondaryActionText}>Xem thông tin</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryAction} onPress={submitQuiz} disabled={submitting}>
-            {submitting ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryActionText}>Nộp bài</Text>}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    );
-  };
-
-  const renderResult = () => {
-    if (!result) {
-      return null;
-    }
-
-    return (
-      <View style={styles.resultWrap}>
-        <View style={styles.resultCard}>
-          <View style={styles.resultIcon}><Ionicons name="checkmark-circle" size={38} color="#16a34a" /></View>
-          <Text style={styles.resultTitle}>Nộp bài thành công</Text>
-          <Text style={styles.resultScore}>
-            {result.score}/{result.maxScore} điểm
-          </Text>
-          <Text style={styles.resultMeta}>
-            Đã trả lời {result.answeredQuestions}/{result.totalQuestions} câu
-            {typeof result.correctQuestions === "number" ? ` · Đúng ${result.correctQuestions} câu` : ""}
-          </Text>
-          <Text style={styles.resultFeedback}>{result.feedback || "Bài của bạn đã được gửi thành công."}</Text>
-        </View>
-
-        <TouchableOpacity
-          style={styles.primaryAction}
-          onPress={() => {
-            setMode("list");
-            setSelectedAssignment(null);
-            setAssignmentDetail(null);
-            setAnswers({});
-            setSubmissionId(null);
-            setResult(null);
-          }}
-        >
-          <Text style={styles.primaryActionText}>Quay về danh sách</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const formattedDue = due
+    ? due.toLocaleString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "Không có hạn";
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Online Quizzes</Text>
-            <Text style={styles.headerSubtitle}>{teamTitle}</Text>
-          </View>
-          <TouchableOpacity style={styles.refreshBtn} onPress={() => setMode("list")}>
-            <Ionicons name="refresh-outline" size={18} color="#4f46e5" />
-          </TouchableOpacity>
-        </View>
-
-        {error ? <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View> : null}
-
-        <View style={styles.body}>{mode === "list" ? renderList() : mode === "detail" ? renderDetail() : mode === "quiz" ? renderQuiz() : renderResult()}</View>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => onPress(item)}
+      activeOpacity={0.75}
+    >
+      <View style={[styles.cardIcon, { backgroundColor: isQuiz ? "#eef2ff" : "#fef3c7" }]}>
+        <Ionicons
+          name={isQuiz ? "help-circle-outline" : "document-text-outline"}
+          size={22}
+          color={isQuiz ? "#4f46e5" : "#d97706"}
+        />
       </View>
-    </SafeAreaView>
+
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        {!!item.instructions && (
+          <Text style={styles.cardDesc} numberOfLines={1}>
+            {item.instructions}
+          </Text>
+        )}
+        <View style={styles.cardMeta}>
+          <View style={[styles.duePill, { backgroundColor: dueDateColor + "18" }]}>
+            <Ionicons name="time-outline" size={11} color={dueDateColor} />
+            <Text style={[styles.dueText, { color: dueDateColor }]}>{formattedDue}</Text>
+          </View>
+          <View style={styles.scorePill}>
+            <Ionicons name="star-outline" size={11} color="#64748b" />
+            <Text style={styles.scoreText}>Tối đa {item.maxScore} điểm</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.cardChevron}>
+        <Ionicons
+          name={isTeacher ? "people-outline" : "chevron-forward"}
+          size={16}
+          color="#94a3b8"
+        />
+      </View>
+    </TouchableOpacity>
   );
 }
 
+// ─── Section Header ───────────────────────────────────────────────────────────
+
+function SectionHeader({
+  title,
+  icon,
+  color,
+  bg,
+  count,
+}: {
+  title: string;
+  icon: string;
+  color: string;
+  bg: string;
+  count: number;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={[styles.sectionIconWrap, { backgroundColor: bg }]}>
+        <Ionicons name={icon as any} size={15} color={color} />
+      </View>
+      <Text style={[styles.sectionTitle, { color }]}>{title}</Text>
+      <View style={[styles.sectionBadge, { backgroundColor: bg }]}>
+        <Text style={[styles.sectionBadgeText, { color }]}>{count}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function AssignmentsTab({ teamId, teamTitle }: AssignmentsTabProps) {
+  const { user } = useAuth();
+  const isTeacher = (user?.roles ?? []).includes("ROLE_TEACHER");
+
+  const [screen, setScreen] = useState<Screen>({ name: "list" });
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ─── Data fetching ──────────────────────────────────────────────────────────
+
+  const fetchAssignments = useCallback(async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
+      setError(null);
+      const data = await assignmentApi.getAssignments(teamId);
+      setAssignments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không thể tải danh sách bài tập.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [teamId]);
+
+  useEffect(() => { void fetchAssignments(); }, [fetchAssignments]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    void fetchAssignments(true);
+  };
+
+  // ─── Sections ───────────────────────────────────────────────────────────────
+
+  const sections = useMemo<AssignmentSection[]>(() => {
+    const essays = assignments.filter((a) => a.type === AssignmentType.ESSAY);
+    const quizzes = assignments.filter((a) => a.type === AssignmentType.QUIZ);
+    const result: AssignmentSection[] = [];
+
+    if (essays.length > 0 || !quizzes.length) {
+      result.push({
+        title: "Bài tập (Essay)",
+        icon: "document-text-outline",
+        color: "#d97706",
+        bg: "#fef3c7",
+        data: essays,
+        empty: "Chưa có bài tập essay nào.",
+      });
+    }
+    if (quizzes.length > 0 || !essays.length) {
+      result.push({
+        title: "Bài kiểm tra (Quiz)",
+        icon: "help-circle-outline",
+        color: "#4f46e5",
+        bg: "#eef2ff",
+        data: quizzes,
+        empty: "Chưa có bài kiểm tra nào.",
+      });
+    }
+
+    return result;
+  }, [assignments]);
+
+  // ─── Navigation handlers ────────────────────────────────────────────────────
+
+  const handleCardPress = (item: Assignment) => {
+    if (isTeacher) {
+      setScreen({ name: "grading", assignment: item });
+    } else {
+      setScreen({ name: "detail", assignment: item });
+    }
+  };
+
+  const goBack = () => {
+    setScreen({ name: "list" });
+    void fetchAssignments(true); // refresh list after returning from detail
+  };
+
+  // ─── Screen routing ─────────────────────────────────────────────────────────
+
+  if (screen.name === "detail") {
+    return (
+      <AssignmentDetailScreen
+        assignmentId={screen.assignment.id}
+        onBack={goBack}
+        onStartQuiz={(detail, submissionId) => {
+          setScreen({ name: "quiz", detail, submissionId });
+        }}
+        onReviewQuiz={(detail, submission) => {
+          setScreen({ name: "review", detail, submission });
+        }}
+      />
+    );
+  }
+
+  if (screen.name === "review") {
+    return (
+      <QuizReviewScreen
+        detail={screen.detail}
+        submission={screen.submission}
+        onBack={() => setScreen({ name: "detail", assignment: screen.detail as unknown as Assignment })}
+      />
+    );
+  }
+
+  if (screen.name === "quiz") {
+    return (
+      <TakeQuizScreen
+        detail={screen.detail}
+        existingSubmissionId={screen.submissionId}
+        onBack={() => setScreen({ name: "detail", assignment: screen.detail as unknown as Assignment })}
+        onSubmitSuccess={() => {
+          // Navigate back to detail — it will reload and show SUBMITTED/GRADED state
+          setScreen({ name: "detail", assignment: screen.detail as unknown as Assignment });
+        }}
+      />
+    );
+  }
+
+  if (screen.name === "grading") {
+    return (
+      <GradingListScreen
+        assignmentId={screen.assignment.id}
+        assignmentTitle={screen.assignment.title}
+        maxScore={screen.assignment.maxScore}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (screen.name === "create") {
+    return (
+      <CreateAssignmentScreen
+        teamId={teamId}
+        teamTitle={teamTitle}
+        onBack={goBack}
+        onSuccess={() => {
+          setScreen({ name: "list" });
+          void fetchAssignments(true);
+        }}
+      />
+    );
+  }
+
+  // ─── List screen ────────────────────────────────────────────────────────────
+
+  return (
+    <View style={styles.container}>
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>
+            {isTeacher ? "Quản lý bài tập" : "Bài tập & Kiểm tra"}
+          </Text>
+          <Text style={styles.headerSub}>{teamTitle}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.refreshBtn}
+          onPress={() => void fetchAssignments()}
+        >
+          <Ionicons name="refresh-outline" size={20} color="#2563eb" />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Error banner ── */}
+      {error ? (
+        <View style={styles.errorBanner}>
+          <Ionicons name="warning-outline" size={14} color="#b91c1c" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={() => void fetchAssignments()}>
+            <Text style={styles.errorRetry}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* ── Content ── */}
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color="#4f46e5" />
+          <Text style={styles.loadingText}>Đang tải bài tập...</Text>
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id.toString()}
+          renderSectionHeader={({ section }) => (
+            <SectionHeader
+              title={section.title}
+              icon={section.icon}
+              color={section.color}
+              bg={section.bg}
+              count={section.data.length}
+            />
+          )}
+          renderItem={({ item }) => (
+            <AssignmentCard
+              item={item}
+              isTeacher={isTeacher}
+              onPress={handleCardPress}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Ionicons name="folder-open-outline" size={48} color="#c7d2fe" />
+              <Text style={styles.emptyTitle}>Chưa có bài tập nào</Text>
+              {isTeacher && (
+                <Text style={styles.emptyDesc}>
+                  Nhấn nút + để tạo bài tập mới cho lớp.
+                </Text>
+              )}
+            </View>
+          }
+          renderSectionFooter={({ section }) =>
+            section.data.length === 0 ? (
+              <Text style={styles.sectionEmpty}>{section.empty}</Text>
+            ) : null
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={["#4f46e5"]}
+              tintColor="#4f46e5"
+            />
+          }
+        />
+      )}
+
+      {/* ── FAB: Teacher only — Create assignment ── */}
+      {isTeacher && !loading && (
+        <TouchableOpacity
+          style={styles.fab}
+          activeOpacity={0.85}
+          onPress={() => setScreen({ name: "create" })}
+        >
+          <Ionicons name="add" size={30} color="#ffffff" />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#ffffff" },
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+  },
+
+  // Header
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 10,
     backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
+    borderBottomColor: "#f1f5f9",
   },
-  headerTitle: { fontSize: 20, fontWeight: "800", color: "#0f172a" },
-  headerSubtitle: { marginTop: 2, fontSize: 12, color: "#64748b" },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0f172a",
+    letterSpacing: -0.3,
+  },
+  headerSub: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 2,
+    fontWeight: "500",
+  },
   refreshBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#eef2ff",
+    backgroundColor: "#eff6ff",
     alignItems: "center",
     justifyContent: "center",
   },
-  errorBox: {
-    margin: 16,
-    padding: 12,
+
+  // Error
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: "#fef2f2",
     borderWidth: 1,
     borderColor: "#fecaca",
   },
-  errorText: { color: "#b91c1c", fontSize: 13, lineHeight: 18 },
-  body: { flex: 1 },
-  listContent: { padding: 16, paddingBottom: 24 },
-  assignmentCard: {
+  errorText: { flex: 1, fontSize: 12, color: "#b91c1c", lineHeight: 17 },
+  errorRetry: { fontSize: 12, fontWeight: "800", color: "#4f46e5" },
+
+  // Loading
+  loadingWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  loadingText: { fontSize: 14, color: "#475569" },
+
+  // Section header
+  sectionHeader: {
     flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  sectionIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  sectionBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sectionBadgeText: { fontSize: 11, fontWeight: "800" },
+
+  sectionEmpty: {
+    fontSize: 13,
+    color: "#94a3b8",
+    textAlign: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    fontStyle: "italic",
+  },
+
+  // List
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 100,
+  },
+
+  // Assignment card
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#ffffff",
-    borderRadius: 18,
+    borderRadius: 16,
+    marginBottom: 10,
+    padding: 14,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    padding: 14,
-    marginBottom: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
   },
-  archivedCard: { opacity: 0.8 },
-  cardBadge: {
-    width: 44,
-    height: 44,
+  cardIcon: {
+    width: 46,
+    height: 46,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    flexShrink: 0,
   },
-  cardBody: { flex: 1 },
-  cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
-  cardTitle: { flex: 1, fontSize: 15, fontWeight: "800", color: "#0f172a" },
-  archivedText: { color: "#64748b" },
-  lockTag: {
+  cardBody: { flex: 1, gap: 5 },
+  cardTitle: { fontSize: 14, fontWeight: "700", color: "#0f172a", lineHeight: 20 },
+  cardDesc: { fontSize: 12, color: "#64748b", lineHeight: 17 },
+  cardMeta: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 2 },
+  duePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "#e2e8f0",
-    color: "#475569",
-    fontSize: 11,
-    fontWeight: "700",
+    borderRadius: 8,
   },
-  cardDesc: { marginTop: 6, fontSize: 13, lineHeight: 18, color: "#475569" },
-  cardMetaRow: { marginTop: 10, flexDirection: "row", justifyContent: "space-between", gap: 10 },
-  cardMeta: { fontSize: 11, color: "#64748b" },
-  stateBox: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  stateIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: "#f8fafc",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  stateTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a", textAlign: "center" },
-  stateText: { marginTop: 8, fontSize: 13, color: "#64748b", textAlign: "center", lineHeight: 18 },
-  retryBtn: {
-    marginTop: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#4f46e5",
-  },
-  retryBtnText: { color: "#ffffff", fontWeight: "700" },
-  detailContent: { padding: 16, paddingBottom: 28 },
-  detailHero: {
-    backgroundColor: "#ffffff",
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 18,
-  },
-  detailLabel: { fontSize: 12, fontWeight: "800", letterSpacing: 1.2, color: "#4f46e5" },
-  detailTitle: { marginTop: 8, fontSize: 22, fontWeight: "900", color: "#0f172a" },
-  detailDesc: { marginTop: 10, fontSize: 14, lineHeight: 20, color: "#475569" },
-  detailStatsRow: { marginTop: 16, flexDirection: "row", gap: 10 },
-  detailStatCard: {
-    flex: 1,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    backgroundColor: "#f8fafc",
-    alignItems: "center",
-  },
-  detailStatValue: { fontSize: 16, fontWeight: "900", color: "#0f172a" },
-  detailStatLabel: { marginTop: 4, fontSize: 11, color: "#64748b" },
-  infoStrip: {
+  dueText: { fontSize: 11, fontWeight: "600" },
+  scorePill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: "#eef2ff",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
   },
-  infoStripText: { flex: 1, fontSize: 13, lineHeight: 18, color: "#334155" },
-  actionRow: { marginTop: 14, flexDirection: "row", gap: 10 },
-  secondaryAction: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: "#e2e8f0",
+  scoreText: { fontSize: 11, fontWeight: "600", color: "#64748b" },
+  cardChevron: { paddingLeft: 8, flexShrink: 0 },
+
+  // Empty state
+  emptyWrap: {
     alignItems: "center",
+    paddingTop: 60,
+    paddingHorizontal: 32,
+    gap: 12,
   },
-  secondaryActionText: { color: "#334155", fontWeight: "800" },
-  primaryAction: {
-    flex: 1.2,
-    paddingVertical: 14,
-    borderRadius: 14,
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#94a3b8" },
+  emptyDesc: { fontSize: 13, color: "#94a3b8", textAlign: "center", lineHeight: 19 },
+
+  // FAB — Teacher create button
+  fab: {
+    position: "absolute",
+    bottom: 28,
+    right: 24,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: "#4f46e5",
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#4f46e5",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 10,
   },
-  disabledAction: { backgroundColor: "#94a3b8" },
-  primaryActionText: { color: "#ffffff", fontWeight: "800" },
-  quizContent: { padding: 16, paddingBottom: 28 },
-  quizBanner: {
-    backgroundColor: "#0f172a",
-    borderRadius: 22,
-    padding: 18,
-    marginBottom: 14,
-  },
-  quizBannerLabel: { color: "#94a3b8", fontSize: 12, fontWeight: "800" },
-  quizBannerTitle: { marginTop: 6, color: "#ffffff", fontSize: 20, fontWeight: "900" },
-  quizBannerText: { marginTop: 8, color: "#cbd5e1", fontSize: 13, lineHeight: 18 },
-  questionCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 16,
-    marginBottom: 14,
-  },
-  questionHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
-  questionIndex: { color: "#4f46e5", fontSize: 12, fontWeight: "800" },
-  questionPoints: { color: "#64748b", fontSize: 12, fontWeight: "700" },
-  questionContent: { fontSize: 15, lineHeight: 22, fontWeight: "700", color: "#0f172a" },
-  optionList: { marginTop: 12, gap: 10 },
-  optionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
-  },
-  optionItemSelected: {
-    backgroundColor: "#eef2ff",
-    borderColor: "#c7d2fe",
-  },
-  optionMarker: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#cbd5e1",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  optionMarkerSelected: {
-    borderColor: "#4f46e5",
-    backgroundColor: "#4f46e5",
-  },
-  optionMarkerText: { color: "transparent", fontWeight: "900", fontSize: 11 },
-  optionMarkerTextSelected: { color: "#ffffff" },
-  optionText: { flex: 1, fontSize: 14, lineHeight: 20, color: "#334155" },
-  optionTextSelected: { color: "#1e1b4b", fontWeight: "700" },
-  savingRow: { marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8 },
-  savingText: { fontSize: 12, color: "#64748b" },
-  resultWrap: { flex: 1, padding: 16, justifyContent: "center" },
-  resultCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 20,
-    alignItems: "center",
-  },
-  resultIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#dcfce7",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-  resultTitle: { fontSize: 18, fontWeight: "900", color: "#0f172a" },
-  resultScore: { marginTop: 8, fontSize: 28, fontWeight: "900", color: "#16a34a" },
-  resultMeta: { marginTop: 8, fontSize: 13, color: "#475569", textAlign: "center" },
-  resultFeedback: { marginTop: 12, fontSize: 13, color: "#334155", textAlign: "center", lineHeight: 20 },
 });

@@ -46,7 +46,7 @@ type JoinMediaRoomResponse = {
   existingProducers: Array<{ producerId: string; kind: "audio" | "video"; userId: string }>;
 };
 
-const RTC_ICE_SERVERS = (() => {
+const _RTC_ICE_SERVERS = (() => {
   if (typeof window === "undefined") return [{ urls: "stun:stun.l.google.com:19302" }];
   const w = window as unknown as { MEDIASOUP_ICE_SERVERS?: string };
   if (w.MEDIASOUP_ICE_SERVERS) {
@@ -371,7 +371,7 @@ export default function useWebRTCMediasoup({
       console.warn("toggleScreenShare failed:", error);
       setCallError("Khong the chia se man hinh luc nay.");
     }
-  }, []);
+  }, [socket]);
 
   const updateRemoteStreams = useCallback(
     (updater: (next: Map<string, MediaStream>) => void) => {
@@ -729,7 +729,7 @@ export default function useWebRTCMediasoup({
   }, [consumeProducer]);
 
   const endCall = useCallback(
-    (reason?: string) => {
+    (_reason?: string) => {
       if (currentConversationIdRef.current) {
         socket?.emit("leaveMediaRoom", currentConversationIdRef.current);
       }
@@ -848,6 +848,7 @@ export default function useWebRTCMediasoup({
       ensureLocalStream,
       flushPendingProducers,
       joinMediaRoom,
+      endCall,
       socket,
     ],
   );
