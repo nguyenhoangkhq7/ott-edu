@@ -34,16 +34,41 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
   const [autoSaving, setAutoSaving] = useState(false);
 
   const saveDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingAnswerRef = useRef<{ questionId: number; selectedOptionIds: number[] } | null>(null);
+
+  const flushPendingAnswerSave = useCallback(async () => {
+    const pendingAnswer = pendingAnswerRef.current;
+
+    if (saveDebounceRef.current) {
+      clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
+    }
+
+    if (!pendingAnswer) {
+      return;
+    }
+
+    setAutoSaving(true);
+    try {
+      await quizService.saveAnswer(submission.id, pendingAnswer.questionId, pendingAnswer.selectedOptionIds);
+    } catch {
+      // Auto-save silently fails (not critical - we have local state)
+    } finally {
+      setAutoSaving(false);
+      pendingAnswerRef.current = null;
+    }
+  }, [submission.id]);
 
   const handleForceSubmit = useCallback(async () => {
     try {
+      await flushPendingAnswerSave();
       const res = await quizService.submitAssignment(submission.id);
       const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
       setResult({ ...res, answeredQuestions: answeredCount });
     } catch {
       // Silent
     }
-  }, [submission.id, answers]);
+  }, [submission.id, answers, flushPendingAnswerSave]);
 
   // Countdown timer
   useEffect(() => {
@@ -64,21 +89,15 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
   const handleAnswerChange = useCallback(
     (questionId: number, selectedOptionIds: number[]) => {
       setAnswers((prev) => ({ ...prev, [questionId]: selectedOptionIds }));
+      pendingAnswerRef.current = { questionId, selectedOptionIds };
 
       // Debounced auto-save
       if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
       saveDebounceRef.current = setTimeout(async () => {
-        setAutoSaving(true);
-        try {
-          await quizService.saveAnswer(submission.id, questionId, selectedOptionIds);
-        } catch {
-          // Auto-save silently fails (not critical - we have local state)
-        } finally {
-          setAutoSaving(false);
-        }
+        await flushPendingAnswerSave();
       }, 800);
     },
-    [submission.id]
+    [flushPendingAnswerSave]
   );
 
   const handleFlagToggle = () => {
@@ -95,6 +114,7 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      await flushPendingAnswerSave();
       const res = await quizService.submitAssignment(submission.id);
       // Build answeredQuestions count from local state
       const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
@@ -131,7 +151,7 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
       {/* Main layout: 3 columns */}
       <div className="flex min-h-screen">
         {/* ====== Left Sidebar ====== */}
-        <aside className="w-56 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col py-6 px-4 gap-4">
+        <aside className="w-56 shrink-0 bg-white border-r border-slate-200 flex flex-col py-6 px-4 gap-4">
           <Link
             href="/assignments"
             className="flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 transition-colors font-medium mb-2"
@@ -253,7 +273,7 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
         </main>
 
         {/* ====== Right Sidebar: Timer + Question Map ====== */}
-        <aside className="w-64 flex-shrink-0 bg-slate-50 border-l border-slate-200 flex flex-col p-4 gap-4">
+        <aside className="w-64 shrink-0 bg-slate-50 border-l border-slate-200 flex flex-col p-4 gap-4">
           {/* Timer */}
           <QuizTimer timeRemainingSeconds={timeRemaining} />
 

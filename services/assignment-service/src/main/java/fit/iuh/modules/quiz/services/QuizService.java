@@ -166,8 +166,9 @@ public class QuizService {
         grade.setSubmission(submission);
 
         submission.setGrade(grade);
-        submission.setStatus(SubmissionStatus.SUBMITTED);
+        submission.setStatus(SubmissionStatus.GRADED);
         submission.setSubmittedAt(LocalDateTime.now());
+        submission.setUpdatedAt(LocalDateTime.now());
 
         Submission saved = submissionRepository.save(submission);
         return buildResultDto(saved, correctQuestions);
