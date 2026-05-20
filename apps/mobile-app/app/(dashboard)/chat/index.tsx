@@ -22,7 +22,9 @@ export default function ChatTab() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <ChatLayout currentUserId={user.accountId.toString()} />
+     <ChatLayout 
+        currentUserId={(user as any)?._id || (user as any)?.mongoId || user.accountId.toString()} 
+      />
     </View>
   );
 }

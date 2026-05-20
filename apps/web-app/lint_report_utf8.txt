@@ -1,0 +1,14 @@
+﻿
+C:\Users\MSI\Desktop\CNM\ott-edu\apps\web-app\app\(dashboard)\assignments\[id]\quiz\page.tsx
+  3:38  warning  'useCallback' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\MSI\Desktop\CNM\ott-edu\apps\web-app\app\(dashboard)\assignments\[id]\take\page.tsx
+  138:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\MSI\Desktop\CNM\ott-edu\apps\web-app\src\app\(dashboard)\assignments\[assignmentId]\quiz\page.tsx
+   3:38  warning  'useCallback' is defined but never used               @typescript-eslint/no-unused-vars
+  21:10  warning  'isSubmitting' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  21:24  warning  'setIsSubmitting' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 5 problems (1 error, 4 warnings)
+

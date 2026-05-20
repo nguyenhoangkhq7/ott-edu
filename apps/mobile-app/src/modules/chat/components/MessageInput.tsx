@@ -27,7 +27,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [showEmoji, setShowEmoji] = useState(false);
   
-  const typingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+ const typingTimeoutRef = React.useRef<any>(null);
 
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !isSending && !isUploading && !disabled;
 

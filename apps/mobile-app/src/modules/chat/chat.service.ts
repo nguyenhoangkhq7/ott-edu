@@ -106,4 +106,49 @@ export async function fetchConversations(
   } catch (error) {
     throw new Error(toErrorMessage(error));
   }
+
+  
+}
+
+
+export async function fetchMessages(
+  conversationId: string,
+  identity: ChatAuthIdentity,
+): Promise<any[]> {
+  try {
+    // Lưu ý: Sửa lại đường dẫn API '/messages/${conversationId}' 
+    // sao cho khớp với route bên Node.js Backend của ông nhé!
+    const response = await chatClient.get<{ data: any[] }>(`/messages/${conversationId}`, {
+      headers: createIdentityHeaders(identity),
+    });
+
+    return response.data.data || [];
+  } catch (error) {
+    console.error("❌ Lỗi khi tải lịch sử tin nhắn:", toErrorMessage(error));
+    // Trả về mảng rỗng nếu lỗi để App không bị crash văng ra ngoài
+    return []; 
+  }
+}
+
+export async function sendMessageViaApi(
+  conversationId: string,
+  identity: any,
+  payload: { content: string; attachments?: any[]; replyToId?: string }
+) {
+  try {
+    // 🚀 LƯU Ý: Sửa lại '/messages' cho khớp với Router API tạo tin nhắn bên Node.js của ông
+    const response = await chatClient.post(`/messages`, {
+      conversationId,
+      content: payload.content,
+      attachments: payload.attachments,
+      replyTo: payload.replyToId
+    }, {
+      headers: createIdentityHeaders(identity)
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error("❌ Lỗi gọi API gửi tin nhắn:", error);
+    throw error;
+  }
 }
