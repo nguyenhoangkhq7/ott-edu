@@ -16,7 +16,7 @@ const VideoMessageItem = ({ url }: { url: string }) => {
     return null; // LinkPreview handles YouTube links better
   }
 
-  const player = useVideoPlayer(url, (player) => {
+  const player = useVideoPlayer(url, (player: any) => {
     player.loop = false;
   });
 

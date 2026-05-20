@@ -7,6 +7,7 @@ import {
   CallHistoryItem,
   Conversation,
   IncomingVideoCall,
+  MediaCallKind,
   Message,
   Reaction,
   User,
@@ -51,6 +52,8 @@ interface ChatWindowProps {
   socket?: Socket | null;
   canStartVideoCall?: boolean;
   onStartVideoCall?: () => void;
+  canStartAudioCall?: boolean;
+  onStartAudioCall?: () => void;
   callStatus?: VideoCallStatus;
   localStream?: MediaStream | null;
   remoteStream?: MediaStream | null;
@@ -91,6 +94,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   socket,
   canStartVideoCall = false,
   onStartVideoCall,
+  canStartAudioCall = false,
+  onStartAudioCall,
   callStatus = "idle" as VideoCallStatus,
   localStream = null,
   remoteStream = null,
@@ -165,7 +170,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         conversationId: item.conversationId,
         senderId: item.callerId,
         content: `[call_log] ${JSON.stringify({
-          callType: "video",
+          callType: item.callType || "video",
           status: item.status,
           durationSec: item.durationSec,
           label: `Cuoc goi ${formatCallStatus(item).toLowerCase()}`,
@@ -314,20 +319,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }, [socket, conversation]);
 
   const callStatusLabel = React.useMemo(() => {
+    const currentCallType: MediaCallKind = activeCall?.callType || incomingCall?.callType || "video";
+    const callTypeLabel = currentCallType === "audio" ? "am thanh" : "video";
+
     switch (callStatus) {
       case "calling":
-        return "Dang goi... cho doi phuong chap nhan";
+        return `Dang goi ${callTypeLabel}... cho doi phuong chap nhan`;
       case "receiving":
-        return "Ban co cuoc goi den";
+        return `Ban co cuoc goi ${callTypeLabel} den`;
       case "connected":
-        return "Da ket noi video";
+        return `Da ket noi ${callTypeLabel}`;
       default:
         return "San sang";
     }
-  }, [callStatus]);
+  }, [activeCall, callStatus, incomingCall]);
 
   const incomingCallerName =
     incomingCaller?.name || incomingCall?.fromUserId || "Nguoi dung";
+  const incomingCallTypeLabel = incomingCall?.callType === "audio" ? "am thanh" : "video";
+  const activeCallTypeLabel = activeCall?.callType === "audio" ? "am thanh" : "video";
   const showFullScreenCall =
     callStatus !== "idle" ||
     Boolean(localStream) ||
@@ -366,7 +376,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               </div>
               <div className="min-w-0">
                 <p className="truncate text-xs uppercase tracking-widest text-slate-400">
-                  Cuoc goi video
+                  Cuoc goi {incomingCallTypeLabel === "am thanh" ? "am thanh" : activeCallTypeLabel}
                 </p>
                 <h2 className="truncate text-base font-semibold leading-tight text-white sm:text-lg">
                   {callTitle}
@@ -417,7 +427,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   Cuoc goi den
                 </p>
                 <p className="mt-2 text-lg font-semibold text-white">
-                  {incomingCallerName} dang goi video cho ban
+                  {incomingCallerName} dang goi {incomingCallTypeLabel} cho ban
                 </p>
                 <div className="mt-6 flex items-center justify-center gap-3">
                   <button
@@ -443,9 +453,42 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             /* ── 1-1 Layout: remote fills entire area, local is PiP ── */
             <div className="relative min-h-0 flex-1">
               {/* Remote — full bleed */}
-              {remoteStreamsList.length > 0 ? (
+                {remoteStreamsList.length > 0 ? (
                 (() => {
                   const [userId, stream] = remoteStreamsList[0]!;
+
+                  const hasVideo = stream.getVideoTracks().length > 0;
+                  const hasAudio = stream.getAudioTracks().length > 0;
+
+                  // If stream has no video but has audio (audio-only call), render an <audio>
+                  if (!hasVideo && hasAudio) {
+                    return (
+                      <audio
+                        key={userId}
+                        ref={(el) => {
+                          if (!el) return;
+                          if (el.srcObject !== stream) el.srcObject = stream;
+                          // Start muted to satisfy autoplay policies, then unmute after play
+                          el.muted = true;
+                          el.play()
+                            .then(() => {
+                              try {
+                                el.muted = false;
+                              } catch (e) {
+                                // ignore
+                              }
+                            })
+                            .catch((err) => {
+                              console.warn("[ChatWindow] Remote audio play failed:", err);
+                            });
+                        }}
+                        autoPlay
+                        controls={false}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    );
+                  }
+
                   return (
                     <video
                       key={userId}
@@ -454,18 +497,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         remoteVideoRefs.current.set(userId, el);
                         if (el.srcObject !== stream) el.srcObject = stream;
                         el.muted = true;
+                        const tryPlay = () => {
+                          if (!el) return;
+                          el.play()
+                            .then(() => {
+                              el.muted = false;
+                            })
+                            .catch(() => {});
+                        };
                         el.play()
                           .then(() => {
                             el.muted = false;
                           })
                           .catch(() => {
-                            el.oncanplay = () => {
-                              el.play()
-                                .then(() => {
-                                  el.muted = false;
-                                })
-                                .catch(() => {});
-                            };
+                            el.oncanplay = tryPlay;
                           });
                       }}
                       autoPlay
@@ -696,7 +741,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {incomingCall && callStatus === ("receiving" as VideoCallStatus) && (
           <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
             <p className="font-semibold">
-              {incomingCallerName} dang goi video cho ban
+              {incomingCallerName} dang goi {incomingCallTypeLabel} cho ban
             </p>
             <div className="mt-2 flex items-center gap-2">
               <button
@@ -1063,7 +1108,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {/* 👇 CÁC NÚT GỌI ĐIỆN, INFO GIỮ NGUYÊN 👇 */}
             <button
               type="button"
-              className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
+              onClick={onStartAudioCall}
+              disabled={!canStartAudioCall}
+              className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+              title={
+                canStartAudioCall
+                  ? "Gọi thoại 1-1"
+                  : "Chỉ hỗ trợ gọi trong đoạn chat private"
+              }
             >
               <Phone size={20} />
             </button>

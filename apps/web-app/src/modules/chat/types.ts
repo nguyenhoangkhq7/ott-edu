@@ -81,6 +81,7 @@ export interface PendingMemberRequest {
 }
 
 export type VideoCallStatus = "idle" | "calling" | "receiving" | "connected";
+export type MediaCallKind = "audio" | "video";
 
 export interface IncomingVideoCall {
   callId: string;
@@ -88,6 +89,7 @@ export interface IncomingVideoCall {
   fromUserId: string;
   toUserId: string;
   initiatedAt?: string;
+  callType?: MediaCallKind;
 }
 
 export interface ActiveVideoCall {
@@ -95,6 +97,7 @@ export interface ActiveVideoCall {
   conversationId: string;
   peerUserId: string;
   direction: "incoming" | "outgoing" | "group";
+  callType?: MediaCallKind;
 }
 
 export interface CallHistoryItem {
@@ -103,6 +106,7 @@ export interface CallHistoryItem {
   conversationId: string;
   callerId: string;
   calleeId: string;
+  callType?: MediaCallKind;
   status: "ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed";
   startedAt: string;
   connectedAt?: string;

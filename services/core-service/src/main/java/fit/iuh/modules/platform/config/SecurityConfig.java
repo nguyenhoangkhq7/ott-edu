@@ -45,6 +45,9 @@ public class SecurityConfig {
         @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:8000}")
         private String allowedOrigins;
 
+        @Value("${app.cors.allowed-origin-patterns:}")
+        private String allowedOriginPatterns;
+
         private final ObjectMapper objectMapper = new ObjectMapper()
                         .registerModule(new JavaTimeModule())
                         .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -85,10 +88,21 @@ public class SecurityConfig {
         @Bean
         public CorsConfigurationSource corsConfigurationSource() {
                 CorsConfiguration configuration = new CorsConfiguration();
-                configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                List<String> exactOrigins = Arrays.stream(allowedOrigins.split(","))
                                 .map(String::trim)
                                 .filter(value -> !value.isBlank())
-                                .collect(Collectors.toList()));
+                        .collect(Collectors.toList());
+                if (!exactOrigins.isEmpty()) {
+                    configuration.setAllowedOrigins(exactOrigins);
+                }
+
+                List<String> originPatterns = Arrays.stream(allowedOriginPatterns.split(","))
+                        .map(String::trim)
+                        .filter(value -> !value.isBlank())
+                        .collect(Collectors.toList());
+                if (!originPatterns.isEmpty()) {
+                    configuration.setAllowedOriginPatterns(originPatterns);
+                }
                 configuration.setAllowedMethods(List.of(
                                 HttpMethod.GET.name(),
                                 HttpMethod.POST.name(),

@@ -27,6 +27,12 @@ const callLogSchema = new Schema(
       required: true,
       index: true,
     },
+    callType: {
+      type: String,
+      enum: ["audio", "video"],
+      default: "video",
+      required: true,
+    },
     status: {
       type: String,
       enum: ["ringing", "connected", "ended", "declined", "unavailable", "failed"],

@@ -67,6 +67,8 @@ type CreateWebRtcTransportPayload = {
   direction: "send" | "recv";
 };
 
+type MediaCallKind = "audio" | "video";
+
 type ConnectTransportPayload = {
   conversationId: string;
   transportId: string;
@@ -124,6 +126,10 @@ class SocketManager {
   private mediasoupWorkers: Worker[] = [];
   private nextMediasoupWorkerIndex = 0;
   private mediaRooms = new Map<string, MediaRoom>();
+  private mediaCallByConversation = new Map<
+    string,
+    { callId: string; callType: MediaCallKind; callerId: string; calleeId: string }
+  >();
 
   private normalizeUserId(userId: unknown): string | null {
     if (typeof userId === "string" && userId.trim().length > 0) {
@@ -218,6 +224,7 @@ class SocketManager {
         conversationId: new mongoose.Types.ObjectId(session.conversationId),
         callerId: new mongoose.Types.ObjectId(session.callerId),
         calleeId: new mongoose.Types.ObjectId(session.calleeId),
+        callType: "video",
         status: "ringing",
         startedAt: new Date(session.createdAt),
       });
@@ -342,6 +349,91 @@ class SocketManager {
       participantIds.includes(callerId) &&
       participantIds.includes(calleeId)
     );
+  }
+
+  private async startMediaConversationCall(
+    conversationId: string,
+    callerId: string,
+    callType: MediaCallKind,
+  ): Promise<void> {
+    const existing = this.mediaCallByConversation.get(conversationId);
+    if (existing) {
+      return;
+    }
+
+    if (
+      !mongoose.Types.ObjectId.isValid(conversationId) ||
+      !mongoose.Types.ObjectId.isValid(callerId)
+    ) {
+      return;
+    }
+
+    const conversation = await Conversation.findOne(
+      {
+        _id: conversationId,
+        type: "private",
+        isArchived: { $ne: true },
+        participants: callerId,
+      },
+      { participants: 1 },
+    ).lean();
+
+    if (!conversation || !Array.isArray(conversation.participants)) {
+      return;
+    }
+
+    const participantIds = conversation.participants.map((participant) =>
+      participant.toString(),
+    );
+
+    if (participantIds.length !== 2) {
+      return;
+    }
+
+    const calleeId = participantIds.find((id) => id !== callerId);
+    if (!calleeId || !mongoose.Types.ObjectId.isValid(calleeId)) {
+      return;
+    }
+
+    const callId = randomUUID();
+    await CallLog.create({
+      callId,
+      conversationId: new mongoose.Types.ObjectId(conversationId),
+      callerId: new mongoose.Types.ObjectId(callerId),
+      calleeId: new mongoose.Types.ObjectId(calleeId),
+      callType,
+      status: "ringing",
+      startedAt: new Date(),
+    });
+
+    this.mediaCallByConversation.set(conversationId, {
+      callId,
+      callType,
+      callerId,
+      calleeId,
+    });
+  }
+
+  private markMediaConversationConnected(conversationId: string): void {
+    const mediaCall = this.mediaCallByConversation.get(conversationId);
+    if (!mediaCall) {
+      return;
+    }
+
+    void this.markCallConnected(mediaCall.callId, Date.now());
+  }
+
+  private finalizeMediaConversationCall(
+    conversationId: string,
+    reason: string,
+  ): void {
+    const mediaCall = this.mediaCallByConversation.get(conversationId);
+    if (!mediaCall) {
+      return;
+    }
+
+    this.mediaCallByConversation.delete(conversationId);
+    void this.finalizeCallLog(mediaCall.callId, reason, Date.now());
   }
 
   private relayWebRtcPayload(
@@ -606,6 +698,7 @@ class SocketManager {
       // If this was a 1-1 call room, notify the remaining peer that the call ended
       const isPrivateCall = room.peers.size === 2;
       if (isPrivateCall) {
+        this.finalizeMediaConversationCall(room.conversationId, "peer-disconnected");
         this.io?.to(room.conversationId).emit("callEnded", {
           conversationId: room.conversationId,
           endedByUserId: peer.userId,
@@ -738,6 +831,10 @@ class SocketManager {
             }
 
             socket.join(conversationId);
+
+            if (room.peers.size === 2) {
+              this.markMediaConversationConnected(conversationId);
+            }
 
             const existingProducers = this.listExistingProducers(
               room,
@@ -1297,6 +1394,7 @@ class SocketManager {
         // If this is a 1-1 room (2 peers), notify the remaining peer that the call ended
         const isPrivateCall = room.peers.size === 2;
         if (isPrivateCall) {
+          this.finalizeMediaConversationCall(roomId, "ended");
           socket.to(roomId).emit("callEnded", {
             conversationId: roomId,
             endedByUserId: peer.userId,
@@ -1316,7 +1414,7 @@ class SocketManager {
       // For group calls: broadcast incoming call event when joining media room
       socket.on(
         "startGroupMediaCall",
-        async (data: { conversationId: string }) => {
+        async (data: { conversationId: string; callType?: MediaCallKind }) => {
           if (!userId) {
             socket.emit("videoCallError", {
               code: "UNAUTHORIZED",
@@ -1344,11 +1442,15 @@ class SocketManager {
               return;
             }
 
+            const callType: MediaCallKind = data?.callType === "audio" ? "audio" : "video";
+            await this.startMediaConversationCall(conversationId, userId, callType);
+
             // Broadcast group call started to all peers in the room
             socket.to(conversationId).emit("incomingGroupMediaCall", {
               conversationId,
               initiatorUserId: userId,
               initiatedAt: new Date().toISOString(),
+              callType,
             });
 
             socket.emit("groupMediaCallStarted", {

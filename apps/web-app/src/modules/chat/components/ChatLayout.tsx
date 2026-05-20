@@ -1091,14 +1091,23 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     activeConversation !== null && !activeConversation.id.startsWith("draft_");
 
   const canStartVideoCall = isCallableConversation && callStatus === "idle";
+  const canStartAudioCall = canStartVideoCall;
 
   const handleStartVideoCall = useCallback(async () => {
-  if (!activeConversation || activeConversation.id.startsWith("draft_")) {
-    return; 
-  }
+    if (!activeConversation || activeConversation.id.startsWith("draft_")) {
+      return;
+    }
 
-  await startGroupCall(activeConversation.id);
-}, [activeConversation, startGroupCall]);
+    await startGroupCall(activeConversation.id, "video");
+  }, [activeConversation, startGroupCall]);
+
+  const handleStartAudioCall = useCallback(async () => {
+    if (!activeConversation || activeConversation.id.startsWith("draft_")) {
+      return;
+    }
+
+    await startGroupCall(activeConversation.id, "audio");
+  }, [activeConversation, startGroupCall]);
 
   const incomingCaller = React.useMemo(() => {
     if (!incomingCall) {
@@ -1180,6 +1189,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         socket={socket}
         canStartVideoCall={canStartVideoCall}
         onStartVideoCall={handleStartVideoCall}
+        canStartAudioCall={canStartAudioCall}
+        onStartAudioCall={handleStartAudioCall}
         localStream={localStream}
         remoteStream={remoteStream}
         remoteStreams={remoteStreams}

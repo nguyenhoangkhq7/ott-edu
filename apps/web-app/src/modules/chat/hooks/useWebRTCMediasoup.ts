@@ -13,7 +13,7 @@ import type {
   TransportOptions,
 } from "mediasoup-client/types";
 import type { Socket } from "socket.io-client";
-import type { ActiveVideoCall, IncomingVideoCall, VideoCallStatus } from "../types";
+import type { ActiveVideoCall, IncomingVideoCall, MediaCallKind, VideoCallStatus } from "../types";
 
 type UseWebRTCMediasoupParams = {
   socket: Socket | null;
@@ -31,7 +31,7 @@ type UseWebRTCMediasoupReturn = {
   isScreenSharing: boolean;
   callError: string | null;
   retryMediaPermission: () => Promise<void>;
-  startGroupCall: (conversationId: string) => Promise<void>;
+  startGroupCall: (conversationId: string, callType?: MediaCallKind) => Promise<void>;
   acceptIncomingCall: () => Promise<void>;
   declineIncomingCall: () => void;
   endCall: (reason?: string) => void;
@@ -116,16 +116,26 @@ function isLikelyMobileDeviceLabel(label?: string): boolean {
   return DESKTOP_DEVICE_AVOID_PATTERNS.some((pattern) => pattern.test(label));
 }
 
-function buildPreferredConstraints(options?: {
+function buildPreferredConstraints(
+  options?: {
   videoDeviceId?: string;
   audioDeviceId?: string;
-}): MediaStreamConstraints {
+  },
+  callType: MediaCallKind = "video",
+): MediaStreamConstraints {
   const audioConstraints: MediaTrackConstraints = {
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
     ...(options?.audioDeviceId ? { deviceId: { exact: options.audioDeviceId } } : {}),
   };
+
+  if (callType === "audio") {
+    return {
+      audio: audioConstraints,
+      video: false,
+    };
+  }
 
   const videoConstraints: MediaTrackConstraints = {
     width: { ideal: 1280 },
@@ -179,7 +189,7 @@ async function listPreferredDeviceIds(kind: "videoinput" | "audioinput"): Promis
     .map((device) => device.deviceId);
 }
 
-async function requestUserMediaWithDesktopPreference(): Promise<MediaStream> {
+async function requestUserMediaWithDesktopPreference(callType: MediaCallKind = "video"): Promise<MediaStream> {
   if (typeof navigator === "undefined") {
     throw new Error("Navigator not available");
   }
@@ -188,8 +198,21 @@ async function requestUserMediaWithDesktopPreference(): Promise<MediaStream> {
     throw new Error("getUserMedia not supported");
   }
 
+  const fallbackToAudio = async (error: unknown): Promise<MediaStream> => {
+    if (callType === "video") {
+      console.warn("[useWebRTCMediasoup] Falling back to audio-only media:", error);
+      return navigator.mediaDevices.getUserMedia(buildPreferredConstraints(undefined, "audio"));
+    }
+
+    throw error;
+  };
+
   if (isMobileUserAgent()) {
-    return navigator.mediaDevices.getUserMedia(buildPreferredConstraints());
+    try {
+      return await navigator.mediaDevices.getUserMedia(buildPreferredConstraints(undefined, callType));
+    } catch (error) {
+      return fallbackToAudio(error);
+    }
   }
 
   const videoIds = await listPreferredDeviceIds("videoinput");
@@ -203,14 +226,18 @@ async function requestUserMediaWithDesktopPreference(): Promise<MediaStream> {
         buildPreferredConstraints({
           videoDeviceId: preferredVideoId,
           audioDeviceId: preferredAudioId,
-        }),
+        }, callType),
       );
     } catch (error) {
       console.warn("[useWebRTCMediasoup] Preferred device getUserMedia failed:", error);
     }
   }
 
-  return navigator.mediaDevices.getUserMedia(buildPreferredConstraints());
+  try {
+    return await navigator.mediaDevices.getUserMedia(buildPreferredConstraints(undefined, callType));
+  } catch (error) {
+    return fallbackToAudio(error);
+  }
 }
 
 export default function useWebRTCMediasoup({
@@ -238,6 +265,7 @@ export default function useWebRTCMediasoup({
   const pendingProducersRef = useRef<Array<{ producerId: string; kind: "audio" | "video"; userId: string }>>([]);
   const currentConversationIdRef = useRef<string | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const requestedCallTypeRef = useRef<MediaCallKind>("video");
 
   const clearCallError = useCallback(() => {
     setCallError(null);
@@ -255,25 +283,45 @@ export default function useWebRTCMediasoup({
     stream.getTracks().forEach((track) => track.stop());
   }, []);
 
-  const ensureLocalStream = useCallback(async (): Promise<MediaStream> => {
+  const streamMatchesCallType = useCallback((stream: MediaStream | null, callType: MediaCallKind): boolean => {
+    if (!stream) {
+      return false;
+    }
+
+    const hasAudio = stream.getAudioTracks().length > 0;
+    const hasVideo = stream.getVideoTracks().length > 0;
+
+    if (callType === "audio") {
+      return hasAudio && !hasVideo;
+    }
+
+    return hasAudio && hasVideo;
+  }, []);
+
+  const ensureLocalStream = useCallback(async (callType: MediaCallKind = "video"): Promise<MediaStream> => {
     const existing = localStreamRef.current;
-    if (existing) {
+    if (existing && streamMatchesCallType(existing, callType)) {
       return existing;
     }
 
-    const stream = await requestUserMediaWithDesktopPreference();
+    if (existing) {
+      stopMediaStream(existing);
+      localStreamRef.current = null;
+    }
+
+    const stream = await requestUserMediaWithDesktopPreference(callType);
     setLocalStream(stream);
     setIsMicrophoneEnabled(stream.getAudioTracks().some((track) => track.enabled));
     setIsCameraEnabled(stream.getVideoTracks().some((track) => track.enabled));
     return stream;
-  }, []);
+  }, [stopMediaStream, streamMatchesCallType]);
 
   const retryMediaPermission = useCallback(async () => {
     try {
       setCallError(null);
       stopMediaStream(localStreamRef.current);
       localStreamRef.current = null;
-      const stream = await ensureLocalStream();
+      const stream = await ensureLocalStream(requestedCallTypeRef.current);
       setLocalStream(stream);
     } catch (error) {
       const message =
@@ -730,8 +778,12 @@ export default function useWebRTCMediasoup({
 
   const endCall = useCallback(
     (_reason?: string) => {
+      console.log("[useWebRTCMediasoup] endCall called for conversation:", currentConversationIdRef.current, "socket:", !!socket, "producers:", [...producersRef.current.keys()]);
       if (currentConversationIdRef.current) {
         socket?.emit("leaveMediaRoom", currentConversationIdRef.current);
+        console.log("[useWebRTCMediasoup] emitted leaveMediaRoom for", currentConversationIdRef.current);
+      } else {
+        console.warn("[useWebRTCMediasoup] endCall: no currentConversationIdRef set");
       }
 
       // Close producers
@@ -765,6 +817,7 @@ export default function useWebRTCMediasoup({
       setRemoteStreams(new Map());
       stableRemoteStreamsRef.current.clear();
       currentConversationIdRef.current = null;
+      requestedCallTypeRef.current = "video";
       pendingProducersRef.current = [];
       consumedProducerIdsRef.current.clear();
       deviceLoadPromiseRef.current = null;
@@ -774,17 +827,20 @@ export default function useWebRTCMediasoup({
   );
 
   const startGroupCall = useCallback(
-    async (conversationId: string) => {
+    async (conversationId: string, callType: MediaCallKind = "video") => {
       if (!socket || (callStatus !== "idle" && callStatus !== "receiving")) return;
 
       try {
+        requestedCallTypeRef.current = callType;
         setCallError(null);
         setIncomingCall(null);
         currentConversationIdRef.current = conversationId;
         setCallStatus("calling");
 
         // Get local media
-        const stream = await ensureLocalStream();
+        const stream = await ensureLocalStream(callType);
+        const effectiveCallType: MediaCallKind = stream.getVideoTracks().length > 0 ? callType : "audio";
+        requestedCallTypeRef.current = effectiveCallType;
         setLocalStream(stream);
 
         const joinResponse = await joinMediaRoom(conversationId);
@@ -823,13 +879,14 @@ export default function useWebRTCMediasoup({
         }
 
         // Notify other peers that this user is starting a group call
-        socket.emit("startGroupMediaCall", { conversationId });
+        socket.emit("startGroupMediaCall", { conversationId, callType: effectiveCallType });
 
         setActiveCall({
           callId: conversationId,
           conversationId,
           peerUserId: "",
           direction: "group",
+          callType: effectiveCallType,
         });
         setCallStatus("connected");
       } catch (error) {
@@ -855,7 +912,7 @@ export default function useWebRTCMediasoup({
 
   const acceptIncomingCall = useCallback(async () => {
     if (!incomingCall) return;
-    await startGroupCall(incomingCall.conversationId);
+    await startGroupCall(incomingCall.conversationId, incomingCall.callType || "video");
     setIncomingCall(null);
   }, [incomingCall, startGroupCall]);
 
@@ -910,10 +967,12 @@ export default function useWebRTCMediasoup({
       conversationId,
       initiatorUserId,
       initiatedAt,
+      callType,
     }: {
       conversationId: string;
       initiatorUserId: string;
       initiatedAt: string;
+      callType?: MediaCallKind;
     }) => {
       if (!conversationId || initiatorUserId === currentUserId) return;
 
@@ -924,6 +983,7 @@ export default function useWebRTCMediasoup({
           fromUserId: initiatorUserId,
           toUserId: currentUserId,
           initiatedAt,
+          callType: callType || "video",
         });
         setCallStatus("receiving");
       }

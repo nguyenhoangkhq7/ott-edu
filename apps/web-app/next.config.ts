@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: process.cwd(),
+  },
+
   // THÊM PHẦN IMAGES VÀO ĐÂY:
   images: {
     remotePatterns: [
@@ -77,11 +81,6 @@ const nextConfig: NextConfig = {
   // Phần rewrites cũ của bạn giữ nguyên:
   async rewrites() {
     return [
-      {
-        // Khi thấy request bắt đầu bằng /api/v1 (Assignment Service)
-        source: '/api/v1/:path*',
-        destination: 'http://gateway:80/api/v1/:path*',
-      },
       {
         // Khi thấy request bắt đầu bằng /api/core
         source: '/api/core/:path*',
