@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/shared/providers/AuthProvider';
 import { assignmentApi, submissionApi } from '@/services/api/assignment.service';
@@ -50,37 +50,27 @@ export default function AssignmentDetail({
   // Feature 4: Refresh submission for post-submit status table
   const [refreshSubmission, setRefreshSubmission] = useState(false);
 
-  useEffect(() => {
-    loadAssignmentDetail();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentId, refreshSubmission]);
+  const initializeOrFetchSubmission = useCallback(async (assignmentId: number) => {
+    try {
+      // Try to fetch current submission first
+      const submission = await submissionApi.getCurrentSubmission(assignmentId) as StudentSubmission | null;
 
-  // Feature 5: Poll for grade updates (student waiting for teacher grading)
-  useEffect(() => {
-    if (!currentSubmission || isTeacher || currentSubmission.status !== 'SUBMITTED') {
-      return;
-    }
-
-    // Poll every 5 seconds to check if teacher has graded
-    const pollInterval = setInterval(async () => {
-      try {
-        const updated = await submissionApi.getCurrentSubmission(assignmentId) as StudentSubmission | null;
-        if (updated) {
-          setCurrentSubmission(updated);
-          // Stop polling once graded
-          if (updated.score !== undefined && updated.score !== null) {
-            clearInterval(pollInterval);
-          }
+      if (submission) {
+        setCurrentSubmission(submission);
+      } else {
+        // If no submission exists, auto-initialize one
+        const initialized = await submissionApi.startAssignment(assignmentId) as StudentSubmission;
+        if (initialized && initialized.id) {
+          setCurrentSubmission(initialized);
         }
-      } catch (err) {
-        console.error('Error polling for grade updates:', err);
       }
-    }, 5000);
+    } catch (err: unknown) {
+      console.warn('Could not initialize submission:', err);
+      // Don't block user if initialization fails - they can still submit
+    }
+  }, []);
 
-    return () => clearInterval(pollInterval);
-  }, [currentSubmission, assignmentId, isTeacher]);
-
-  const loadAssignmentDetail = async () => {
+  const loadAssignmentDetail = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -108,27 +98,36 @@ export default function AssignmentDetail({
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId, initializeOrFetchSubmission, isTeacher]);
 
-  const initializeOrFetchSubmission = async (assignmentId: number) => {
-    try {
-      // Try to fetch current submission first
-      const submission = await submissionApi.getCurrentSubmission(assignmentId) as StudentSubmission | null;
+  useEffect(() => {
+    void loadAssignmentDetail();
+  }, [loadAssignmentDetail, refreshSubmission]);
 
-      if (submission) {
-        setCurrentSubmission(submission);
-      } else {
-        // If no submission exists, auto-initialize one
-        const initialized = await submissionApi.startAssignment(assignmentId) as StudentSubmission;
-        if (initialized && initialized.id) {
-          setCurrentSubmission(initialized);
-        }
-      }
-    } catch (err: unknown) {
-      console.warn('Could not initialize submission:', err);
-      // Don't block user if initialization fails - they can still submit
+  // Feature 5: Poll for grade updates (student waiting for teacher grading)
+  useEffect(() => {
+    if (!currentSubmission || isTeacher || currentSubmission.status !== 'SUBMITTED') {
+      return;
     }
-  };
+
+    // Poll every 5 seconds to check if teacher has graded
+    const pollInterval = setInterval(async () => {
+      try {
+        const updated = await submissionApi.getCurrentSubmission(assignmentId) as StudentSubmission | null;
+        if (updated) {
+          setCurrentSubmission(updated);
+          // Stop polling once graded
+          if (updated.score !== undefined && updated.score !== null) {
+            clearInterval(pollInterval);
+          }
+        }
+      } catch (err) {
+        console.error('Error polling for grade updates:', err);
+      }
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [currentSubmission, assignmentId, isTeacher]);
 
   const formatDate = (dateString: string) => {
     try {

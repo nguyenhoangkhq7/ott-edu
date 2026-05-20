@@ -258,6 +258,7 @@ export default function CreateAssignmentScreen({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [maxScore, setMaxScore] = useState("10");
   const [maxAttempts, setMaxAttempts] = useState("");
+  const [timeLimit, setTimeLimit] = useState(""); // Duration in minutes for QUIZ
   const [questions, setQuestions] = useState<LocalQuestion[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -278,6 +279,11 @@ export default function CreateAssignmentScreen({
     if (dueDate <= new Date()) return "Hạn nộp phải ở tương lai.";
     if (type === AssignmentType.QUIZ && questions.length === 0)
       return "QUIZ phải có ít nhất 1 câu hỏi.";
+    if (type === AssignmentType.QUIZ && timeLimit) {
+      const timeLimitNum = parseInt(timeLimit, 10);
+      if (isNaN(timeLimitNum) || timeLimitNum < 1 || timeLimitNum > 480)
+        return "Thời gian làm bài phải từ 1 đến 480 phút.";
+    }
     return null;
   };
 
@@ -308,11 +314,14 @@ export default function CreateAssignmentScreen({
       title: title.trim(),
       instructions: instructions.trim() || undefined,
       type,
-      dueDate: dueDate.toISOString().replace("Z", ""),
+      dueDate: dueDate.toISOString(), // ISO 8601 UTC format with timezone
       maxScore: parseFloat(maxScore),
       teamIds: [teamId],
       ...(type === AssignmentType.QUIZ && maxAttempts
         ? { maxAttempts: parseInt(maxAttempts, 10) }
+        : {}),
+      ...(type === AssignmentType.QUIZ && timeLimit
+        ? { timeLimit: parseInt(timeLimit, 10) }
         : {}),
       ...(type === AssignmentType.QUIZ
         ? { questions: buildQuestionsPayload() }
@@ -425,16 +434,28 @@ export default function CreateAssignmentScreen({
             </View>
 
             {type === AssignmentType.QUIZ && (
-              <View style={styles.rowFieldItem}>
-                <FieldLabel label="Số lần làm (0=∞)" />
-                <StyledInput
-                  placeholder="Không giới hạn"
-                  value={maxAttempts}
-                  onChangeText={setMaxAttempts}
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-              </View>
+              <>
+                <View style={styles.rowFieldItem}>
+                  <FieldLabel label="Số lần làm (0=∞)" />
+                  <StyledInput
+                    placeholder="Không giới hạn"
+                    value={maxAttempts}
+                    onChangeText={setMaxAttempts}
+                    keyboardType="numeric"
+                    maxLength={3}
+                  />
+                </View>
+                <View style={styles.rowFieldItem}>
+                  <FieldLabel label="Thời gian làm (phút)" />
+                  <StyledInput
+                    placeholder="VD: 30, 60, 120"
+                    value={timeLimit}
+                    onChangeText={setTimeLimit}
+                    keyboardType="numeric"
+                    maxLength={3}
+                  />
+                </View>
+              </>
             )}
           </View>
 

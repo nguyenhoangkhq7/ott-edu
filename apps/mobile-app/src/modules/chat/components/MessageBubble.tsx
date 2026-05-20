@@ -63,22 +63,42 @@ interface MessageBubbleProps {
 }
 
 const LinkPreview = ({ preview }: { preview: LinkPreviewType }) => {
+  const [imageError, setImageError] = useState(false);
+
+  // Safely extract domain from URL
+  const getDomain = (url: string): string => {
+    try {
+      const domain = new URL(url).hostname;
+      return domain.replace('www.', '');
+    } catch {
+      return url;
+    }
+  };
+
+  const domain = getDomain(preview.url);
+
   return (
     <TouchableOpacity
       activeOpacity={0.9}
       onPress={() => Linking.openURL(preview.url)}
       style={styles.linkPreviewContainer}
     >
-      {preview.image && (
+      {preview.image && !imageError ? (
         <Image
           source={{ uri: preview.image }}
           style={styles.linkPreviewImage as any}
           resizeMode="cover"
+          onError={() => setImageError(true)}
         />
+      ) : (
+        // Fallback gradient placeholder when no image
+        <View style={[styles.linkPreviewImage, { backgroundColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' }]}>
+          <Ionicons name="link" size={32} color="rgba(255,255,255,0.5)" />
+        </View>
       )}
       <View style={styles.linkPreviewContent}>
         <Text style={styles.linkPreviewTitle} numberOfLines={2}>
-          {preview.title}
+          {preview.title || 'Link Preview'}
         </Text>
         {preview.description && (
           <Text style={styles.linkPreviewDesc} numberOfLines={2}>
@@ -88,7 +108,7 @@ const LinkPreview = ({ preview }: { preview: LinkPreviewType }) => {
         <View style={styles.linkPreviewFooter}>
           <Ionicons name="link" size={10} color="#64748b" />
           <Text style={styles.linkPreviewUrl} numberOfLines={1}>
-            {preview.url.split('/')[2]}
+            {domain}
           </Text>
         </View>
       </View>

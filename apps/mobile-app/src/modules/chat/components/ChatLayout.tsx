@@ -348,13 +348,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const handleTyping = useCallback((isTyping: boolean) => {
     if (!socketRef.current || !activeConversationIdRef.current || !currentUser) return;
     if (isTyping) {
-      socketRef.current.emit('typing', {
+      socketRef.current.emit('userTyping', {
         conversationId: activeConversationIdRef.current,
         userId: currentUser.id,
         userName: currentUser.name,
       });
     } else {
-      socketRef.current.emit('stopTyping', {
+      socketRef.current.emit('userStoppedTyping', {
         conversationId: activeConversationIdRef.current,
         userId: currentUser.id,
       });
@@ -773,109 +773,111 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           error={error}
         />
       ) : (
-      <Modal
-        visible={activeView === 'chat'}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={handleBackToSidebar}
-      >
-        <ChatWindow
-          conversation={activeConversation}
-          messages={messages}
-          currentUser={currentUser}
-          currentUserId={chatMongoId || currentUser?.id || currentUserId}
-          privatePeer={privatePeer}
-          onSendMessage={handleSendMessage}
-          isLoadingMessages={isLoadingMessages}
-          isSending={isSending}
-          onBack={handleBackToSidebar}
-          socket={socketRef.current}
-          onForwardMessage={setForwardMessageTarget}
-          onOpenProfile={handleOpenProfile}
-          onOpenGroupManage={handleOpenGroupManage}
-          onStartVoiceCall={isPrivateConversation ? handleStartVoiceCall : undefined}
-          onStartVideoCall={isPrivateConversation ? handleStartVideoCall : undefined}
-          onStartGroupCall={!isPrivateConversation ? handleStartGroupCall : undefined}
-          isCallActive={isGroupCallActive}
-        />
-      </Modal>
-      )}
+        <>
+          <Modal
+            visible={activeView === 'chat'}
+            animationType="slide"
+            presentationStyle="fullScreen"
+            onRequestClose={handleBackToSidebar}
+          >
+            <ChatWindow
+              conversation={activeConversation}
+              messages={messages}
+              currentUser={currentUser}
+              currentUserId={chatMongoId || currentUser?.id || currentUserId}
+              privatePeer={privatePeer}
+              onSendMessage={handleSendMessage}
+              isLoadingMessages={isLoadingMessages}
+              isSending={isSending}
+              onBack={handleBackToSidebar}
+              socket={socketRef.current}
+              onForwardMessage={setForwardMessageTarget}
+              onOpenProfile={handleOpenProfile}
+              onOpenGroupManage={handleOpenGroupManage}
+              onStartVoiceCall={isPrivateConversation ? handleStartVoiceCall : undefined}
+              onStartVideoCall={isPrivateConversation ? handleStartVideoCall : undefined}
+              onStartGroupCall={!isPrivateConversation ? handleStartGroupCall : undefined}
+              isCallActive={isGroupCallActive}
+            />
+          </Modal>
 
-      <Modal
-        visible={isGroupCallActive}
-        animationType="slide"
-        statusBarTranslucent
-        onRequestClose={handleRequestLeaveCall}
-      >
-        {callConversationId && (
-          <GroupCallScreen
-            conversationId={callConversationId}
-            currentUserId={chatMongoId}
-            socket={socketRef.current}
-            participantNames={participantNames}
-            conversationType={callIsPrivate ? 'private' : callConversationType}
-            initiatorUserId={callInitiatorUserId}
-            leaveSignal={leaveSignal}
-            onLeave={() => {
-              setIsGroupCallActive(false);
-              setCallConversationId(null);
-              setCallInitiatorUserId(null);
-              setCallIsPrivate(false);
-            }}
-          />
-        )}
-      </Modal>
+          <Modal
+            visible={isGroupCallActive}
+            animationType="slide"
+            statusBarTranslucent
+            onRequestClose={handleRequestLeaveCall}
+          >
+            {callConversationId && (
+              <GroupCallScreen
+                conversationId={callConversationId}
+                currentUserId={chatMongoId}
+                socket={socketRef.current}
+                participantNames={participantNames}
+                conversationType={callIsPrivate ? 'private' : callConversationType}
+                initiatorUserId={callInitiatorUserId}
+                leaveSignal={leaveSignal}
+                onLeave={() => {
+                  setIsGroupCallActive(false);
+                  setCallConversationId(null);
+                  setCallInitiatorUserId(null);
+                  setCallIsPrivate(false);
+                }}
+              />
+            )}
+          </Modal>
 
-      <Modal
-        transparent
-        animationType="fade"
-        visible={Boolean(incomingCallRequest)}
-        onRequestClose={handleDeclineIncomingCall}
-      >
-        <View style={styles.incomingOverlay}>
-          <View style={styles.incomingCard}>
-            <Text style={styles.incomingTitle}>Cuộc gọi đến</Text>
-            <Text style={styles.incomingText}>Bạn có cuộc gọi video đến</Text>
-            <View style={styles.incomingActions}>
-              <Pressable style={[styles.incomingBtn, styles.declineBtn]} onPress={handleDeclineIncomingCall}>
-                <Text style={styles.incomingBtnText}>Từ chối</Text>
-              </Pressable>
-              <Pressable style={[styles.incomingBtn, styles.acceptBtn]} onPress={handleAcceptIncomingCall}>
-                <Text style={styles.incomingBtnText}>Chấp nhận</Text>
-              </Pressable>
+          <Modal
+            transparent
+            animationType="fade"
+            visible={Boolean(incomingCallRequest)}
+            onRequestClose={handleDeclineIncomingCall}
+          >
+            <View style={styles.incomingOverlay}>
+              <View style={styles.incomingCard}>
+                <Text style={styles.incomingTitle}>Cuộc gọi đến</Text>
+                <Text style={styles.incomingText}>Bạn có cuộc gọi video đến</Text>
+                <View style={styles.incomingActions}>
+                  <Pressable style={[styles.incomingBtn, styles.declineBtn]} onPress={handleDeclineIncomingCall}>
+                    <Text style={styles.incomingBtnText}>Từ chối</Text>
+                  </Pressable>
+                  <Pressable style={[styles.incomingBtn, styles.acceptBtn]} onPress={handleAcceptIncomingCall}>
+                    <Text style={styles.incomingBtnText}>Chấp nhận</Text>
+                  </Pressable>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
-      </Modal>
+          </Modal>
 
-      {forwardMessageTarget && (
-        <ForwardMessageModal
-          visible={!!forwardMessageTarget}
-          message={forwardMessageTarget}
-          conversations={conversations}
-          currentUserId={chatMongoId}
-          onClose={() => setForwardMessageTarget(null)}
-          onSuccess={() => setForwardMessageTarget(null)}
-        />
+          {forwardMessageTarget && (
+            <ForwardMessageModal
+              visible={!!forwardMessageTarget}
+              message={forwardMessageTarget}
+              conversations={conversations}
+              currentUserId={chatMongoId}
+              onClose={() => setForwardMessageTarget(null)}
+              onSuccess={() => setForwardMessageTarget(null)}
+            />
+          )}
+
+          <ChatUserProfileModal
+            visible={!!profileTarget}
+            user={profileTarget}
+            onClose={() => setProfileTarget(null)}
+          />
+
+          <ChatGroupManageModal
+            visible={showGroupManageModal}
+            conversation={activeConversation}
+            currentUser={currentUser}
+            ownerUser={groupOwnerTarget}
+            onClose={() => setShowGroupManageModal(false)}
+            onOpenProfile={handleOpenProfile}
+            onRemoveMember={handleRemoveGroupMember}
+            onDissolveGroup={handleDissolveGroup}
+            onLeaveGroup={handleLeaveGroup}
+          />
+        </>
       )}
-
-      <ChatUserProfileModal
-        visible={!!profileTarget}
-        user={profileTarget}
-        onClose={() => setProfileTarget(null)}
-      />
-
-      <ChatGroupManageModal
-        visible={showGroupManageModal}
-        conversation={activeConversation}
-        currentUser={currentUser}
-        ownerUser={groupOwnerTarget}
-        onClose={() => setShowGroupManageModal(false)}
-        onOpenProfile={handleOpenProfile}
-        onRemoveMember={handleRemoveGroupMember}
-        onDissolveGroup={handleDissolveGroup}
-        onLeaveGroup={handleLeaveGroup}
-      />
     </View>
   );
 };

@@ -21,8 +21,24 @@ import {
   Lock,
   Trash2,
 } from "lucide-react";
-import { chatApiClient } from "@/services/api";
 import AddTeamMemberModal from "@/modules/teams/AddTeamMemberModal";
+import {
+  extractMediaItems,
+  extractFileItems,
+  extractLinkItems,
+  populateSenderNames,
+} from "@/modules/chat/utils/chatSidebarMapping";
+import {
+  fetchConversationInfo as fetchConversationInfoApi,
+  fetchMediaItems as fetchMediaItemsApi,
+  fetchFileItems as fetchFileItemsApi,
+  fetchLinkItems as fetchLinkItemsApi,
+} from "@/modules/chat/chatApi";
+import type {
+  MediaItemUI,
+  FileItemUI,
+  LinkItemUI,
+} from "@/modules/chat/utils/chatSidebarMapping";
 
 const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
   if (!value) return false;
@@ -45,35 +61,6 @@ interface Participant {
   fullName: string;
   avatarUrl: string;
   email: string;
-}
-
-interface MediaItem {
-  url: string;
-  fileName: string;
-  messageId: string;
-  senderId: string;
-  senderName: string;
-  timestamp: Date;
-}
-
-interface FileItem {
-  url: string;
-  fileName: string;
-  fileType: string;
-  sizeBytes: number;
-  messageId: string;
-  senderId: string;
-  senderName: string;
-  timestamp: Date;
-}
-
-interface LinkItem {
-  url: string;
-  title?: string;
-  messageId: string;
-  senderId: string;
-  senderName: string;
-  timestamp: Date;
 }
 
 interface ConversationInfoDTO {
@@ -175,10 +162,10 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
 }) => {
   const [conversationInfo, setConversationInfo] =
     useState<ConversationInfoDTO | null>(null);
-  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
-  const [fileItems, setFileItems] = useState<FileItem[]>([]);
-  const [linkItems, setLinkItems] = useState<LinkItem[]>([]);
-  const [commonGroups, setCommonGroups] = useState<
+  const [mediaItems, setMediaItems] = useState<MediaItemUI[]>([]);
+  const [fileItems, setFileItems] = useState<FileItemUI[]>([]);
+  const [linkItems, setLinkItems] = useState<LinkItemUI[]>([]);
+  const [commonGroups] = useState<
     Array<{ _id: string; name: string; participantCount: number }>
   >([]);
   const [loading, setLoading] = useState(true);
@@ -197,6 +184,21 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   const deputyParticipant = conversationInfo?.participants?.find(
     (participant) => participant._id === conversationInfo?.deputyId,
   );
+
+  // For 1-1 chat, get the OTHER participant (not the owner/self)
+  const otherParticipantIn1v1 = () => {
+    if (!isPrivateChat || !conversationInfo?.participants || conversationInfo.participants.length < 2) {
+      return null;
+    }
+    
+    // In 1-1 chat, return the participant that is not the owner
+    if (conversationInfo.ownerId) {
+      return conversationInfo.participants.find(p => p._id !== conversationInfo.ownerId);
+    }
+    
+    // If no owner set, return the second participant
+    return conversationInfo.participants[1];
+  };
 
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>(
     {
@@ -229,8 +231,8 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
 
   const fetchConversationInfo = useCallback(async () => {
     try {
-      const response = await chatApiClient.get(`/chat/info/${conversationId}`);
-      setConversationInfo(response.data.data);
+      const info = await fetchConversationInfoApi(conversationId);
+      setConversationInfo(info);
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
       console.error(
@@ -243,100 +245,212 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
 
   const fetchMediaItems = useCallback(async () => {
     try {
-      const response = await chatApiClient.get(
-        `/chat/info/${conversationId}/media`,
-        {
-          params: { limit: 20 },
-        },
-      );
-      setMediaItems(response.data.data || []);
+      console.log("[fetchMediaItems] Starting...");
+      const apiData = await fetchMediaItemsApi(conversationId, 20);
+      console.log("[fetchMediaItems] API returned:", apiData);
+      
+      // Check if API already returns UI items or raw messages
+      let items: MediaItemUI[] = [];
+      if (apiData && apiData.length > 0) {
+        const first = apiData[0] as unknown as Record<string, unknown>;
+        if (!first.attachments && !first.content && first.url) {
+          // API already returns UI items (has url, fileName, messageId directly)
+          console.log("[fetchMediaItems] API returns UI items directly, skipping extraction");
+          items = apiData as unknown as MediaItemUI[];
+        } else {
+          // API returns raw messages, need to extract
+          console.log("[fetchMediaItems] API returns messages, extracting...");
+          items = extractMediaItems(apiData);
+        }
+      }
+      
+      console.log("[fetchMediaItems] Extracted items:", items);
+      
+      // Populate actual sender names from conversation participants
+      const withNames = conversationInfo?.participants 
+        ? populateSenderNames(items, conversationInfo.participants)
+        : items;
+      console.log("[fetchMediaItems] Final items with names:", withNames);
+      
+      setMediaItems(withNames);
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
-      console.error("[ConversationInfoSidebar] fetchMediaItems error:", error);
+      console.debug("[ConversationInfoSidebar] fetchMediaItems skipped (API unavailable):", error.message);
+      setMediaItems([]);
     }
-  }, [conversationId]);
-
-  const fetchCommonGroups = useCallback(async () => {
-    try {
-      const response = await chatApiClient.get(
-        `/chat/info/${conversationId}/common-groups`,
-      );
-      setCommonGroups(response.data.data || []);
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Unknown error");
-      console.error(
-        "[ConversationInfoSidebar] fetchCommonGroups error:",
-        error,
-      );
-    }
-  }, [conversationId]);
+  }, [conversationId, conversationInfo]);
 
   const fetchFileItems = useCallback(async () => {
     try {
-      const response = await chatApiClient.get(
-        `/chat/info/${conversationId}/files`,
-        {
-          params: { limit: 20 },
-        },
-      );
-      setFileItems(response.data.data || []);
+      console.log("[fetchFileItems] Starting...");
+      const apiData = await fetchFileItemsApi(conversationId, 20);
+      console.log("[fetchFileItems] API returned:", apiData);
+      
+      // Check if API already returns UI items or raw messages
+      let items: FileItemUI[] = [];
+      if (apiData && apiData.length > 0) {
+        const first = apiData[0] as unknown as Record<string, unknown>;
+        if (!first.attachments && !first.content && first.url) {
+          // API already returns UI items (has url, fileName, messageId directly)
+          console.log("[fetchFileItems] API returns UI items directly, skipping extraction");
+          items = apiData as unknown as FileItemUI[];
+        } else {
+          // API returns raw messages, need to extract
+          console.log("[fetchFileItems] API returns messages, extracting...");
+          items = extractFileItems(apiData);
+        }
+      }
+      
+      console.log("[fetchFileItems] Extracted items:", items);
+      
+      // Populate actual sender names from conversation participants
+      const withNames = conversationInfo?.participants 
+        ? populateSenderNames(items, conversationInfo.participants)
+        : items;
+      console.log("[fetchFileItems] Final items with names:", withNames);
+      
+      setFileItems(withNames);
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
-      console.error("[ConversationInfoSidebar] fetchFileItems error:", error);
+      console.debug("[ConversationInfoSidebar] fetchFileItems skipped (API unavailable):", error.message);
+      setFileItems([]);
     }
-  }, [conversationId]);
+  }, [conversationId, conversationInfo]);
 
   const fetchLinkItems = useCallback(async () => {
     try {
-      const response = await chatApiClient.get(
-        `/chat/info/${conversationId}/links`,
-        {
-          params: { limit: 20 },
-        },
-      );
-      setLinkItems(response.data.data || []);
+      console.log("[fetchLinkItems] Starting...");
+      const apiData = await fetchLinkItemsApi(conversationId, 20);
+      console.log("[fetchLinkItems] API returned:", apiData);
+      
+      // Check if API already returns UI items or raw messages
+      let items: LinkItemUI[] = [];
+      if (apiData && apiData.length > 0) {
+        const first = apiData[0] as unknown as Record<string, unknown>;
+        if (first.url && first.messageId && !first.content) {
+          // API already returns UI items (has url, title, messageId directly)
+          console.log("[fetchLinkItems] API returns UI items directly, skipping extraction");
+          items = apiData as unknown as LinkItemUI[];
+        } else {
+          // API returns raw messages, need to extract
+          console.log("[fetchLinkItems] API returns messages, extracting...");
+          items = extractLinkItems(apiData);
+        }
+      }
+      
+      console.log("[fetchLinkItems] Extracted items:", items);
+      
+      // Populate actual sender names from conversation participants
+      const withNames = conversationInfo?.participants 
+        ? populateSenderNames(items, conversationInfo.participants)
+        : items;
+      console.log("[fetchLinkItems] Final items with names:", withNames);
+      
+      setLinkItems(withNames);
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
-      console.error("[ConversationInfoSidebar] fetchLinkItems error:", error);
+      console.debug("[ConversationInfoSidebar] fetchLinkItems skipped (API unavailable):", error.message);
+      setLinkItems([]);
     }
-  }, [conversationId]);
+  }, [conversationId, conversationInfo]);
+
+  // const fetchCommonGroups = useCallback(async () => {
+  //   try {
+  //     const response = await chatApiClient.get(
+  //       `/chat/info/${conversationId}/common-groups`,
+  //     );
+  //     setCommonGroups(response.data.data || []);
+  //   } catch (err) {
+  //     const error = err instanceof Error ? err : new Error("Unknown error");
+  //     console.error(
+  //       "[ConversationInfoSidebar] fetchCommonGroups error:",
+  //       error,
+  //     );
+  //   }
+  // }, [conversationId]);
 
   // ===================== EFFECTS =====================
 
   useEffect(() => {
     if (!isOpen) return;
 
+    let isMounted = true;
+
     const loadAllData = async () => {
+      console.log("[ConversationInfoSidebar] Starting loadAllData");
       setLoading(true);
       setError(null);
+      
+      // Create a timeout promise to prevent infinite loading
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => {
+          console.warn("[ConversationInfoSidebar] Timeout reached (15s)");
+          reject(new Error("Sidebar data load timeout (15s)"));
+        }, 15000)
+      );
+
       try {
-        await Promise.all([
-          fetchConversationInfo(),
-          fetchMediaItems(),
-          fetchFileItems(),
-          fetchLinkItems(),
-          isPrivateChat ? fetchCommonGroups() : Promise.resolve(),
+        console.log("[ConversationInfoSidebar] Fetching data...");
+        
+        // BULLETPROOF: Race against timeout to prevent hanging
+        // Use allSettled so partial failures don't prevent full load
+        const results = await Promise.race([
+          Promise.allSettled([
+            fetchConversationInfo(),
+            fetchMediaItems(),
+            fetchFileItems(),
+            fetchLinkItems(),
+          ]),
+          timeoutPromise,
         ]);
+
+        console.log("[ConversationInfoSidebar] Data fetch completed", results);
+
+        // Check if any critical operations failed
+        if (Array.isArray(results)) {
+          const failedOperations = results
+            .map((r, i) => ({ i, r }))
+            .filter((item) => item.r.status === 'rejected');
+          
+          if (failedOperations.length > 0) {
+            console.warn(
+              "[ConversationInfoSidebar] Some operations failed:",
+              failedOperations.map((item) => ({
+                index: item.i,
+                reason: (item.r as PromiseRejectedResult).reason,
+              }))
+            );
+            // Don't set error state - partial data is OK
+          }
+        }
       } catch (err) {
         const error = err instanceof Error ? err : new Error("Unknown error");
-        console.error("[ConversationInfoSidebar] loadAllData error:", error);
-        setError("Failed to load sidebar data");
+        console.error("[ConversationInfoSidebar] Sidebar Fetch Error:", error);
+        if (isMounted) {
+          setError(error.message || "Failed to load sidebar data");
+        }
       } finally {
-        setLoading(false);
+        // CRITICAL: ALWAYS set loading to false, regardless of success/failure
+        console.log("[ConversationInfoSidebar] Finally block executing - setting loading to false");
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadAllData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [
     isOpen,
     conversationId,
     refreshSignal,
     fetchConversationInfo,
-    fetchMediaItems,
     fetchFileItems,
     fetchLinkItems,
-    isPrivateChat,
-    fetchCommonGroups,
+    fetchMediaItems,
   ]);
 
   // ===================== RENDER =====================
@@ -347,30 +461,30 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
     <div className="w-80 flex flex-col border-l border-gray-200 bg-white overflow-hidden">
       {/* Header */}
       <div className="flex flex-col items-center gap-3 px-4 py-4 border-b border-gray-200">
-        {/* Avatar - For private chat use participant's avatar, for class chat use conversation avatar */}
+        {/* Avatar - For private chat use the OTHER participant's avatar, for class chat use conversation avatar */}
         {(() => {
-          const avatarUrl =
-            isPrivateChat &&
-            conversationInfo?.participants &&
-            conversationInfo.participants.length > 0
-              ? conversationInfo.participants[0].avatarUrl
-              : conversationInfo?.avatarUrl;
+          const otherParticipant = isPrivateChat ? otherParticipantIn1v1() : null;
+          const avatarUrl = isPrivateChat && otherParticipant
+            ? otherParticipant.avatarUrl
+            : conversationInfo?.avatarUrl;
           return avatarUrl && avatarUrl.trim() !== "";
         })() ? (
           <Image
             src={
-              isPrivateChat &&
-              conversationInfo?.participants &&
-              conversationInfo.participants.length > 0
-                ? conversationInfo.participants[0].avatarUrl || ""
-                : conversationInfo?.avatarUrl || ""
+              (() => {
+                const otherParticipant = isPrivateChat ? otherParticipantIn1v1() : null;
+                return isPrivateChat && otherParticipant
+                  ? otherParticipant.avatarUrl || ""
+                  : conversationInfo?.avatarUrl || "";
+              })()
             }
             alt={
-              isPrivateChat &&
-              conversationInfo?.participants &&
-              conversationInfo.participants.length > 0
-                ? conversationInfo.participants[0].fullName
-                : conversationInfo?.name || "Conversation"
+              (() => {
+                const otherParticipant = isPrivateChat ? otherParticipantIn1v1() : null;
+                return isPrivateChat && otherParticipant
+                  ? otherParticipant.fullName
+                  : conversationInfo?.name || "Conversation";
+              })()
             }
             width={64}
             height={64}
@@ -379,23 +493,25 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
         ) : (
           <div className="w-16 h-16 rounded-full bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center">
             <span className="text-white font-semibold text-lg">
-              {isPrivateChat &&
-              conversationInfo?.participants &&
-              conversationInfo.participants.length > 0
-                ? conversationInfo.participants[0].fullName
-                    ?.charAt(0)
-                    ?.toUpperCase()
-                : conversationInfo?.name?.charAt(0)?.toUpperCase() || "C"}
+              {(() => {
+                const otherParticipant = isPrivateChat ? otherParticipantIn1v1() : null;
+                if (isPrivateChat && otherParticipant) {
+                  return otherParticipant.fullName?.charAt(0)?.toUpperCase();
+                }
+                return conversationInfo?.name?.charAt(0)?.toUpperCase() || "C";
+              })()}
             </span>
           </div>
         )}
         <div className="text-center">
           <h2 className="font-semibold text-gray-900 text-sm line-clamp-2">
-            {isPrivateChat &&
-            conversationInfo?.participants &&
-            conversationInfo.participants.length > 0
-              ? conversationInfo.participants[0].fullName
-              : conversationInfo?.name || "Loading..."}
+            {(() => {
+              const otherParticipant = isPrivateChat ? otherParticipantIn1v1() : null;
+              if (isPrivateChat && otherParticipant) {
+                return otherParticipant.fullName;
+              }
+              return conversationInfo?.name || "Loading...";
+            })()}
           </h2>
           {!isPrivateChat && (
             <p className="text-xs text-gray-500 mt-1">
@@ -723,13 +839,25 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
+                    className="flex items-center gap-2 p-2 hover:bg-white rounded transition group"
+                    title={item.title || item.url}
                   >
                     <LinkIcon size={12} className="text-gray-600 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-blue-600 truncate hover:underline">
-                        {item.title || item.url}
-                      </p>
+                      {item.title ? (
+                        <>
+                          <p className="text-xs font-medium text-blue-600 truncate group-hover:underline">
+                            {item.title}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {item.domain}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs font-medium text-blue-600 truncate group-hover:underline">
+                          {item.domain}
+                        </p>
+                      )}
                     </div>
                   </a>
                 ))}

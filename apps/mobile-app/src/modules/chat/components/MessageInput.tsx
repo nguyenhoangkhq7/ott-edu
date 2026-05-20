@@ -36,9 +36,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if (onTyping) {
       onTyping(true);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      // Debounce typing indicator to prevent socket flooding (1.5 seconds per requirement)
       typingTimeoutRef.current = setTimeout(() => {
         onTyping(false);
-      }, 3000);
+      }, 1500);
     }
   };
 

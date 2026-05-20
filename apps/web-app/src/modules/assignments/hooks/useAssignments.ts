@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import apiClient from '@/services/api/axios';
 import { Assignment } from '@/shared/types/quiz';
 
@@ -16,23 +16,36 @@ export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchAssignments = useCallback(async () => {
-    if (!teamId) {
-      setAssignments([]);
-      setLoading(false);
-      return;
+    // Clear state and create new AbortController for this request
+    setAssignments([]);
+    setError(null);
+    setLoading(true);
+
+    // Cancel previous request if still in flight
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
 
-    setLoading(true);
-    setError(null);
+    abortControllerRef.current = new AbortController();
+    const { signal } = abortControllerRef.current;
+
     try {
+      if (!teamId) {
+        setAssignments([]);
+        setLoading(false);
+        return;
+      }
+
       let data: Assignment[] = [];
 
       if (role === 'STUDENT') {
         // Students: Get assignments for their team with pagination
         const response = await apiClient.get<PaginatedResponse<Assignment> | Assignment[]>(
-          `/api/v1/assignments/team/${teamId}?page=0&size=50`
+          `/api/v1/assignments/team/${teamId}?page=0&size=50`,
+          { signal }
         );
         // Handle both direct array and paginated response
         data = Array.isArray(response.data) 
@@ -41,7 +54,8 @@ export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
       } else {
         // Teachers: Get their own assignments, then filter by teamId
         const response = await apiClient.get<PaginatedResponse<Assignment> | Assignment[]>(
-          `/api/v1/assignments/my-assignments?page=0&size=50`
+          `/api/v1/assignments/my-assignments?page=0&size=50`,
+          { signal }
         );
         const allAssignments = Array.isArray(response.data)
           ? response.data
@@ -53,8 +67,16 @@ export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
         );
       }
 
-      setAssignments(Array.isArray(data) ? data : []);
+      // Only update state if request wasn't cancelled
+      if (!signal.aborted) {
+        setAssignments(Array.isArray(data) ? data : []);
+      }
     } catch (err: unknown) {
+      // Don't set error if request was aborted
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
+
       let message = 'Không thể tải danh sách bài tập';
       if (err instanceof Error) {
         message = err.message;
@@ -72,6 +94,16 @@ export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
       setLoading(false);
     }
   }, [teamId, role]);
+
+  // Clear state when teamId or role changes (before fetching new data)
+  useEffect(() => {
+    return () => {
+      // Cleanup: abort in-flight request when component unmounts
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     fetchAssignments();

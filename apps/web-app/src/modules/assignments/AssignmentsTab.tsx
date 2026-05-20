@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/shared/providers/AuthProvider';
 import { assignmentApi } from '@/services/api/assignment.service';
@@ -37,13 +37,7 @@ export default function AssignmentsTab({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch assignments when component mounts or refreshTrigger changes
-  useEffect(() => {
-    loadAssignments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedTeamId, refreshTrigger]);
-
-  const loadAssignments = async () => {
+  const loadAssignments = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -56,7 +50,12 @@ export default function AssignmentsTab({
     } finally {
       setLoading(false);
     }
-  };
+  }, [resolvedTeamId]);
+
+  // Fetch assignments when component mounts or refreshTrigger changes
+  useEffect(() => {
+    void loadAssignments();
+  }, [loadAssignments, refreshTrigger]);
 
   // Filter assignments by tab and type
   const getFilteredAssignments = () => {

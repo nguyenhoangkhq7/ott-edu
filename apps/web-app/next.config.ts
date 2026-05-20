@@ -44,6 +44,37 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Allow all external link preview images from any HTTPS host
+      {
+        protocol: 'https',
+        hostname: '**.gstatic.com',
+        port: '',
+        pathname: '/**', // Google static images
+      },
+      {
+        protocol: 'https',
+        hostname: '**.gvt1.com',
+        port: '',
+        pathname: '/**', // Google Vt1 images
+      },
+      {
+        protocol: 'https',
+        hostname: '**.githubusercontent.com',
+        port: '',
+        pathname: '/**', // GitHub images
+      },
+      {
+        protocol: 'https',
+        hostname: '**.cloudflare.com',
+        port: '',
+        pathname: '/**', // Cloudflare images
+      },
+      {
+        protocol: 'https',
+        hostname: '**',
+        port: '',
+        pathname: '/**', // Wildcard: Allow ANY HTTPS domain for link previews
+      },
     ],
   },
   

@@ -22,6 +22,13 @@ import {
   fetchLinkItems,
   fetchMediaItems,
 } from "../chatApi";
+import {
+  extractMediaItems,
+  extractFileItems,
+  extractLinkItems,
+  populateSenderNames,
+} from "../utils/chatSidebarMapping";
+import type { MediaItemUI, FileItemUI, LinkItemUI } from "../utils/chatSidebarMapping";
 
 const { width } = Dimensions.get("window");
 const SIDEBAR_WIDTH = width;
@@ -41,9 +48,9 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
 }) => {
   const slideAnim = useRef(new Animated.Value(SIDEBAR_WIDTH)).current;
   const [info, setInfo] = useState<ApiConversation | null>(null);
-  const [media, setMedia] = useState<ApiMessage[]>([]);
-  const [files, setFiles] = useState<ApiMessage[]>([]);
-  const [links, setLinks] = useState<ApiMessage[]>([]);
+  const [media, setMedia] = useState<MediaItemUI[]>([]);
+  const [files, setFiles] = useState<FileItemUI[]>([]);
+  const [links, setLinks] = useState<LinkItemUI[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,18 +72,139 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
 
   const loadAllData = async () => {
     try {
-      const [infoData, mediaData, filesData, linksData] = await Promise.all([
-        fetchConversationInfo(conversationId),
-        fetchMediaItems(conversationId, 6),
-        fetchFileItems(conversationId, 10),
-        fetchLinkItems(conversationId, 10),
-      ]);
-      setInfo(infoData);
-      setMedia(mediaData);
-      setFiles(filesData);
-      setLinks(linksData);
+      // Create a timeout promise to prevent infinite loading (10 seconds for mobile)
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Sidebar data load timeout (10s)")), 10000)
+      );
+
+      // BULLETPROOF: Use allSettled so individual API failures don't break the entire load
+      const results = (await Promise.race([
+        Promise.allSettled([
+          fetchConversationInfo(conversationId),
+          fetchMediaItems(conversationId, 20),
+          fetchFileItems(conversationId, 20),
+          fetchLinkItems(conversationId, 20),
+        ]),
+        timeoutPromise,
+      ])) as PromiseSettledResult<unknown>[];
+      
+      // Extract results with fallbacks for failures
+      const infoData = results[0]?.status === 'fulfilled' ? results[0].value : null;
+      const mediaRawData = results[1]?.status === 'fulfilled' ? (results[1].value as ApiMessage[]) : [];
+      const filesRawData = results[2]?.status === 'fulfilled' ? (results[2].value as ApiMessage[]) : [];
+      const linksRawData = results[3]?.status === 'fulfilled' ? (results[3].value as ApiMessage[]) : [];
+      
+      // Log any failures for debugging
+      if (results[1]?.status === 'rejected') {
+        console.debug('Sidebar data (media) skipped - API unavailable');
+      }
+      if (results[2]?.status === 'rejected') {
+        console.debug('Sidebar data (files) skipped - API unavailable');
+      }
+      if (results[3]?.status === 'rejected') {
+        console.debug('Sidebar data (links) skipped - API unavailable');
+      }
+      
+      try {
+        setInfo(infoData as ApiConversation | null);
+      } catch (error) {
+        console.error('Sidebar Fetch Error (setInfo):', error);
+      }
+      
+      // Transform API messages to UI types - BULLETPROOF with fallbacks
+      try {
+        // Check if API already returns UI items or raw messages
+        let mediaItemsUI: MediaItemUI[] = [];
+        let fileItemsUI: FileItemUI[] = [];
+        let linkItemsUI: LinkItemUI[] = [];
+        
+        // For media: check if already extracted
+        if (mediaRawData && mediaRawData.length > 0) {
+          const first = mediaRawData[0] as unknown as Record<string, unknown>;
+          if (!first.attachments && !first.content && first.url) {
+            console.log('[ChatInfoSidebar] Media API returns UI items directly');
+            mediaItemsUI = mediaRawData as unknown as MediaItemUI[];
+          } else {
+            console.log('[ChatInfoSidebar] Media API returns messages, extracting...');
+            mediaItemsUI = extractMediaItems(mediaRawData);
+          }
+        }
+        
+        // For files: check if already extracted
+        if (filesRawData && filesRawData.length > 0) {
+          const first = filesRawData[0] as unknown as Record<string, unknown>;
+          if (!first.attachments && !first.content && first.url) {
+            console.log('[ChatInfoSidebar] Files API returns UI items directly');
+            fileItemsUI = filesRawData as unknown as FileItemUI[];
+          } else {
+            console.log('[ChatInfoSidebar] Files API returns messages, extracting...');
+            fileItemsUI = extractFileItems(filesRawData);
+          }
+        }
+        
+        // For links: check if already extracted
+        if (linksRawData && linksRawData.length > 0) {
+          const first = linksRawData[0] as unknown as Record<string, unknown>;
+          if (first.url && first.messageId && !first.content) {
+            console.log('[ChatInfoSidebar] Links API returns UI items directly');
+            linkItemsUI = linksRawData as unknown as LinkItemUI[];
+          } else {
+            console.log('[ChatInfoSidebar] Links API returns messages, extracting...');
+            linkItemsUI = extractLinkItems(linksRawData);
+          }
+        }
+        
+        const extractedMedia = mediaItemsUI;
+        const extractedFiles = fileItemsUI;
+        const extractedLinks = linkItemsUI;
+        
+        // Populate sender names from conversation participants
+        const participants = (infoData as ApiConversation | null)?.participants ?? [];
+        if (participants && participants.length > 0) {
+          try {
+            setMedia(populateSenderNames(extractedMedia, participants));
+          } catch (error) {
+            console.error('Sidebar Fetch Error (populateSenderNames media):', error);
+            setMedia(extractedMedia);
+          }
+          try {
+            setFiles(populateSenderNames(extractedFiles, participants));
+          } catch (error) {
+            console.error('Sidebar Fetch Error (populateSenderNames files):', error);
+            setFiles(extractedFiles);
+          }
+          try {
+            setLinks(populateSenderNames(extractedLinks, participants));
+          } catch (error) {
+            console.error('Sidebar Fetch Error (populateSenderNames links):', error);
+            setLinks(extractedLinks);
+          }
+        } else {
+          setMedia(extractedMedia);
+          setFiles(extractedFiles);
+          setLinks(extractedLinks);
+        }
+      } catch (error) {
+        console.error('Sidebar Fetch Error (extraction):', error);
+        setMedia([]);
+        setFiles([]);
+        setLinks([]);
+      }
     } catch (error) {
-      console.error("Error loading chat info:", error);
+      console.error("Sidebar Fetch Error (loadAllData):", error);
+      // Set empty defaults on timeout or error - CRITICAL for preventing infinite loading
+      try {
+        setInfo(null);
+      } catch (e) {
+        console.error('Sidebar Fetch Error (setInfo null):', e);
+      }
+      try {
+        setMedia([]);
+        setFiles([]);
+        setLinks([]);
+      } catch (e) {
+        console.error('Sidebar Fetch Error (setDefaults):', e);
+      }
     }
   };
 
@@ -216,18 +344,13 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
               {expandedSection === "media" && (
                 <View style={styles.mediaGrid}>
                   {media.length > 0 ? (
-                    media.flatMap(m => m.attachments || []).map((att, idx) => (
+                    media.map((item) => (
                       <TouchableOpacity
-                        key={idx}
+                        key={item.messageId}
                         style={styles.mediaItem}
-                        onPress={() => Linking.openURL(att.url)}
+                        onPress={() => Linking.openURL(item.url)}
                       >
-                        <Image source={{ uri: att.url }} style={styles.mediaThumb} />
-                        {att.fileType.startsWith("video/") && (
-                          <View style={styles.videoOverlay}>
-                            <Ionicons name="play" size={16} color="#FFF" />
-                          </View>
-                        )}
+                        <Image source={{ uri: item.url }} style={styles.mediaThumb} />
                       </TouchableOpacity>
                     ))
                   ) : (
@@ -241,18 +364,22 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
               {expandedSection === "files" && (
                 <View style={styles.sectionContent}>
                   {files.length > 0 ? (
-                    files.flatMap(m => m.attachments || []).map((att, idx) => (
+                    files.map((item) => (
                       <TouchableOpacity
-                        key={idx}
+                        key={item.messageId}
                         style={styles.fileRow}
-                        onPress={() => Linking.openURL(att.url)}
+                        onPress={() => Linking.openURL(item.url)}
                       >
                         <View style={styles.fileIcon}>
                           <Ionicons name="document" size={20} color="#3B82F6" />
                         </View>
                         <View style={styles.fileInfo}>
-                          <Text style={styles.fileName} numberOfLines={1}>{att.fileName}</Text>
-                          <Text style={styles.fileMeta}>2.4 MB • 12/05/2026</Text>
+                          <Text style={styles.fileName} numberOfLines={1}>
+                            {item.fileName}
+                          </Text>
+                          <Text style={styles.fileMeta}>
+                            {item.senderName}
+                          </Text>
                         </View>
                       </TouchableOpacity>
                     ))
@@ -267,21 +394,21 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
               {expandedSection === "links" && (
                 <View style={styles.sectionContent}>
                   {links.length > 0 ? (
-                    links.map((m, idx) => (
+                    links.map((item) => (
                       <TouchableOpacity
-                        key={idx}
+                        key={item.messageId}
                         style={styles.linkRow}
-                        onPress={() => m.linkPreview?.url && Linking.openURL(m.linkPreview.url)}
+                        onPress={() => Linking.openURL(item.url)}
                       >
                         <View style={styles.linkIcon}>
                           <Ionicons name="globe-outline" size={20} color="#10B981" />
                         </View>
                         <View style={styles.linkInfo}>
                           <Text style={styles.linkTitle} numberOfLines={1}>
-                            {m.linkPreview?.title || "Liên kết"}
+                            {item.title || item.domain || "Liên kết"}
                           </Text>
                           <Text style={styles.linkUrl} numberOfLines={1}>
-                            {m.linkPreview?.url || m.content}
+                            {item.domain || item.url}
                           </Text>
                         </View>
                       </TouchableOpacity>

@@ -7,12 +7,13 @@ export interface CreateAssignmentFormData {
   title: string;
   instructions: string;
   type: AssignmentType;
-  dueDate: string; // ISO datetime format
+  dueDate: string; // ISO 8601 UTC datetime format (YYYY-MM-DDTHH:mm:ss.sssZ)
   maxScore: number;
   teamIds: number[];
   
   // QUIZ-specific
   maxAttempts?: number;
+  timeLimit?: number; // Duration in minutes (e.g., 30, 60, 120) - only for QUIZ type
   questions?: QuestionFormData[];
   
   // ESSAY-specific

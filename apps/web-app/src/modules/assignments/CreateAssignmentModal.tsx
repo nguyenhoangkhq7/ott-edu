@@ -24,6 +24,7 @@ export default function CreateAssignmentModal({
 }: CreateAssignmentModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isQuizValid, setIsQuizValid] = useState(true);
 
   const {
     register,
@@ -31,6 +32,7 @@ export default function CreateAssignmentModal({
     watch,
     control,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<CreateAssignmentFormData>({
     defaultValues: {
@@ -41,6 +43,7 @@ export default function CreateAssignmentModal({
       maxScore: 100,
       teamIds: [teamId],
       maxAttempts: 1,
+      timeLimit: undefined,
       questions: [],
       materialUrls: [],
     },
@@ -66,6 +69,22 @@ export default function CreateAssignmentModal({
         return;
       }
 
+      // Validate each quiz question has at least one correct answer
+      if (data.type === AssignmentType.QUIZ && data.questions) {
+        for (let i = 0; i < data.questions.length; i++) {
+          const question = data.questions[i];
+          if (!question.options || question.options.length === 0) {
+            setError(`Question ${i + 1} must have at least one option`);
+            return;
+          }
+          const hasCorrectAnswer = question.options.some((opt) => opt.isCorrect === true);
+          if (!hasCorrectAnswer) {
+            setError(`Question ${i + 1} must have at least one correct answer marked`);
+            return;
+          }
+        }
+      }
+
       // Prepare request payload - properly format all fields
       const requestPayload = {
         title: data.title.trim(),
@@ -75,6 +94,7 @@ export default function CreateAssignmentModal({
         maxScore: Number(data.maxScore), // ✅ Ensure it's a number
         teamIds: data.teamIds && data.teamIds.length > 0 ? data.teamIds : [parseInt(String(teamId), 10)],
         maxAttempts: data.type === AssignmentType.QUIZ && data.maxAttempts ? Number(data.maxAttempts) : undefined,
+        timeLimit: data.type === AssignmentType.QUIZ && data.timeLimit ? Number(data.timeLimit) : undefined,
         materialUrls: data.type === AssignmentType.ESSAY && data.materialUrls && data.materialUrls.length > 0
           ? data.materialUrls.filter(url => url && url.trim().length > 0)
           : undefined,
@@ -224,19 +244,36 @@ export default function CreateAssignmentModal({
 
           {/* QUIZ-Specific: Max Attempts */}
           {assignmentType === AssignmentType.QUIZ && (
-            <div>
-              <label className="block text-sm font-medium text-slate-900 mb-2">
-                Số lần làm bài tối đa
-              </label>
-              <input
-                type="number"
-                {...register('maxAttempts')}
-                min={1}
-                max={100}
-                placeholder="Để trống = không giới hạn"
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-              <p className="mt-1 text-xs text-slate-500">Để trống để cho phép số lần làm không giới hạn</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-2">
+                  Số lần làm bài tối đa
+                </label>
+                <input
+                  type="number"
+                  {...register('maxAttempts')}
+                  min={1}
+                  max={100}
+                  placeholder="Để trống = không giới hạn"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-slate-500">Để trống để cho phép số lần làm không giới hạn</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-2">
+                  Thời gian làm bài (phút)
+                </label>
+                <input
+                  type="number"
+                  {...register('timeLimit')}
+                  min={1}
+                  max={480}
+                  placeholder="VD: 30, 60, 120"
+                  className="w-full px-4 py-2.5 rounded-lg border border-slate-300 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-slate-500">Để trống = không giới hạn thời gian</p>
+              </div>
             </div>
           )}
 
@@ -254,6 +291,8 @@ export default function CreateAssignmentModal({
               control={control}
               register={register}
               errors={errors}
+              setValue={setValue}
+              onValidationChange={setIsQuizValid}
             />
           )}
 
@@ -269,8 +308,8 @@ export default function CreateAssignmentModal({
             </button>
             <button
               type="submit"
-              disabled={isLoading}
-              className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              disabled={isLoading || (assignmentType === AssignmentType.QUIZ && !isQuizValid)}
+              className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isLoading && (
                 <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -465,6 +465,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   header: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
@@ -532,6 +533,17 @@ const styles = StyleSheet.create({
   },
   callBtnDimmed: {
     opacity: 0.35,
+  },
+  messageList: { flex: 1 },
+  emptyMessages: { alignItems: "center", paddingTop: 80, paddingHorizontal: 40 },
+  emptyMsgIcon: {
+    width: 72, 
+    height: 72, 
+    borderRadius: 36,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center", 
+    justifyContent: "center", 
+    marginBottom: 14,
   },
   messagesList: { flex: 1 },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },

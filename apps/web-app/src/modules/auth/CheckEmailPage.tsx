@@ -7,18 +7,15 @@ import { getForgotOtpState, setForgotOtpState } from "@/services/auth/otp-flow-s
 
 export default function CheckEmailPage() {
   const router = useRouter();
-  const [maskedEmail, setMaskedEmail] = useState("m***@example.com");
+  const [maskedEmail, setMaskedEmail] = useState(getForgotOtpState()?.maskedEmail ?? "m***@example.com");
   const [error, setError] = useState<string | null>(null);
+  const otpState = getForgotOtpState();
 
   useEffect(() => {
-    const state = getForgotOtpState();
-    if (!state) {
+    if (!otpState) {
       router.replace("/forgot-password");
-      return;
     }
-
-    setMaskedEmail(state.maskedEmail);
-  }, [router]);
+  }, [otpState, router]);
 
   const handleOpenEmail = () => {
     window.open("mailto:", "_blank");
