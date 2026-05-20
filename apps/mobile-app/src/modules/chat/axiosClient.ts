@@ -3,7 +3,7 @@ import { API_URL, getAccessToken } from '../api';
 
 // Gateway proxies /api/chat/* to chat-service /api/*.
 // Example: API_URL/api/chat/me -> chat-service /api/me
-const CHAT_SERVICE_API_URL = `${API_URL.replace(/\/$/, "")}/api/chat`;
+const CHAT_SERVICE_API_URL = `${API_URL.replace(/\/$/, "")}/api/chat/`;
 
 export const chatApiClient = axios.create({
   baseURL: CHAT_SERVICE_API_URL,

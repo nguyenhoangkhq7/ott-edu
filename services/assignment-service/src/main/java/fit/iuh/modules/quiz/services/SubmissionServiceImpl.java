@@ -42,12 +42,13 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     public Page<SubmissionGradingListDto> getPendingGradesForAssignment(Long assignmentId, Long creatorId,
-                                                                        Pageable pageable) {
+            Pageable pageable) {
         // Verify teacher is the creator of this assignment
         var assignment = assignmentRepository.findByIdAndCreatorId(assignmentId, creatorId)
                 .orElseThrow(() -> {
                     var existing = assignmentRepository.findById(assignmentId).orElse(null);
-                    if (existing != null && (existing.getCreatorId() == null || !existing.getCreatorId().equals(creatorId))) {
+                    if (existing != null
+                            && (existing.getCreatorId() == null || !existing.getCreatorId().equals(creatorId))) {
                         return AccessDeniedException.notAssignmentCreator(creatorId, assignmentId);
                     }
                     return ResourceNotFoundException.assignmentNotFound(assignmentId);
@@ -59,12 +60,13 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     @Override
     public Page<SubmissionGradingListDto> getSubmissionsForAssignment(Long assignmentId, Long creatorId,
-                                                                      Pageable pageable) {
+            Pageable pageable) {
         // Verify teacher is the creator of this assignment
         var assignment = assignmentRepository.findByIdAndCreatorId(assignmentId, creatorId)
                 .orElseThrow(() -> {
                     var existing = assignmentRepository.findById(assignmentId).orElse(null);
-                    if (existing != null && (existing.getCreatorId() == null || !existing.getCreatorId().equals(creatorId))) {
+                    if (existing != null
+                            && (existing.getCreatorId() == null || !existing.getCreatorId().equals(creatorId))) {
                         return AccessDeniedException.notAssignmentCreator(creatorId, assignmentId);
                     }
                     return ResourceNotFoundException.assignmentNotFound(assignmentId);
@@ -163,6 +165,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         dto.setStatus(submission.getStatus());
         dto.setSubmittedAt(submission.getSubmittedAt());
         dto.setLate(submission.isLate());
+        dto.setFileUrl(submission.getFileUrl()); // For essay submissions
 
         if (submission.getGrade() != null) {
             dto.setGraded(true);
@@ -188,6 +191,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         dto.setCreatedAt(submission.getCreatedAt());
         dto.setSubmittedAt(submission.getSubmittedAt());
         dto.setLate(submission.isLate());
+        dto.setFileUrl(submission.getFileUrl()); // For essay submissions
 
         // Assignment context
         dto.setAssignmentTitle(submission.getAssignment().getTitle());
@@ -326,9 +330,9 @@ public class SubmissionServiceImpl implements SubmissionService {
             // Store final essay content
         }
 
-        // Store file URL if provided
-        if (request.getFileUrl() != null) {
-            // Store submission file URL
+        // Store file URL if provided (for ESSAY type with file upload)
+        if (request.getFileUrl() != null && !request.getFileUrl().isEmpty()) {
+            submission.setFileUrl(request.getFileUrl());
         }
 
         // Mark as SUBMITTED
@@ -344,5 +348,119 @@ public class SubmissionServiceImpl implements SubmissionService {
         // - Create a Grade record with calculated score
         // - For QUIZ with auto-grade: calculate score based on correct answers
         // - For ESSAY: just mark as pending manual grading
+    }
+
+    // ============== NEW: Attempt History & Quiz Limits ==============
+
+    @Override
+    public java.util.List<AttemptHistoryDto> getAttemptHistory(Long assignmentId, Long studentAccountId) {
+        // Verify assignment exists
+        var assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> ResourceNotFoundException.assignmentNotFound(assignmentId));
+
+        // Get all submissions for this student on this assignment
+        var submissions = submissionRepository.findAttemptHistoryByAccountAndAssignment(
+                studentAccountId,
+                assignmentId);
+
+        // Convert to DTOs with attempt numbering
+        var result = new java.util.ArrayList<AttemptHistoryDto>();
+        int attemptNumber = submissions.size();
+
+        for (Submission submission : submissions) {
+            AttemptHistoryDto dto = new AttemptHistoryDto();
+            dto.setSubmissionId(submission.getId());
+            dto.setAttemptNumber(attemptNumber--);
+            dto.setSubmittedAt(submission.getSubmittedAt());
+            dto.setStatus(submission.getStatus());
+            dto.setMaxScore(assignment.getMaxScore());
+
+            // Set score from grade if available
+            if (submission.getGrade() != null) {
+                dto.setScore(submission.getGrade().getScore());
+                dto.setFeedback(submission.getGrade().getFeedback());
+            }
+
+            result.add(dto);
+        }
+
+        return result;
+    }
+
+    @Override
+    public boolean canAttemptAssignment(Long assignmentId, Long studentAccountId) {
+        // Get assignment
+        var assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> ResourceNotFoundException.assignmentNotFound(assignmentId));
+
+        // If not a QUIZ or no maxAttempts set, allow unlimited attempts
+        if (assignment.getMaxAttempts() == null) {
+            return true;
+        }
+
+        // Count completed attempts
+        Long completedAttempts = submissionRepository.countCompletedAttempts(studentAccountId, assignmentId);
+
+        // Check if limit reached
+        return completedAttempts < assignment.getMaxAttempts();
+    }
+
+    @Override
+    public int getRemainingAttempts(Long assignmentId, Long studentAccountId) {
+        // Get assignment
+        var assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> ResourceNotFoundException.assignmentNotFound(assignmentId));
+
+        // If maxAttempts not set, return -1 (unlimited)
+        if (assignment.getMaxAttempts() == null) {
+            return -1;
+        }
+
+        // Count completed attempts
+        Long completedAttempts = submissionRepository.countCompletedAttempts(studentAccountId, assignmentId);
+
+        // Return remaining = maxAttempts - completedAttempts
+        return Math.max(0, assignment.getMaxAttempts() - completedAttempts.intValue());
+    }
+
+    @Override
+    public void startAssignment(Long assignmentId, Long studentAccountId) {
+        // Get assignment
+        var assignment = assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> ResourceNotFoundException.assignmentNotFound(assignmentId));
+
+        // Check if student already has an active submission (DRAFT or SUBMITTED)
+        var existingSubmission = submissionRepository.findByAccountIdAndAssignmentId(studentAccountId, assignmentId);
+        if (existingSubmission.isPresent()) {
+            // Submission already exists - just return (idempotent)
+            return;
+        }
+
+        // Create new DRAFT submission
+        Submission submission = new Submission();
+        submission.setAccountId(studentAccountId);
+        submission.setAssignment(assignment);
+        submission.setStatus(SubmissionStatus.DRAFT);
+        submission.setCreatedAt(LocalDateTime.now());
+        submission.setUpdatedAt(LocalDateTime.now());
+
+        submissionRepository.save(submission);
+    }
+
+    @Override
+    public ViewSubmissionDto getCurrentSubmission(Long assignmentId, Long studentAccountId) {
+        // Get assignment
+        assignmentRepository.findById(assignmentId)
+                .orElseThrow(() -> ResourceNotFoundException.assignmentNotFound(assignmentId));
+
+        // Find the submission
+        var submission = submissionRepository.findByAccountIdAndAssignmentId(studentAccountId, assignmentId);
+
+        if (submission.isEmpty()) {
+            return null; // No submission found
+        }
+
+        // Convert to DTO
+        return toViewSubmissionDto(submission.get());
     }
 }

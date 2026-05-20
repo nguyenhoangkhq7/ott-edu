@@ -44,6 +44,9 @@ export type AssignmentDetail = {
   type: AssignmentType;
   teamIds: number[];
   questions: Question[];
+  maxAttempts?: number | null; // For QUIZ - max attempts allowed
+  materialUrls?: string[]; // Reference materials for assignment
+  creatorId?: number; // Teacher who created the assignment
 };
 
 // Assignment - Bài kiểm tra trong danh sách (chưa có câu hỏi)

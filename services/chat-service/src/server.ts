@@ -1,3 +1,4 @@
+'use client';
 import dotenv from "dotenv";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -10,6 +11,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const { default: app } = await import("./app.ts");
 const { default: socketManager } = await import("./socketManager.ts");
+
 
 const PORT = process.env.CHAT_PORT || 3001;
 
@@ -30,10 +32,8 @@ function buildAllowedOrigins(): string[] {
 
 const allowedOrigins = buildAllowedOrigins();
 
-// Tạo HTTP Server từ Express app
 const httpServer = createServer(app);
 
-// Khởi tạo Socket.IO và gắn vào HTTP server
 const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
@@ -42,11 +42,11 @@ const io = new Server(httpServer, {
   },
 });
 
-// Khởi tạo SocketManager với io instance
 socketManager.init(io);
 
-// Lắng nghe trên httpServer (không phải app.listen)
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server is running on http://localhost:${PORT}`);
-  console.log(`🔌 Socket.IO is ready`);
+// 🎯 QUAN TRỌNG: Sửa lại listen để Docker container khác có thể gọi vào
+// Thêm '0.0.0.0' để chấp nhận kết nối từ Core Service
+httpServer.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`🔌 Socket.IO is ready for Internal & External requests`);
 });

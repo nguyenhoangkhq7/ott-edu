@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import Image from 'next/image'; 
 import { httpService } from '@/services/api/http.service'; 
 import { useAppContext } from '@/shared/providers/AppContext';
+import { useSocket, useSocketListener, useSocketRoomJoin } from '@/shared/hooks/useSocket';
 import Cookies from 'js-cookie';
 
 // ================= API INTERFACES =================
@@ -167,10 +168,11 @@ interface ChatInputBoxProps {
   setSelectedFile?: (file: File | null) => void;
   replyingToName?: string | null;
   hideAttachment?: boolean; 
+  isSubmitting?: boolean; // ✨ ĐÃ THÊM: Trạng thái Loading
 }
 
 const ChatInputBox = ({ 
-  placeholder, onCancel, inputValue, setInputValue, onSend, inputRef, selectedFile, setSelectedFile, replyingToName, hideAttachment = false 
+  placeholder, onCancel, inputValue, setInputValue, onSend, inputRef, selectedFile, setSelectedFile, replyingToName, hideAttachment = false, isSubmitting = false 
 }: ChatInputBoxProps) => {
   const localFileRef = useRef<HTMLInputElement>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -300,10 +302,10 @@ const ChatInputBox = ({
       <div className="flex justify-end p-2 border-t border-slate-100 bg-slate-50/50">
         <button 
           onClick={onSend}
-          disabled={!inputValue.trim() && !selectedFile}
+          disabled={(!inputValue.trim() && !selectedFile) || isSubmitting} // ✨ ĐÃ SỬA: Khóa nút khi đang Gửi
           className="flex items-center gap-1.5 bg-[#1868f0] text-white px-4 py-1.5 rounded hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 transition-colors"
         >
-          <span className="text-sm font-medium">Send</span>
+          <span className="text-sm font-medium">{isSubmitting ? 'Sending...' : 'Send'}</span>
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
         </button>
       </div>
@@ -338,7 +340,6 @@ const MessageItem = ({
   msg, isPost, parentPostId, rootCommentId, activeMenuId, setActiveMenuId, menuRef, handleReaction, handleOpenComment, handleOpenReply, handleDeleteClick, onZoomImage,
   editingItemId, editInputValue, setEditInputValue, onEditStart, onEditCancel, onEditSubmit
 }: MessageItemProps) => {
-  // Lấy icon emoji tương ứng nếu user đã react, nếu không thì lấy icon mặc định
   const displayEmoji = msg.userReaction 
     ? REACTIONS.find(r => r.type === msg.userReaction)?.emoji || '👍'
     : '👍';
@@ -458,7 +459,6 @@ const MessageItem = ({
           </div>
         )}
 
-        {/* ĐÃ SỬA: Hiển thị emoji trạng thái hiện tại */}
         {(msg.reactionCount || 0) > 0 && (
           <div className="mt-2 flex">
              <div 
@@ -477,7 +477,6 @@ const MessageItem = ({
       {editingItemId !== msg.id && (
         <div className="absolute top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-white border border-slate-200 rounded-md shadow-sm z-10 px-0.5">
           <div className="relative group/react">
-            {/* ĐÃ SỬA: Nút like nhanh có màu nếu đã thả icon */}
             <button 
               onClick={() => handleReaction(msg.id, isPost, parentPostId, msg.userReaction || 'LIKE')} 
               className={`p-1.5 transition-colors ${msg.userReaction ? 'text-[#1868f0]' : 'text-slate-400 hover:text-blue-500'}`} 
@@ -567,6 +566,7 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // ✨ ĐÃ THÊM: State Loading
 
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editInputValue, setEditInputValue] = useState('');
@@ -582,6 +582,10 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
 
   const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
   const teamId = routeTeamId?.toString() ?? contextClassId ?? null;
+
+  // ✨ SOCKET.IO SETUP - Real-time Posts Updates
+  const socket = useSocket();
+  useSocketRoomJoin(socket, teamId);
 
   const fetchPosts = useCallback(async () => {
     if (!isLoaded || !teamId) return;
@@ -631,6 +635,31 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
     const load = async () => { await fetchPosts(); };
     load();
   }, [fetchPosts]);
+
+  // ✨ SOCKET LISTENERS - Real-time Updates for Posts, Comments, Reactions
+  useSocketListener(socket, 'post_updated', async (data: { action?: string; id?: string }) => {
+    console.log('[Socket] post_updated event received:', data);
+    if (data.action === 'created' || data.action === 'updated') {
+      await fetchPosts();
+    } else if (data.action === 'deleted') {
+      setPosts(prev => prev.filter(p => p.id !== data.id));
+    }
+  },);
+
+  useSocketListener(socket, 'comment_updated', async (data: { postId?: string }) => {
+    console.log('[Socket] comment_updated event received:', data);
+    if (data.postId) {
+      await loadCommentsForPost(data.postId);
+    }
+  },);
+
+  useSocketListener(socket, 'reaction_updated', async (data: { targetId?: string }) => {
+    console.log('[Socket] reaction_updated event received:', data);
+    if (data.targetId) {
+      // Refresh reaction count by reloading posts or just the targeted post
+      await fetchPosts();
+    }
+  },);
 
   const scrollToTop = () => feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
 
@@ -721,40 +750,42 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
     setTimeout(() => { inputRef.current?.focus(); }, 100);
   };
 
+  // ✨ ĐÃ SỬA: Hàm gửi bài hoàn thiện
   const handleSendMessage = async () => {
-    if (!teamId) return;
+    if (!teamId) {
+      alert("Lỗi: Không tìm thấy ID nhóm!");
+      return;
+    }
     if (!inputValue.trim() && !selectedFile) return;
 
-    if (isComposingNew) {
-      const formData = new FormData();
-      const postData = { teamId: teamId.toString(), content: inputValue, type: 'DISCUSSION' };
-      formData.append('post', new Blob([JSON.stringify(postData)], { type: 'application/json' })); 
-      if (selectedFile) formData.append('files', selectedFile);
+    setIsSubmitting(true); // Khóa nút
 
-      try {
-        await httpService.post('/posts', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+    try {
+      if (isComposingNew) {
+        const formData = new FormData();
+        const postData = { classId: teamId.toString(), content: inputValue, type: 'DISCUSSION' };
+        formData.append('post', new Blob([JSON.stringify(postData)], { type: 'application/json' })); 
+        if (selectedFile) formData.append('files', selectedFile);
+
+        // Đảm bảo axios không ép Content-Type -> browser tự set multipart boundary
+      await httpService.post('/posts', formData, { headers: { 'Content-Type': undefined as unknown as string } });
+        
         await fetchPosts(); 
         setIsComposingNew(false);
         scrollToTop(); 
-      } catch (error) { console.error("Error posting:", error); }
+      } else if (activeInputPostId) {
+        const formData = new FormData();
+        const payload = {
+          postId: activeInputPostId,
+          content: inputValue,
+          replyToCommentId: replyTarget ? replyTarget.id : null
+        };
+        
+        formData.append('comment', new Blob([JSON.stringify(payload)], { type: 'application/json' })); 
+        if (selectedFile) formData.append('files', selectedFile);
 
-    } else if (activeInputPostId) {
-      const formData = new FormData();
-      const payload = {
-        postId: activeInputPostId,
-        content: inputValue,
-        replyToCommentId: replyTarget ? replyTarget.id : null
-      };
-      
-      formData.append('comment', new Blob([JSON.stringify(payload)], { type: 'application/json' })); 
-      if (selectedFile) formData.append('files', selectedFile);
-
-      try {
-        await httpService.post('/interact/comments', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        // Đảm bảo axios không ép Content-Type -> browser tự set multipart boundary
+        await httpService.post('/interact/comments', formData, { headers: { 'Content-Type': undefined as unknown as string } });
         
         await loadCommentsForPost(activeInputPostId);
         if (!expandedPostIds.includes(activeInputPostId)) {
@@ -762,12 +793,21 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
         }
         setActiveInputPostId(null);
         setReplyTarget(null);
-      } catch (error) { console.error("Error commenting:", error); }
+      }
+      
+      setInputValue('');
+      setSelectedFile(null);
+      if (inputRef.current) inputRef.current.style.height = '60px';
+
+    } catch (error) { 
+      console.error("Error posting/commenting:", error); 
+      // Vẽ sẵn khuôn cấu trúc lỗi (thay vì dùng any) để ESLint khỏi bắt bẻ
+      const err = error as { response?: { data?: { message?: string } } };
+      
+      alert(err?.response?.data?.message || "Có lỗi xảy ra khi gửi. Vui lòng kiểm tra lại mạng hoặc dung lượng file đính kèm!");
+    } finally {
+      setIsSubmitting(false); // Mở khóa nút
     }
-    
-    setInputValue('');
-    setSelectedFile(null);
-    if (inputRef.current) inputRef.current.style.height = '60px';
   };
 
   const handleDeleteClick = async (idToDelete: string, isPost: boolean, parentPostId?: string) => {
@@ -969,6 +1009,7 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
                   selectedFile={selectedFile}
                   setSelectedFile={setSelectedFile}
                   hideAttachment={false}
+                  isSubmitting={isSubmitting} // ✨ THÊM isSubmitting
                 />
               </div>
             )}
@@ -1104,6 +1145,7 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
                     setSelectedFile={setSelectedFile}
                     replyingToName={replyTarget?.name}
                     hideAttachment={false}
+                    isSubmitting={isSubmitting} // ✨ THÊM isSubmitting
                   />
                 </div>
               )}

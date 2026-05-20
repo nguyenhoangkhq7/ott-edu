@@ -99,9 +99,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   incomingCaller = null,
   activeCall = null,
   callHistory = [],
-  isLoadingCallHistory = false,
-  callHistoryPage = 1,
-  callHistoryTotalPages = 1,
+  isLoadingCallHistory: _isLoadingCallHistory = false,
+  callHistoryPage: _callHistoryPage = 1,
+  callHistoryTotalPages: _callHistoryTotalPages = 1,
   isMicrophoneEnabled = true,
   isCameraEnabled = true,
   isScreenSharing = false,
@@ -236,8 +236,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   }, [localMessages]);
 
   useEffect(() => {
+    const currentRefs = remoteVideoRefs.current;
     remoteStreamsList.forEach(([userId, stream]) => {
-      const el = remoteVideoRefs.current.get(userId);
+      const el = currentRefs.get(userId);
       if (!el) return;
 
       if (el.srcObject !== stream) {
@@ -265,7 +266,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     });
 
     return () => {
-      remoteVideoRefs.current.forEach((el) => {
+      currentRefs.forEach((el) => {
         el.oncanplay = null;
       });
     };
@@ -898,6 +899,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
+  /*
   const handleRevoke = (messageId: string) => {
     if (socket && conversation) {
       socket.emit("revokeMessage", {
@@ -906,6 +908,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       });
     }
   };
+  */
 
   const handleRevokeForAll = (messageId: string) => {
     if (!socket || !conversation) return;
@@ -972,32 +975,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </div>
 
         <div className="flex items-center gap-2 text-slate-400">
-          <button
-            type="button"
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
-          >
-            <Phone size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={onStartVideoCall}
-            disabled={!canStartVideoCall}
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-            title={
-              canStartVideoCall
-                ? "Goi video"
-                : "Chi ho tro goi trong doan chat da tao"
-            }
-          >
-            <Video size={20} />
-          </button>
-          <button
-            type="button"
-            className="rounded-full p-2 transition-colors hover:bg-slate-100 hover:text-blue-500"
-          >
-            <Info size={20} />
-          </button>
-
           {/* Action Buttons */}
           <div className="flex items-center gap-2 text-slate-400">
             {/* 👇 1. NÚT KẾT BẠN (CHỈ HIỆN Ở CHAT 1-1) 👇 */}

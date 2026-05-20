@@ -103,4 +103,67 @@ public interface SubmissionService {
      * @param studentAccountId The student's account ID (for authorization)
      */
     void submitAssignment(Long assignmentId, SubmitAssignmentRequest request, Long studentAccountId);
+
+    // ============== NEW: Attempt History & Quiz Limits ==============
+
+    /**
+     * Get attempt history for a STUDENT on a SPECIFIC ASSIGNMENT (STUDENT only)
+     * 
+     * Shows all previous attempts with scores, dates, and status.
+     * Used for displaying attempt table on assignment details.
+     * 
+     * Security: Student can only view their own attempt history.
+     * 
+     * @param assignmentId     The assignment ID
+     * @param studentAccountId The student's account ID (for authorization check)
+     * @return List of AttemptHistoryDto sorted by date (newest first)
+     */
+    java.util.List<AttemptHistoryDto> getAttemptHistory(Long assignmentId, Long studentAccountId);
+
+    /**
+     * Check if STUDENT can attempt a QUIZ again (validate maxAttempts)
+     * 
+     * Returns false if:
+     * - Assignment type is QUIZ AND maxAttempts is set AND
+     * - Student has already completed maxAttempts attempts
+     * 
+     * Security: Teacher can call this for supervision, Student for self-check
+     * 
+     * @param assignmentId     The assignment ID
+     * @param studentAccountId The student's account ID
+     * @return true if student can still attempt, false if limit reached
+     */
+    boolean canAttemptAssignment(Long assignmentId, Long studentAccountId);
+
+    /**
+     * Get remaining attempts for a QUIZ (null/unlimited returns -1)
+     * 
+     * @param assignmentId     The assignment ID
+     * @param studentAccountId The student's account ID
+     * @return Number of remaining attempts, or -1 if unlimited
+     */
+    int getRemainingAttempts(Long assignmentId, Long studentAccountId);
+
+    /**
+     * Start an assignment by creating a new DRAFT submission (STUDENT only)
+     * 
+     * Creates a new submission record for the student on the given assignment.
+     * Required before submitting essay or quiz assignments.
+     * 
+     * @param assignmentId     The assignment ID
+     * @param studentAccountId The student's account ID
+     */
+    void startAssignment(Long assignmentId, Long studentAccountId);
+
+    /**
+     * Get the current submission for an assignment (STUDENT only)
+     * 
+     * Returns the active DRAFT or SUBMITTED submission if one exists.
+     * Returns null if no submission found.
+     * 
+     * @param assignmentId     The assignment ID
+     * @param studentAccountId The student's account ID
+     * @return The current submission, or null if none found
+     */
+    ViewSubmissionDto getCurrentSubmission(Long assignmentId, Long studentAccountId);
 }

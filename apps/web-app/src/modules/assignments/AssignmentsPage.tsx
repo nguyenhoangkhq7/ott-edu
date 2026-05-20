@@ -34,7 +34,13 @@ const AssignmentIcon = () => (
   </svg>
 );
 
-export default function AssignmentsPage({ teamId: routeTeamId }: { teamId?: number }) {
+export default function AssignmentsPage({ 
+  teamId: routeTeamId,
+  filterType 
+}: { 
+  teamId?: number;
+  filterType?: AssignmentType;
+}) {
   const { classId: contextClassId, isLoaded } = useAppContext();
   const { isInitializing: isAuthInitializing, isAuthenticated } = useAuth();
   const teamId = routeTeamId ?? (contextClassId ? Number(contextClassId) : null);
@@ -145,7 +151,12 @@ export default function AssignmentsPage({ teamId: routeTeamId }: { teamId?: numb
     );
   }
 
-  if (assignments.length === 0) {
+  // Filter assignments based on filterType parameter
+  const filteredAssignments = filterType 
+    ? assignments.filter((a) => a.type === filterType)
+    : assignments;
+
+  if (filteredAssignments.length === 0) {
     return (
       <div className="flex h-96 flex-col items-center justify-center text-center gap-4">
         <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center text-purple-600">
@@ -161,20 +172,28 @@ export default function AssignmentsPage({ teamId: routeTeamId }: { teamId?: numb
     );
   }
 
-  const quizAssignments = assignments.filter((a) => a.type === AssignmentType.QUIZ);
-  const otherAssignments = assignments.filter((a) => a.type !== AssignmentType.QUIZ);
+  const quizAssignments = filterType === AssignmentType.QUIZ 
+    ? filteredAssignments 
+    : filteredAssignments.filter((a) => a.type === AssignmentType.QUIZ);
+  const otherAssignments = filterType === AssignmentType.ESSAY 
+    ? filteredAssignments 
+    : filteredAssignments.filter((a) => a.type !== AssignmentType.QUIZ);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Online Quizzes</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          {filterType === AssignmentType.QUIZ ? 'Online Quizzes' : 'Bài tập'}
+        </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Xem và tham gia các bài kiểm tra của lớp học.
+          {filterType === AssignmentType.QUIZ 
+            ? 'Xem và tham gia các bài kiểm tra của lớp học.'
+            : 'Xem các bài tập được giao cho lớp học.'}
         </p>
       </div>
 
-      {/* Quiz section */}
-      {quizAssignments.length > 0 && (
+      {/* Quiz section - show only if filterType is QUIZ or not set */}
+      {(!filterType || filterType === AssignmentType.QUIZ) && quizAssignments.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
             Bài kiểm tra trắc nghiệm
@@ -262,8 +281,8 @@ export default function AssignmentsPage({ teamId: routeTeamId }: { teamId?: numb
         </section>
       )}
 
-      {/* Other assignments section */}
-      {otherAssignments.length > 0 && (
+      {/* Other assignments section - show only if filterType is not QUIZ (show for ESSAY or both) */}
+      {(!filterType || filterType === AssignmentType.ESSAY) && otherAssignments.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
             Bài tập khác

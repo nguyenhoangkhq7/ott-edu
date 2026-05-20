@@ -10,8 +10,8 @@ import TeamFilesTab from '@/modules/teams/TeamFilesTab';
 import TeamMembersTab from '@/modules/teams/TeamMembersTab';
 import LockTeamDialog from '@/modules/teams/LockTeamDialog';
 import EditTeamDialog from '@/modules/teams/EditTeamDialog';
+import AssignmentsTab from '@/modules/assignments/AssignmentsTab';
 import { teamApi, Team } from '@/services/api/teamApi';
-import AssignmentsPage from '@/modules/assignments/AssignmentsPage';
 
 export default function TeamDetailPage() {
   const params = useParams();
@@ -40,7 +40,7 @@ export default function TeamDetailPage() {
 
   return (
     <div className="flex h-[calc(100vh-60px)] w-full bg-white text-slate-800">
-      
+
       {/* ================= CỘT TRÁI: Sidebar của Nhóm ================= */}
       <div className="w-[260px] border-r border-slate-200 bg-[#f8f9fa] flex flex-col flex-shrink-0">
         <div className="p-3">
@@ -86,10 +86,10 @@ export default function TeamDetailPage() {
             </h3>
           </div>
           <ul className="space-y-1 px-3">
-            {/* Giao bài tập */}
+            {/* Bài tập Essay */}
             <li>
-              <button 
-                onClick={() => setActiveTab('quizzes')} 
+              <button
+                onClick={() => setActiveTab('assignments')}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group"
               >
                 <div className="w-6 h-6 rounded flex items-center justify-center bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
@@ -101,8 +101,8 @@ export default function TeamDetailPage() {
 
             {/* Trắc nghiệm online */}
             <li>
-              <button 
-                onClick={() => setActiveTab('quizzes')}
+              <button
+                onClick={() => setActiveTab('online-quizzes')}
                 className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group"
               >
                 <div className="w-6 h-6 rounded flex items-center justify-center bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
@@ -127,7 +127,7 @@ export default function TeamDetailPage() {
 
       {/* ================= CỘT PHẢI: Nội dung chính ================= */}
       <div className="flex-1 flex flex-col min-w-0 bg-white">
-        
+
         {/* Header & Tabs */}
         <div className="px-8 pt-8 border-b border-slate-200">
           <div className="flex items-center justify-between gap-4 mb-6">
@@ -178,14 +178,13 @@ export default function TeamDetailPage() {
 
           <div className="flex gap-8 text-sm font-medium text-slate-500">
             {['Posts', 'Files', 'Members'].map((tab) => (
-              <button 
+              <button
                 key={tab}
-                onClick={() => setActiveTab(tab.toLowerCase())}
-                className={`pb-3 border-b-2 transition-colors ${
-                  activeTab === tab.toLowerCase() 
-                    ? 'border-blue-600 text-blue-600' 
+                onClick={() => setActiveTab(tab.toLowerCase().replace(' ', '-'))}
+                className={`pb-3 border-b-2 transition-colors ${activeTab === tab.toLowerCase().replace(' ', '-')
+                    ? 'border-blue-600 text-blue-600'
                     : 'border-transparent hover:text-slate-900 hover:border-slate-300'
-                }`}
+                  }`}
               >
                 {tab}
               </button>
@@ -196,11 +195,12 @@ export default function TeamDetailPage() {
         {/* ================= GỌI COMPONENT TỪNG TAB Ở ĐÂY ================= */}
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] p-8">
           <div className="max-w-6xl mx-auto flex gap-8">
-            
+
             {activeTab === 'posts' && <TeamPostsTab teamId={teamId} />}
             {activeTab === 'files' && <TeamFilesTab teamId={teamId} />}
             {activeTab === 'members' && <TeamMembersTab teamId={teamId} teamName={team?.name} />}
-            {activeTab === 'quizzes' && <div className="w-full"><AssignmentsPage teamId={teamId} /></div>}
+            {activeTab === 'assignments' && <div className="w-full"><AssignmentsTab teamId={teamId} filterType="ESSAY" /></div>}
+            {activeTab === 'online-quizzes' && <div className="w-full"><AssignmentsTab teamId={teamId} filterType="QUIZ" /></div>}
 
           </div>
         </div>

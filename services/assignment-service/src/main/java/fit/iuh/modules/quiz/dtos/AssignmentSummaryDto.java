@@ -18,4 +18,10 @@ public class AssignmentSummaryDto {
     private AssignmentType type;
     private List<Long> teamIds;
     private LocalDateTime archivedAt;
+
+    // NEW: materialUrls - AWS S3 links for reference materials
+    private List<String> materialUrls;
+
+    // NEW: maxAttempts - quiz attempt limit
+    private Integer maxAttempts;
 }

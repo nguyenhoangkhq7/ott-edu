@@ -1,6 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { io, Socket } from "socket.io-client";
 import { getAccessToken } from "@/services/api/token-store";
 import { Sidebar } from "./Sidebar";
@@ -69,6 +74,66 @@ function resolveSocketServerUrl(): string | undefined {
     return parsed.origin;
   } catch {
     return configuredUrl.replace(/\/+$/, "");
+  }
+}
+
+type ConversationListSetter = React.Dispatch<React.SetStateAction<Conversation[]>>;
+type MessageListSetter = React.Dispatch<React.SetStateAction<Message[]>>;
+type ConversationIdSetter = React.Dispatch<React.SetStateAction<string | null>>;
+type LoadingSetter = React.Dispatch<React.SetStateAction<boolean>>;
+type ErrorSetter = React.Dispatch<React.SetStateAction<string | null>>;
+
+async function refreshConversationsAfterGroupChange({
+  currentUserId,
+  activeConversationId,
+  setConversations,
+  setActiveConversationId,
+  setMessages,
+}: {
+  currentUserId: string;
+  activeConversationId: string | null;
+  setConversations: ConversationListSetter;
+  setActiveConversationId: ConversationIdSetter;
+  setMessages: MessageListSetter;
+}): Promise<void> {
+  const refreshed = await fetchConversations(currentUserId);
+  setConversations(refreshed);
+
+  if (activeConversationId) {
+    const stillExists = refreshed.some((conv) => conv.id === activeConversationId);
+    if (!stillExists) {
+      setActiveConversationId(null);
+      setMessages([]);
+    }
+  }
+}
+
+async function loadConversationsList({
+  currentUserId,
+  setIsLoadingConversations,
+  setError,
+  setConversations,
+}: {
+  currentUserId: string;
+  setIsLoadingConversations: LoadingSetter;
+  setError: ErrorSetter;
+  setConversations: ConversationListSetter;
+}): Promise<void> {
+  if (!currentUserId) return;
+
+  setIsLoadingConversations(true);
+  setError(null);
+
+  try {
+    const data = await fetchConversations(currentUserId);
+    setConversations(data);
+  } catch (err) {
+    console.error("[ChatLayout] fetch conversations error:", err);
+    setError(
+      "Không thể tải danh sách cuộc trò chuyện. Kiểm tra lại chat-service.",
+    );
+  } finally {
+    setIsLoadingConversations(false);
   }
 }
 
@@ -156,12 +221,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   });
 
   // Provide a compatibility wrapper used elsewhere for private calls
+  /*
   const startVideoCall = useCallback(
     async ({ toUserId, conversationId }: { toUserId: string; conversationId: string }) => {
       await startGroupCall(conversationId);
     },
     [startGroupCall],
   );
+  */
 
   // Derive the first remote stream (used by some components)
   const remoteStream = React.useMemo(() => {
@@ -169,7 +236,6 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     return it?.value || null;
   }, [remoteStreams]);
 
-  // Giữ ref luôn cập nhật để xài trong socket handler (tránh dependency bắt reconnect socket)
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
@@ -247,7 +313,19 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       // Cập nhật lastMessage ở sidebar và đưa lên đầu danh sách
       setConversations((prev) => {
         const index = prev.findIndex((c) => c.id === incoming.conversationId);
-        if (index === -1) return prev;
+        
+        // Nếu conversation chưa tồn tại (tin nhắn từ conversation mới), 
+        // reload danh sách để hiển thị conversation mới
+        if (index === -1) {
+          // Gọi loadConversations để tải lại danh sách conversations
+          void loadConversationsList({
+            currentUserId,
+            setIsLoadingConversations,
+            setError,
+            setConversations,
+          });
+          return prev;
+        }
 
         const shouldIncrement = !isActive && !isSelf;
         const updatedConv = {
@@ -362,11 +440,95 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     };
 
     nextSocket.on("newMessage", handleNewMessage);
-    nextSocket.on("newMessage", handleNewMessage);
+    // XÓA DÒNG LẶP NEW MESSAGE CỦA HẬU Ở ĐÂY ĐỂ TRÁNH NHẬN 2 LẦN TIN NHẮN
     nextSocket.on("messageRevoked", handleMessageRevoked);
     nextSocket.on("userStatusChanged", handleUserStatusChanged);
     nextSocket.on("userTyping", handleUserTyping);
     nextSocket.on("userStoppedTyping", handleUserStoppedTyping);
+    
+    // Group & Friend Realtime Listeners
+    nextSocket.on("friend_status_updated", () => {
+      void refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId: activeConversationIdRef.current,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
+    });
+    nextSocket.on("new_group_created", () => {
+      void refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId: activeConversationIdRef.current,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
+      void loadConversationsList({
+        currentUserId,
+        setIsLoadingConversations,
+        setError,
+        setConversations,
+      });
+    });
+    nextSocket.on("added_to_group", () => {
+      void refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId: activeConversationIdRef.current,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
+      void loadConversationsList({
+        currentUserId,
+        setIsLoadingConversations,
+        setError,
+        setConversations,
+      });
+    });
+
+    // ✨ CÁC LỖ TAI REALTIME MỚI BỔ SUNG ✨
+    nextSocket.on("friend_request_accepted", () => {
+      void loadConversationsList({
+        currentUserId,
+        setIsLoadingConversations,
+        setError,
+        setConversations,
+      });
+      void refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId: activeConversationIdRef.current,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
+    });
+    
+    nextSocket.on("group_updated", () => {
+      void loadConversationsList({
+        currentUserId,
+        setIsLoadingConversations,
+        setError,
+        setConversations,
+      });
+      void refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId: activeConversationIdRef.current,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
+    });
+    
+    nextSocket.on("friend_request_rejected", () => {
+      void refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId: activeConversationIdRef.current,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
+    });
 
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
@@ -375,6 +537,16 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       nextSocket.off("userStatusChanged", handleUserStatusChanged);
       nextSocket.off("userTyping", handleUserTyping);
       nextSocket.off("userStoppedTyping", handleUserStoppedTyping);
+      
+      nextSocket.off("friend_status_updated");
+      nextSocket.off("new_group_created");
+      nextSocket.off("added_to_group");
+      
+      // ✨ DỌN DẸP SẠCH SẼ 3 LỖ TAI MỚI ✨
+      nextSocket.off("friend_request_accepted");
+      nextSocket.off("group_updated");
+      nextSocket.off("friend_request_rejected");
+
       nextSocket.disconnect();
       socketRef.current = null;
       setSocket(null);
@@ -420,49 +592,73 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setMessages([]);
   }, []);
 
-  const refreshAfterGroupChange = useCallback(async () => {
-    const refreshed = await fetchConversations(currentUserId);
-    setConversations(refreshed);
-
-    if (activeConversationId) {
-      const stillExists = refreshed.some(
-        (conv) => conv.id === activeConversationId,
-      );
-      if (!stillExists) {
-        setActiveConversationId(null);
-        setMessages([]);
-      }
-    }
-  }, [activeConversationId, currentUserId]);
-
   const handleRemoveGroupMember = useCallback(
     async (memberId: string) => {
       if (!activeConversationId) return;
       await removeGroupMember(activeConversationId, memberId);
-      await refreshAfterGroupChange();
+      await refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
       refreshGroupInfoSidebar();
       setShowGroupManageModal(false);
     },
-    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+    [
+      activeConversationId,
+      currentUserId,
+      refreshGroupInfoSidebar,
+      setActiveConversationId,
+      setConversations,
+      setMessages,
+    ],
   );
 
   const handleDissolveGroup = useCallback(async () => {
     if (!activeConversationId) return;
     await dissolveGroup(activeConversationId);
-    await refreshAfterGroupChange();
+    await refreshConversationsAfterGroupChange({
+      currentUserId,
+      activeConversationId,
+      setConversations,
+      setActiveConversationId,
+      setMessages,
+    });
     refreshGroupInfoSidebar();
     setShowGroupManageModal(false);
-  }, [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar]);
+  }, [
+    activeConversationId,
+    currentUserId,
+    refreshGroupInfoSidebar,
+    setActiveConversationId,
+    setConversations,
+    setMessages,
+  ]);
 
   const handleUpdateJoinPolicy = useCallback(
     async (joinPolicy: "open" | "approval") => {
       if (!activeConversationId) return;
       await updateGroupJoinPolicy(activeConversationId, joinPolicy);
-      await refreshAfterGroupChange();
+      await refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
       refreshGroupInfoSidebar();
       setShowGroupManageModal(false);
     },
-    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+    [
+      activeConversationId,
+      currentUserId,
+      refreshGroupInfoSidebar,
+      setActiveConversationId,
+      setConversations,
+      setMessages,
+    ],
   );
 
   const handleInviteGroupMember = useCallback(
@@ -471,53 +667,118 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       const result = await requestOrAddGroupMember(activeConversationId, {
         email,
       });
-      await refreshAfterGroupChange();
+      await refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
       refreshGroupInfoSidebar();
       return result.mode;
     },
-    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+    [
+      activeConversationId,
+      currentUserId,
+      refreshGroupInfoSidebar,
+      setActiveConversationId,
+      setConversations,
+      setMessages,
+    ],
   );
 
   const handleApproveGroupMemberRequest = useCallback(
     async (requestId: string) => {
       if (!activeConversationId) return;
       await approveGroupMemberRequest(activeConversationId, requestId);
-      await refreshAfterGroupChange();
+      await refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
       refreshGroupInfoSidebar();
     },
-    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+    [
+      activeConversationId,
+      currentUserId,
+      refreshGroupInfoSidebar,
+      setActiveConversationId,
+      setConversations,
+      setMessages,
+    ],
   );
 
   const handleRejectGroupMemberRequest = useCallback(
     async (requestId: string) => {
       if (!activeConversationId) return;
       await rejectGroupMemberRequest(activeConversationId, requestId);
-      await refreshAfterGroupChange();
+      await refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
       refreshGroupInfoSidebar();
     },
-    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+    [
+      activeConversationId,
+      currentUserId,
+      refreshGroupInfoSidebar,
+      setActiveConversationId,
+      setConversations,
+      setMessages,
+    ],
   );
 
   const handleSetGroupDeputy = useCallback(
     async (deputyId: string | null) => {
       if (!activeConversationId) return;
       await setGroupDeputy(activeConversationId, deputyId);
-      await refreshAfterGroupChange();
+      await refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
       refreshGroupInfoSidebar();
       setShowGroupManageModal(false);
     },
-    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+    [
+      activeConversationId,
+      currentUserId,
+      refreshGroupInfoSidebar,
+      setActiveConversationId,
+      setConversations,
+      setMessages,
+    ],
   );
 
   const handleLeaveGroup = useCallback(
     async (newOwnerId?: string) => {
       if (!activeConversationId) return;
       await leaveGroup(activeConversationId, newOwnerId);
-      await refreshAfterGroupChange();
+      await refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
       refreshGroupInfoSidebar();
       setShowGroupManageModal(false);
     },
-    [activeConversationId, refreshAfterGroupChange, refreshGroupInfoSidebar],
+    [
+      activeConversationId,
+      currentUserId,
+      refreshGroupInfoSidebar,
+      setActiveConversationId,
+      setConversations,
+      setMessages,
+    ],
   );
 
   const handleOpenGroupManage = useCallback(async () => {
@@ -574,27 +835,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     }
   }, [activeConversationId, conversations]);
 
-  // ── Fetch Conversations ──────────────────────────────────────────────────
-  const loadConversations = useCallback(async () => {
-    if (!currentUserId) return;
-    setIsLoadingConversations(true);
-    setError(null);
-    try {
-      const data = await fetchConversations(currentUserId);
-      setConversations(data);
-    } catch (err) {
-      console.error("[ChatLayout] fetch conversations error:", err);
-      setError(
-        "Không thể tải danh sách cuộc trò chuyện. Kiểm tra lại chat-service.",
-      );
-    } finally {
-      setIsLoadingConversations(false);
-    }
-  }, [currentUserId]);
-
   useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+    void loadConversationsList({
+      currentUserId,
+      setIsLoadingConversations,
+      setError,
+      setConversations,
+    });
+  }, [currentUserId]);
 
   // ── Fetch Messages khi đổi cuộc thoại ───────────────────────────────────
   useEffect(() => {
@@ -830,12 +1078,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     [conversations, activeConversationId, draftReceiver, currentUser],
   );
 
+  /*
   const activePrivatePeer =
     activeConversation?.type === "private"
       ? activeConversation.participants.find(
           (participant) => participant.id !== currentUserId,
         ) || null
       : null;
+  */
 
   const isCallableConversation =
     activeConversation !== null && !activeConversation.id.startsWith("draft_");
@@ -843,12 +1093,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const canStartVideoCall = isCallableConversation && callStatus === "idle";
 
   const handleStartVideoCall = useCallback(async () => {
-    if (!activeConversation || activeConversation.id.startsWith("draft_")) {
-      return;
-    }
+  if (!activeConversation || activeConversation.id.startsWith("draft_")) {
+    return; 
+  }
 
-    await startGroupCall(activeConversation.id);
-  }, [activeConversation, startGroupCall]);
+  await startGroupCall(activeConversation.id);
+}, [activeConversation, startGroupCall]);
 
   const incomingCaller = React.useMemo(() => {
     if (!incomingCall) {
@@ -918,6 +1168,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         onStartPrivateChat={handleStartPrivateChat}
         isLoading={isLoadingConversations}
         error={error}
+        socket={socket}
       />
       <ChatWindow
         conversation={activeConversation}

@@ -16,6 +16,11 @@ import java.util.List;
  * - Validates all required fields
  * - Ensures due date is in the future
  * - Validates score constraints
+ * 
+ * New Fields:
+ * - materialUrls: List<String> - AWS S3 URLs for reference materials (ESSAY
+ * only)
+ * - maxAttempts: Integer - limit attempts for QUIZ (null = unlimited)
  */
 @Data
 public class CreateAssignmentRequest {
@@ -42,6 +47,17 @@ public class CreateAssignmentRequest {
     @NotEmpty(message = "At least one team ID is required")
     @Size(min = 1, message = "At least one team must be assigned")
     private List<Long> teamIds;
+
+    // NEW: materialUrls - AWS S3 URLs for teacher materials (ESSAY assignments)
+    private List<String> materialUrls;
+
+    // NEW: maxAttempts - limit attempts for QUIZ (null = unlimited)
+    @Min(value = 1, message = "Max attempts must be at least 1")
+    @Max(value = 100, message = "Max attempts cannot exceed 100")
+    private Integer maxAttempts;
+
+    // NEW: questions - for QUIZ assignments (optional, can be created separately)
+    private List<QuestionRequest> questions;
 
     // Note: creatorId is NOT accepted here - it will be extracted from
     // SecurityContext
