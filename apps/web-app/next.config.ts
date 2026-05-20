@@ -51,11 +51,6 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        // Khi thấy request bắt đầu bằng /api/v1 (Assignment Service)
-        source: '/api/v1/:path*',
-        destination: 'http://gateway:80/api/v1/:path*',
-      },
-      {
         // Khi thấy request bắt đầu bằng /api/core
         source: '/api/core/:path*',
         // Đẩy sang container gateway, giữ nguyên đường dẫn /api/core/...

@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, Modal, Pressable, Text } from 'react-native';
-import { io, Socket } from 'socket.io-client';
-import { Sidebar } from './Sidebar';
-import { ChatWindow } from './ChatWindow';
-import { ForwardMessageModal } from './ForwardMessageModal';
-import { ChatUserProfileModal } from './ChatUserProfileModal';
-import { ChatGroupManageModal } from './ChatGroupManageModal';
-import { GroupCallScreen } from './GroupCallScreen';
-import { ChatMode, Conversation, Message, User } from '../types';
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { View, StyleSheet, DeviceEventEmitter, Modal, Pressable, Text } from "react-native";
+import { io, Socket } from "socket.io-client";
+import { Sidebar } from "./Sidebar";
+import { ChatWindow } from "./ChatWindow";
+import { ForwardMessageModal } from "./ForwardMessageModal";
+import { ChatUserProfileModal } from "./ChatUserProfileModal";
+import { ChatGroupManageModal } from "./ChatGroupManageModal";
+import { GroupCallScreen } from "./GroupCallScreen";
+import { ChatMode, Conversation, Message, User } from "../types";
 import {
   fetchConversations,
   fetchMessages,
@@ -17,10 +17,10 @@ import {
   removeGroupMember,
   dissolveGroup,
   leaveGroup,
-} from '../chatApi';
-import { Attachment } from '../types';
+} from "../chatApi";
+import { Attachment } from "../types";
 
-import { API_URL, getAccessToken } from '../../api';
+import { API_URL, getAccessToken } from "../../api";
 
 const CHAT_SERVICE_URL = API_URL;
 
@@ -30,19 +30,22 @@ interface ChatLayoutProps {
 
 export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   // Mobile specific state to track which view is active
-  const [activeView, setActiveView] = useState<'sidebar' | 'chat'>('sidebar');
+  const [activeView, setActiveView] = useState<"sidebar" | "chat">("sidebar");
 
-  const [currentMode, setCurrentMode] = useState<ChatMode>('private');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [currentMode, setCurrentMode] = useState<ChatMode>("private");
+  const [searchQuery, setSearchQuery] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<
+    string | null
+  >(null);
   const [draftReceiver, setDraftReceiver] = useState<User | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [forwardMessageTarget, setForwardMessageTarget] = useState<Message | null>(null);
+  const [forwardMessageTarget, setForwardMessageTarget] =
+    useState<Message | null>(null);
   const [profileTarget, setProfileTarget] = useState<User | null>(null);
   const [showGroupManageModal, setShowGroupManageModal] = useState(false);
   const [groupOwnerTarget, setGroupOwnerTarget] = useState<User | null>(null);
@@ -58,36 +61,32 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   } | null>(null);
 
   // chatMongoId: MongoDB ObjectId của user hiện tại trong chat-service
-  // (khác với currentUserId dạng số từ core-service)
   const [chatMongoId, setChatMongoId] = useState<string>(currentUserId);
 
   // currentUser được tìm từ participants dùng chatMongoId
   const currentUser: User | null = React.useMemo(() => {
     if (!chatMongoId) return null;
-    
-    // Ưu tiên tìm trong conversation hiện tại nếu có
-    const activeConv = conversations.find(c => c.id === activeConversationId);
+
+    const activeConv = conversations.find((c) => c.id === activeConversationId);
     if (activeConv) {
-      const found = activeConv.participants.find(p => p.id === chatMongoId);
+      const found = activeConv.participants.find((p) => p.id === chatMongoId);
       if (found) return found;
     }
 
-    // Tìm trong tất cả conversations
     for (const conv of conversations) {
-      const found = conv.participants.find(p => p.id === chatMongoId);
+      const found = conv.participants.find((p) => p.id === chatMongoId);
       if (found) return found;
     }
 
-    // Fallback object
     return {
       id: chatMongoId,
-      name: 'Bạn',
+      name: "Bạn",
       avatarUrl: `https://i.pravatar.cc/150?u=${chatMongoId}`,
       isOnline: true,
     };
   }, [conversations, chatMongoId, activeConversationId]);
 
-  const [typingUsers, setTypingUsers] = useState<Record<string, Record<string, string>>>({}); // conversationId -> { userId -> userName }
+  const [typingUsers, setTypingUsers] = useState<Record<string, Record<string, string>>>({});
 
   const socketRef = useRef<Socket | null>(null);
   const activeConversationIdRef = useRef<string | null>(null);
@@ -103,6 +102,42 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  const loadConversations = useCallback(async () => {
+    if (!currentUserId) return;
+
+    setIsLoadingConversations(true);
+    setError(null);
+
+    try {
+      const { chatApiClient } = await import("../axiosClient");
+      
+      // 🚀 TẠO BIẾN TẠM ĐỂ HỨNG ID MONGODB CHUẨN XỊN
+      let realMongoId = currentUserId; 
+
+      try {
+        const { data: meRes } = await chatApiClient.get<{
+          data: { _id: string };
+        }>("/me");
+
+        if (meRes?.data?._id) {
+          setChatMongoId(meRes.data._id);
+          realMongoId = meRes.data._id; // 🚀 Gán ID 24 ký tự vào đây
+        }
+      } catch {
+        // Ignore fallback
+      }
+
+      // 🚀 FIX LỖI TÊN: Truyền realMongoId vào đây thay vì currentUserId (Core ID)
+      const data = await fetchConversations(realMongoId);
+      setConversations(data);
+    } catch (err) {
+      console.error("[ChatLayout] fetch conversations error:", err);
+      setError("Không thể tải danh sách. Kiểm tra lại kết nối.");
+    } finally {
+      setIsLoadingConversations(false);
+    }
+  }, [currentUserId]);
 
   useEffect(() => {
     isCallActiveRef.current = isGroupCallActive;
@@ -129,7 +164,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const setupSocket = async () => {
       const token = await getAccessToken();
       socket = io(CHAT_SERVICE_URL, {
-        path: '/socket.io/',
+        path: "/socket.io/",
         extraHeaders: {
           Authorization: `Bearer ${token}`,
         },
@@ -139,10 +174,11 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
       socketRef.current = socket;
 
-      socket.on('newMessage', (rawMessage: unknown) => {
+      socket.on("newMessage", (rawMessage: unknown) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const incoming = mapApiMessageToMessage(rawMessage as any);
-        const isActive = activeConversationIdRef.current === incoming.conversationId;
+        const isActive =
+          activeConversationIdRef.current === incoming.conversationId;
         const isSelf = incoming.senderId === chatMongoId;
 
         if (isActive) {
@@ -160,7 +196,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           const updatedConv = {
             ...prev[index],
             lastMessage: incoming,
-            unreadCount: shouldIncrement ? prev[index].unreadCount + 1 : prev[index].unreadCount,
+            unreadCount: shouldIncrement
+              ? prev[index].unreadCount + 1
+              : prev[index].unreadCount,
           };
 
           const otherConvs = prev.filter((_, i) => i !== index);
@@ -168,6 +206,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         });
       });
 
+      // --- KẾT HỢP: LOGIC TYPING CỦA TEAM ---
       const handleTypingStart = (data: { conversationId: string; userId: string; userName: string }) => {
         if (data.userId === chatMongoId) return;
         setTypingUsers((prev) => ({
@@ -201,6 +240,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       socket.on('user_stop_typing', handleTypingStop);
       socket.on('user-stop-typing', handleTypingStop);
 
+      // --- KẾT HỢP: THU HỒI TIN NHẮN ---
       socket.on('messageRevoked', (data: { messageId: string; revokeType?: string; isRevoked?: boolean }) => {
         setConversations((prev) =>
           prev.map((c) => {
@@ -210,7 +250,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
                   ...c,
                   lastMessage: {
                     ...c.lastMessage,
-                    revokedFor: [...(c.lastMessage.revokedFor || []), '__self__'],
+                    revokedFor: [
+                      ...(c.lastMessage.revokedFor || []),
+                      "__self__",
+                    ],
                   },
                 };
               }
@@ -224,6 +267,27 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         );
       });
 
+      // --- KẾT HỢP: GROUP VÀ FRIEND CỦA ÔNG ---
+      const handleGroupUpdate = () => {
+        console.log("👥 [Trạm Chính] Phát hiện thay đổi nhóm, tải lại danh sách...");
+        loadConversations();
+      };
+
+      socket.on("new_group_created", handleGroupUpdate);
+      socket.on("added_to_group", handleGroupUpdate);
+      socket.on("group_updated", handleGroupUpdate);
+
+      const handleFriendUpdate = () => {
+        console.log("📣 [Trạm Chính] Nhận được tín hiệu kết bạn! Đang phát loa...");
+        DeviceEventEmitter.emit('SYNC_FRIENDS_DATA'); 
+        loadConversations();
+      };
+
+      socket.on("friend_status_updated", handleFriendUpdate);
+      socket.on("friend_request_rejected", handleFriendUpdate);
+      socket.on("friend_request_accepted", handleFriendUpdate);
+
+      // --- KẾT HỢP: CUỘC GỌI CỦA TEAM ---
       socket.on('incomingGroupMediaCall', (payload: { conversationId: string; initiatorUserId: string }) => {
         if (!payload?.conversationId || payload.initiatorUserId === chatMongoId) return;
         if (isCallActiveRef.current || incomingCallRequestRef.current) return;
@@ -263,8 +327,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
     return () => {
       if (socket) {
-        socket.off('newMessage');
-        socket.off('messageRevoked');
+        socket.off("newMessage");
+        socket.off("messageRevoked");
+        socket.off("new_group_created");
+        socket.off("added_to_group");
+        socket.off("group_updated");
+        socket.off("friend_status_updated");
+        socket.off("friend_request_rejected");
+        socket.off("friend_request_accepted");
         socket.off('incomingGroupMediaCall');
         socket.off('callEnded');
         socket.off('videoCallEnded');
@@ -273,7 +343,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         socket.disconnect();
       }
     };
-  }, [chatMongoId]);
+  }, [chatMongoId, loadConversations]);
 
   const handleTyping = useCallback((isTyping: boolean) => {
     if (!socketRef.current || !activeConversationIdRef.current || !currentUser) return;
@@ -291,40 +361,6 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     }
   }, [currentUser]);
 
-  const loadConversations = useCallback(async () => {
-    if (!currentUserId) return;
-    setIsLoadingConversations(true);
-    setError(null);
-    try {
-      // Fetch /me từ chat-service để lấy MongoDB ObjectId thực của user
-      const { chatApiClient } = await import('../axiosClient');
-      try {
-        const { data: meRes } = await chatApiClient.get<{ data: { _id: string } }>('me');
-        if (meRes?.data?._id) {
-          setChatMongoId(meRes.data._id);
-        }
-      } catch {
-        // Ignore - sẽ dùng fallback từ conversations
-      }
-
-      const data = await fetchConversations(currentUserId);
-      setConversations(data);
-
-      // Fallback: nếu chưa có MongoDB ID, tìm trong participants
-      // (những user không phải currentUserId đều là người khác - user của ta sẽ lộ diện ở conversations 2 chiều)
-      if (data.length > 0) {
-        // Tìm ID xuất hiện trong mọi conversation của mình (chính là mình)
-        // Cách đơn giản: chat /me đã fetch ở trên, nếu fail thì để nguyên chatMongoId
-      }
-    } catch (err) {
-      console.error('[ChatLayout] fetch conversations error:', err);
-      setError('Không thể tải danh sách. Kiểm tra lại kết nối.');
-    } finally {
-      setIsLoadingConversations(false);
-    }
-  }, [currentUserId]);
-
-
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
@@ -341,7 +377,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         const data = await fetchMessages(activeConversationId);
         setMessages(data);
       } catch (err) {
-        console.error('[ChatLayout] fetch messages error:', err);
+        console.error("[ChatLayout] fetch messages error:", err);
       } finally {
         setIsLoadingMessages(false);
       }
@@ -354,22 +390,22 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setDraftReceiver(null);
     setActiveConversationId(id);
     setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
+      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
     );
-    setActiveView('chat'); // Switch view for mobile
+    setActiveView("chat"); // Switch view for mobile
   }, []);
 
   const handleStartPrivateChat = useCallback((user: User) => {
-    setCurrentMode('private');
+    setCurrentMode("private");
     setDraftReceiver(user);
     setActiveConversationId(null);
     setMessages([]);
-    setActiveView('chat'); // Switch view for mobile
+    setActiveView("chat"); // Switch view for mobile
   }, []);
 
   const handleBackToSidebar = useCallback(() => {
-    setActiveConversationId(null); // Optional: clear active to stop fetching/socket mark read if going back
-    setActiveView('sidebar');
+    setActiveConversationId(null);
+    setActiveView("sidebar");
   }, []);
 
   const handleOpenProfile = useCallback((user: User) => {
@@ -377,10 +413,11 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   }, []);
 
   const handleOpenGroupManage = useCallback(async () => {
-    const conversation = conversations.find((item) => item.id === activeConversationId);
-    if (!conversation || conversation.type !== 'class') return;
+    const conversation = conversations.find(
+      (item) => item.id === activeConversationId,
+    );
+    if (!conversation || conversation.type !== "class") return;
 
-    // Fetch fresh role data from server
     try {
       const roleData = await fetchConversationRole(conversation.id);
       setConversations((prev) =>
@@ -392,78 +429,92 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
                 myRole: roleData.myRole,
                 canManageGroup: roleData.canManageGroup,
               }
-            : c
-        )
+            : c,
+        ),
       );
-      
+
       const owner = roleData.ownerId
-        ? conversation.participants.find((p) => p.id === roleData.ownerId) || null
+        ? conversation.participants.find((p) => p.id === roleData.ownerId) ||
+          null
         : null;
       setGroupOwnerTarget(owner);
     } catch (err) {
-      console.error('[ChatLayout] fetch role error:', err);
-      // Fallback to local data
+      console.error("[ChatLayout] fetch role error:", err);
       setGroupOwnerTarget(
         conversation.ownerId
-          ? conversation.participants.find((participant) => participant.id === conversation.ownerId) || null
-          : null
+          ? conversation.participants.find(
+              (participant) => participant.id === conversation.ownerId,
+            ) || null
+          : null,
       );
     }
 
     setShowGroupManageModal(true);
   }, [activeConversationId, conversations]);
 
-  const handleRemoveGroupMember = useCallback(async (memberId: string) => {
-    if (!activeConversationId) return;
-    try {
-      await removeGroupMember(activeConversationId, memberId);
-      setConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.id === activeConversationId
-            ? {
-                ...conversation,
-                participants: conversation.participants.filter((participant) => participant.id !== memberId),
-              }
-            : conversation
-        )
-      );
-    } catch (err) {
-      console.error('[ChatLayout] remove member error:', err);
-      setError('Không thể xóa thành viên. Vui lòng thử lại.');
-    }
-  }, [activeConversationId]);
+  const handleRemoveGroupMember = useCallback(
+    async (memberId: string) => {
+      if (!activeConversationId) return;
+      try {
+        await removeGroupMember(activeConversationId, memberId);
+        setConversations((prev) =>
+          prev.map((conversation) =>
+            conversation.id === activeConversationId
+              ? {
+                  ...conversation,
+                  participants: conversation.participants.filter(
+                    (participant) => participant.id !== memberId,
+                  ),
+                }
+              : conversation,
+          ),
+        );
+      } catch (err) {
+        console.error("[ChatLayout] remove member error:", err);
+        setError("Không thể xóa thành viên. Vui lòng thử lại.");
+      }
+    },
+    [activeConversationId],
+  );
 
   const handleDissolveGroup = useCallback(async () => {
     if (!activeConversationId) return;
     try {
       await dissolveGroup(activeConversationId);
-      setConversations((prev) => prev.filter((conversation) => conversation.id !== activeConversationId));
+      setConversations((prev) =>
+        prev.filter((conversation) => conversation.id !== activeConversationId),
+      );
       setActiveConversationId(null);
-      setActiveView('sidebar');
+      setActiveView("sidebar");
     } catch (err) {
-      console.error('[ChatLayout] dissolve group error:', err);
-      setError('Không thể giải tán nhóm.');
+      console.error("[ChatLayout] dissolve group error:", err);
+      setError("Không thể giải tán nhóm.");
     }
   }, [activeConversationId]);
 
-  const handleLeaveGroup = useCallback(async (newOwnerId?: string) => {
-    if (!activeConversationId || !currentUser) return;
+  const handleLeaveGroup = useCallback(
+    async (newOwnerId?: string) => {
+      if (!activeConversationId || !currentUser) return;
 
-    try {
-      await leaveGroup(activeConversationId, newOwnerId);
-      setConversations((prev) => prev.filter((c) => c.id !== activeConversationId));
-      setActiveConversationId(null);
-      setActiveView('sidebar');
-    } catch (err) {
-      console.error('[ChatLayout] leave group error:', err);
-      setError('Không thể rời nhóm.');
-    }
-  }, [activeConversationId, currentUser]);
+      try {
+        await leaveGroup(activeConversationId, newOwnerId);
+        setConversations((prev) =>
+          prev.filter((c) => c.id !== activeConversationId),
+        );
+        setActiveConversationId(null);
+        setActiveView("sidebar");
+      } catch (err) {
+        console.error("[ChatLayout] leave group error:", err);
+        setError("Không thể rời nhóm.");
+      }
+    },
+    [activeConversationId, currentUser],
+  );
 
   const handleSendMessage = async (
     text: string,
     attachments?: Attachment[],
-    replyToId?: string
+    replyToId?: string,
   ) => {
     if (!currentUserId || isSending) return;
 
@@ -471,6 +522,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     const selfChatId = chatMongoId || currentUserId;
     const targetReceiver =
       draftReceiver ||
+      // 🚀 VÁ LỖI TÌM SAI NGƯỜI NHẬN: Dùng selfChatId để loại trừ chính mình ra
       activeConversation?.participants.find((p) => p.id !== selfChatId) ||
       null;
 
@@ -478,17 +530,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     if (!activeConversationId && !targetReceiver) return;
 
     const optimisticConversationId =
-      activeConversationId || `draft_${targetReceiver?.id || 'unknown'}`;
+      activeConversationId || `draft_${targetReceiver?.id || "unknown"}`;
 
     const optimisticMessage: Message = {
       id: `optimistic_${Date.now()}`,
       conversationId: optimisticConversationId,
+      // 🚀 VÁ LỖI SENDER ID: Dùng selfChatId để khớp với Backend
       senderId: selfChatId,
       content: text,
       createdAt: new Date().toISOString(),
-      status: 'sent',
+      status: "sent",
       attachments: attachments || [],
-      replyTo: undefined, // simplify logic for now
+      replyTo: undefined,
       isRevoked: false,
       revokedFor: [],
       reactions: [],
@@ -498,10 +551,23 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setIsSending(true);
     try {
       let savedMessage: Message;
-      if (activeConversation?.type === 'class') {
-        savedMessage = await sendMessage(text, undefined, activeConversation.id, attachments, replyToId);
+      if (activeConversation?.type === "class") {
+        savedMessage = await sendMessage(
+          text,
+          undefined,
+          activeConversation.id,
+          attachments,
+          replyToId,
+        );
       } else {
-        savedMessage = await sendMessage(text, targetReceiver?.id, undefined, attachments, replyToId);
+        savedMessage = await sendMessage(
+          text,
+          targetReceiver?.id,
+          // 🚀 VÁ LỖI MẤT TIN NHẮN: Truyền ID phòng chat vào đây
+          activeConversation?.id, 
+          attachments,
+          replyToId,
+        );
       }
 
       setMessages((prev) => {
@@ -509,7 +575,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         if (alreadyHasSocketMess) {
           return prev.filter((m) => m.id !== optimisticMessage.id);
         } else {
-          return prev.map((m) => (m.id === optimisticMessage.id ? savedMessage : m));
+          return prev.map((m) =>
+            m.id === optimisticMessage.id ? savedMessage : m,
+          );
         }
       });
 
@@ -517,12 +585,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         setConversations((prev) => {
           const index = prev.findIndex((c) => c.id === activeConversationId);
           if (index === -1) return prev;
-          
+
           const updatedConv = {
             ...prev[index],
             lastMessage: savedMessage,
           };
-          
+
           const otherConvs = prev.filter((_, i) => i !== index);
           return [updatedConv, ...otherConvs];
         });
@@ -541,7 +609,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         }
       }
     } catch (err) {
-      console.error('[ChatLayout] send error:', err);
+      console.error("[ChatLayout] send error:", err);
       setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id));
     } finally {
       setIsSending(false);
@@ -554,13 +622,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       ? {
           id: `draft_${draftReceiver.id}`,
           name: draftReceiver.name,
-          type: 'private' as const,
+          type: "private" as const,
           participants: [currentUser as User, draftReceiver],
           lastMessage: null,
           unreadCount: 0,
           avatarUrl: draftReceiver.avatarUrl,
         }
       : null);
+
   const privatePeer = React.useMemo(() => {
     if (!activeConversation || activeConversation.type !== 'private') return null;
     const selfId = chatMongoId || currentUser?.id || currentUserId;
@@ -575,6 +644,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       null
     );
   }, [activeConversation, chatMongoId, currentUser?.id, currentUserId]);
+
   const isPrivateConversation = activeConversation?.type === 'private';
   const callConversation = conversations.find((c) => c.id === callConversationId) || activeConversation;
   const callConversationType = callConversation?.type ?? 'class';
@@ -586,19 +656,21 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const suggestedUsers = React.useMemo(() => {
     const privatePeerIds = new Set<string>();
     conversations
-      .filter((conv) => conv.type === 'private')
+      .filter((conv) => conv.type === "private")
       .forEach((conv) => {
         conv.participants.forEach((p) => {
-          if (p.id !== currentUserId) privatePeerIds.add(p.id);
+          // 🚀 LOẠI TRỪ BẢN THÂN DÙNG chatMongoId
+          if (p.id !== chatMongoId) privatePeerIds.add(p.id);
         });
       });
 
     const map = new Map<string, User>();
     conversations
-      .filter((conv) => conv.type === 'class')
+      .filter((conv) => conv.type === "class")
       .forEach((conv) => {
         conv.participants.forEach((p) => {
-          if (p.id === currentUserId) return;
+          // 🚀 LOẠI TRỪ BẢN THÂN DÙNG chatMongoId
+          if (p.id === chatMongoId) return; 
           if (privatePeerIds.has(p.id)) return;
           map.set(p.id, p);
         });
@@ -610,10 +682,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
     return users
       .filter((u) =>
-        [u.name, u.email, u.code].filter(Boolean).join(' ').toLowerCase().includes(query)
+        [u.name, u.email, u.code]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query),
       )
       .slice(0, 20);
-  }, [conversations, currentUserId, searchQuery]);
+  }, [conversations, chatMongoId, searchQuery]);
 
   const handleStartVideoCall = useCallback(() => {
     if (!activeConversation || activeConversation.id.startsWith('draft_')) return;
@@ -680,7 +756,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
   return (
     <View style={styles.container}>
-      {activeView === 'sidebar' ? (
+      {activeView === "sidebar" ? (
         <Sidebar
           currentMode={currentMode}
           onModeChange={setCurrentMode}
@@ -723,6 +799,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           isCallActive={isGroupCallActive}
         />
       </Modal>
+      )}
 
       <Modal
         visible={isGroupCallActive}
@@ -806,7 +883,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   incomingOverlay: {
     flex: 1,
