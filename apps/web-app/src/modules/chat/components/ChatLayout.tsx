@@ -179,17 +179,17 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     () =>
       conversations.length > 0
         ? conversations[0].participants.find((p) => p.id === currentUserId) || {
-            id: currentUserId,
-            name: "Bạn",
-            avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
-            isOnline: true,
-          }
+          id: currentUserId,
+          name: "Bạn",
+          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+          isOnline: true,
+        }
         : {
-            id: currentUserId,
-            name: "Bạn",
-            avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
-            isOnline: true,
-          },
+          id: currentUserId,
+          name: "Bạn",
+          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+          isOnline: true,
+        },
     [conversations, currentUserId],
   );
 
@@ -313,7 +313,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       // Cập nhật lastMessage ở sidebar và đưa lên đầu danh sách
       setConversations((prev) => {
         const index = prev.findIndex((c) => c.id === incoming.conversationId);
-        
+
         // Nếu conversation chưa tồn tại (tin nhắn từ conversation mới), 
         // reload danh sách để hiển thị conversation mới
         if (index === -1) {
@@ -445,7 +445,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     nextSocket.on("userStatusChanged", handleUserStatusChanged);
     nextSocket.on("userTyping", handleUserTyping);
     nextSocket.on("userStoppedTyping", handleUserStoppedTyping);
-    
+
     // Group & Friend Realtime Listeners
     nextSocket.on("friend_status_updated", () => {
       void refreshConversationsAfterGroupChange({
@@ -503,7 +503,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         setMessages,
       });
     });
-    
+
     nextSocket.on("group_updated", () => {
       void loadConversationsList({
         currentUserId,
@@ -519,7 +519,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         setMessages,
       });
     });
-    
+
     nextSocket.on("friend_request_rejected", () => {
       void refreshConversationsAfterGroupChange({
         currentUserId,
@@ -537,11 +537,11 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       nextSocket.off("userStatusChanged", handleUserStatusChanged);
       nextSocket.off("userTyping", handleUserTyping);
       nextSocket.off("userStoppedTyping", handleUserStoppedTyping);
-      
+
       nextSocket.off("friend_status_updated");
       nextSocket.off("new_group_created");
       nextSocket.off("added_to_group");
-      
+
       // ✨ DỌN DẸP SẠCH SẼ 3 LỖ TAI MỚI ✨
       nextSocket.off("friend_request_accepted");
       nextSocket.off("group_updated");
@@ -806,13 +806,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         prev.map((conversation) =>
           conversation.id === currentConversation.id
             ? {
-                ...conversation,
-                ownerId: roleData.ownerId,
-                deputyId: roleData.deputyId,
-                joinPolicy: roleData.joinPolicy,
-                myRole: roleData.myRole,
-                canManageGroup: roleData.canManageGroup,
-              }
+              ...conversation,
+              ownerId: roleData.ownerId,
+              deputyId: roleData.deputyId,
+              joinPolicy: roleData.joinPolicy,
+              myRole: roleData.myRole,
+              canManageGroup: roleData.canManageGroup,
+            }
             : conversation,
         ),
       );
@@ -821,15 +821,15 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       setGroupOwnerTarget(
         currentConversation.ownerId
           ? currentConversation.participants.find(
-              (participant) => participant.id === currentConversation.ownerId,
-            ) || null
+            (participant) => participant.id === currentConversation.ownerId,
+          ) || null
           : null,
       );
       setGroupDeputyTarget(
         currentConversation.deputyId
           ? currentConversation.participants.find(
-              (participant) => participant.id === currentConversation.deputyId,
-            ) || null
+            (participant) => participant.id === currentConversation.deputyId,
+          ) || null
           : null,
       );
     }
@@ -1066,14 +1066,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       conversations.find((c) => c.id === activeConversationId) ||
       (draftReceiver
         ? {
-            id: `draft_${draftReceiver.id}`,
-            name: draftReceiver.name,
-            type: "private" as const,
-            participants: [currentUser as User, draftReceiver],
-            lastMessage: null,
-            unreadCount: 0,
-            avatarUrl: draftReceiver.avatarUrl,
-          }
+          id: `draft_${draftReceiver.id}`,
+          name: draftReceiver.name,
+          type: "private" as const,
+          participants: [currentUser as User, draftReceiver],
+          lastMessage: null,
+          unreadCount: 0,
+          avatarUrl: draftReceiver.avatarUrl,
+        }
         : null),
     [conversations, activeConversationId, draftReceiver, currentUser],
   );

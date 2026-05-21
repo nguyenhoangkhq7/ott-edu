@@ -109,9 +109,9 @@ type ResumeConsumerPayload = {
 type MediaAck =
   | ((response: { ok: true; data: unknown }) => void)
   | ((response: {
-      ok: false;
-      error: { code: string; message: string };
-    }) => void);
+    ok: false;
+    error: { code: string; message: string };
+  }) => void);
 
 type MediaPeer = {
   socketId: string;

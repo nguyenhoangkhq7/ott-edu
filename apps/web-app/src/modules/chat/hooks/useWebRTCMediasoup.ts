@@ -118,8 +118,8 @@ function isLikelyMobileDeviceLabel(label?: string): boolean {
 
 function buildPreferredConstraints(
   options?: {
-  videoDeviceId?: string;
-  audioDeviceId?: string;
+    videoDeviceId?: string;
+    audioDeviceId?: string;
   },
   callType: MediaCallKind = "video",
 ): MediaStreamConstraints {
@@ -681,21 +681,21 @@ export default function useWebRTCMediasoup({
               callback: () => void,
               errback: (error: Error) => void,
             ) => {
-            socket.emit(
-              "connectTransport",
-              {
-                conversationId,
-                transportId: sendTransport.id,
-                dtlsParameters,
-              },
-              (connectResponse: { ok: boolean; error?: unknown }) => {
-                if (connectResponse.ok) {
-                  callback();
-                } else {
-                  errback(connectResponse.error as Error);
-                }
-              },
-            );
+              socket.emit(
+                "connectTransport",
+                {
+                  conversationId,
+                  transportId: sendTransport.id,
+                  dtlsParameters,
+                },
+                (connectResponse: { ok: boolean; error?: unknown }) => {
+                  if (connectResponse.ok) {
+                    callback();
+                  } else {
+                    errback(connectResponse.error as Error);
+                  }
+                },
+              );
             },
           );
 
@@ -710,23 +710,23 @@ export default function useWebRTCMediasoup({
               callback: ({ id }: { id: string }) => void,
               errback: (error: Error) => void,
             ) => {
-            socket.emit(
-              "produce",
-              {
-                conversationId,
-                transportId: sendTransport.id,
-                kind,
-                rtpParameters,
-                appData,
-              },
-              (produceResponse: { ok: boolean; data?: { producerId: string }; error?: unknown }) => {
+              socket.emit(
+                "produce",
+                {
+                  conversationId,
+                  transportId: sendTransport.id,
+                  kind,
+                  rtpParameters,
+                  appData,
+                },
+                (produceResponse: { ok: boolean; data?: { producerId: string }; error?: unknown }) => {
                   if (produceResponse.ok) {
                     callback({ id: produceResponse.data!.producerId });
                   } else {
                     errback(produceResponse.error as Error);
                   }
                 },
-            );
+              );
             },
           );
 
@@ -735,7 +735,7 @@ export default function useWebRTCMediasoup({
             "createWebRtcTransport",
             { conversationId, direction: "recv" },
             (recvResponse: { ok: boolean; data?: unknown; error?: unknown }) => {
-                if (!recvResponse.ok) {
+              if (!recvResponse.ok) {
                 reject(new Error((recvResponse.error as unknown as { message?: string })?.message || "Failed to create recv transport"));
                 return;
               }
@@ -750,21 +750,21 @@ export default function useWebRTCMediasoup({
                   callback: () => void,
                   errback: (error: Error) => void,
                 ) => {
-                socket.emit(
-                  "connectTransport",
-                  {
-                    conversationId,
-                    transportId: recvTransport.id,
-                    dtlsParameters,
-                  },
-                  (connectResponse: { ok: boolean; error?: unknown }) => {
-                    if (connectResponse.ok) {
-                      callback();
-                    } else {
-                      errback(connectResponse.error as Error);
-                    }
-                  },
-                );
+                  socket.emit(
+                    "connectTransport",
+                    {
+                      conversationId,
+                      transportId: recvTransport.id,
+                      dtlsParameters,
+                    },
+                    (connectResponse: { ok: boolean; error?: unknown }) => {
+                      if (connectResponse.ok) {
+                        callback();
+                      } else {
+                        errback(connectResponse.error as Error);
+                      }
+                    },
+                  );
                 },
               );
 

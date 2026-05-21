@@ -388,7 +388,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               if (el.srcObject !== localStream) {
                 el.srcObject = localStream;
               }
-              if (localStream) el.play().catch(() => {});
+              if (localStream) el.play().catch(() => { });
             }}
             autoPlay
             muted
@@ -536,7 +536,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             /* ── 1-1 Layout: remote fills entire area, local is PiP ── */
             <div className="relative min-h-0 flex-1">
               {/* Remote — full bleed */}
-                {remoteStreamsList.length > 0 ? (
+              {remoteStreamsList.length > 0 ? (
                 (() => {
                   const [userId, stream] = remoteStreamsList[0]!;
 
@@ -586,7 +586,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             .then(() => {
                               el.muted = false;
                             })
-                            .catch(() => {});
+                            .catch(() => { });
                         };
                         el.play()
                           .then(() => {
@@ -646,7 +646,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 .then(() => {
                                   el.muted = false;
                                 })
-                                .catch(() => {});
+                                .catch(() => { });
                             };
                           });
                       }}
@@ -680,7 +680,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         if (!el) return;
                         if (el.srcObject !== localStream)
                           el.srcObject = localStream;
-                        if (localStream) el.play().catch(() => {});
+                        if (localStream) el.play().catch(() => { });
                       }}
                       autoPlay
                       muted
@@ -709,11 +709,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 type="button"
                 onClick={onToggleMicrophone}
                 disabled={!localStream}
-                className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  isMicrophoneEnabled
+                className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isMicrophoneEnabled
                     ? "border-white/25 bg-white/10 text-white hover:bg-white/20"
                     : "border-rose-400/60 bg-rose-500/30 text-rose-200"
-                }`}
+                  }`}
                 title={isMicrophoneEnabled ? "Tat micro" : "Bat micro"}
               >
                 {isMicrophoneEnabled ? <Mic size={18} /> : <MicOff size={18} />}
@@ -726,11 +725,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     type="button"
                     onClick={onToggleCamera}
                     disabled={!localStream}
-                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                      isCameraEnabled
+                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isCameraEnabled
                         ? "border-white/25 bg-white/10 text-white hover:bg-white/20"
                         : "border-rose-400/60 bg-rose-500/30 text-rose-200"
-                    }`}
+                      }`}
                     title={isCameraEnabled ? "Tat camera" : "Bat camera"}
                   >
                     {isCameraEnabled ? (
@@ -745,11 +743,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     type="button"
                     onClick={onToggleScreenShare}
                     disabled={!localStream}
-                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                      isScreenSharing
+                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isScreenSharing
                         ? "border-sky-300/60 bg-sky-500/30 text-sky-200"
                         : "border-white/25 bg-white/10 text-white hover:bg-white/20"
-                    }`}
+                      }`}
                     title={isScreenSharing ? "Dung chia se" : "Chia se man hinh"}
                   >
                     <Share2 size={18} />
@@ -890,7 +887,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     if (!el) return;
                     if (el.srcObject !== remoteStream)
                       el.srcObject = remoteStream;
-                    if (remoteStream) el.play().catch(() => {});
+                    if (remoteStream) el.play().catch(() => { });
                   }}
                   autoPlay
                   playsInline
@@ -913,7 +910,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     if (!el) return;
                     if (el.srcObject !== localStream)
                       el.srcObject = localStream;
-                    if (localStream) el.play().catch(() => {});
+                    if (localStream) el.play().catch(() => { });
                   }}
                   autoPlay
                   muted
@@ -1134,13 +1131,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     }
                   }
                 }}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition mr-2 ${
-                  friendStatus === "friend"
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition mr-2 ${friendStatus === "friend"
                     ? "bg-emerald-50 text-emerald-600 cursor-default" // Bạn bè (Xanh ngọc)
                     : friendStatus === "pending"
                       ? "bg-slate-100 text-slate-500 cursor-not-allowed" // Đã gửi (Xám)
                       : "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white" // Chưa gửi (Xanh dương)
-                }`}
+                  }`}
                 title={
                   friendStatus === "friend"
                     ? "Hai bạn đã là bạn bè"
@@ -1213,11 +1209,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={() => setIsInfoSidebarOpen(!isInfoSidebarOpen)}
-              className={`rounded-full p-2 transition-colors ${
-                isInfoSidebarOpen
+              className={`rounded-full p-2 transition-colors ${isInfoSidebarOpen
                   ? "bg-blue-100 text-blue-500"
                   : "hover:bg-slate-100 hover:text-blue-500"
-              }`}
+                }`}
               title="Thông tin hội thoại"
             >
               <Info size={20} />
@@ -1255,8 +1250,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   onRevokeForMe={handleRevokeForMe}
                   onForward={onForwardMessage}
                   onOpenProfile={onOpenProfile}
-                  onStartAudioCall={onStartAudioCall}
-                  onStartVideoCall={onStartVideoCall}
                 />
               ))
             )}
