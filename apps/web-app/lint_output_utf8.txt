@@ -1,0 +1,31 @@
+﻿
+> web-app@0.1.0 lint
+> eslint .
+
+
+I:\school\cnm\project\ott-edu\apps\web-app\src\modules\assignments\CreateAssignmentModal.tsx
+  52:26  warning  Compilation Skipped: Use of incompatible library
+
+This API returns functions which cannot be memoized without leading to stale UI. To prevent this, by default React Compiler will skip memoizing this component/hook. However, you may see issues if values from this API are passed to other components/hooks that are memoized.
+
+I:\school\cnm\project\ott-edu\apps\web-app\src\modules\assignments\CreateAssignmentModal.tsx:52:26
+  50 |   });
+  51 |
+> 52 |   const assignmentType = watch('type');
+     |                          ^^^^^ React Hook Form's `useForm()` API returns a `watch()` function which cannot be memoized safely.
+  53 |
+  54 |   const onSubmit = async (data: CreateAssignmentFormData) => {
+  55 |     try {  react-hooks/incompatible-library
+
+I:\school\cnm\project\ott-edu\apps\web-app\src\modules\chat\components\ChatWindow.tsx
+  107:25  warning  '_isLoadingCallHistory' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  108:20  warning  '_callHistoryPage' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  109:26  warning  '_callHistoryTotalPages' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  477:40  warning  'e' is defined but never used                                @typescript-eslint/no-unused-vars
+
+I:\school\cnm\project\ott-edu\apps\web-app\src\modules\chat\hooks\useWebRTCMediasoup.ts
+   49:7  warning  '_RTC_ICE_SERVERS' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  780:6  warning  '_reason' is defined but never used                    @typescript-eslint/no-unused-vars
+
+Γ£û 7 problems (0 errors, 7 warnings)
+
