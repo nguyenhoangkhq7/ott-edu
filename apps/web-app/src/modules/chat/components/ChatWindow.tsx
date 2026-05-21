@@ -1255,6 +1255,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   onRevokeForMe={handleRevokeForMe}
                   onForward={onForwardMessage}
                   onOpenProfile={onOpenProfile}
+                  onStartAudioCall={onStartAudioCall}
+                  onStartVideoCall={onStartVideoCall}
                 />
               ))
             )}

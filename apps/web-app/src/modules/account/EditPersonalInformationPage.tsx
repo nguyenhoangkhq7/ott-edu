@@ -11,6 +11,7 @@ import {
   type DepartmentOption,
 } from "@/services/auth/auth.service";
 import { useAuth } from "@/shared/providers/AuthProvider";
+import { User, Camera, Sparkles } from "lucide-react";
 
 export default function EditPersonalInformationPage() {
   const router = useRouter();
@@ -57,7 +58,7 @@ export default function EditPersonalInformationPage() {
         }
       } catch (err) {
         if (mounted) {
-          setError(err instanceof Error ? err.message : "Khong the tai du lieu ho so.");
+          setError(err instanceof Error ? err.message : "Không thể tải dữ liệu hồ sơ.");
         }
       } finally {
         if (mounted) {
@@ -103,7 +104,7 @@ export default function EditPersonalInformationPage() {
         setUser({ ...authUser, avatarUrl: response.avatarUrl });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Tai anh dai dien that bai.");
+      setError(err instanceof Error ? err.message : "Tải ảnh đại diện thất bại.");
     } finally {
       setIsUploading(false);
       event.target.value = "";
@@ -130,54 +131,69 @@ export default function EditPersonalInformationPage() {
       setUser(updatedUser);
       router.replace("/account");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cap nhat ho so that bai.");
+      setError(err instanceof Error ? err.message : "Cập nhật hồ sơ thất bại.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleEditPrivacy = () => {
-    router.push("/account/privacy");
-  };
+  if (isLoading) {
+    return (
+      <div className="flex h-[60vh] w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+          <p className="text-sm font-medium text-slate-500">Đang tải thông tin cá nhân...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Edit Personal Information</h1>
-      <p className="mb-8 text-sm text-slate-500">
-        Update your profile details and control how others see you across the organization.
-      </p>
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      {/* Title section */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+          Chỉnh sửa thông tin cá nhân
+          <Sparkles className="h-6 w-6 text-blue-600 animate-pulse" />
+        </h1>
+        <p className="text-sm text-slate-500 mt-1">
+          Cập nhật chi tiết hồ sơ cá nhân và kiểm soát cách người khác nhìn thấy bạn trong hệ thống.
+        </p>
+      </div>
 
       <div className="space-y-6">
-        {isLoading ? (
-          <section className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500">
-            Dang tai du lieu ho so...
-          </section>
-        ) : null}
+        {error && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">
+            {error}
+          </div>
+        )}
 
-        {error ? (
-          <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</section>
-        ) : null}
-
-        <section className="rounded-lg border border-slate-200 bg-white p-6">
-          <div className="flex items-start gap-6">
-            <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-slate-100">
+        {/* Profile Picture Card */}
+        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-base font-bold text-slate-900 flex items-center gap-2">
+            <Camera className="h-5 w-5 text-blue-600" />
+            Ảnh đại diện
+          </h2>
+          
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-2xl bg-slate-50 ring-4 ring-slate-100 group">
               <Image
                 src={avatarUrl}
-                alt="Profile"
+                alt="Profile picture"
                 fill
                 className="object-cover"
               />
-              <div className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-blue-600">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 text-white" fill="currentColor">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                  <circle cx="12" cy="13" r="4" />
-                </svg>
-              </div>
+              {isUploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-xs font-semibold">
+                  Đang tải...
+                </div>
+              )}
             </div>
 
-            <div className="flex-1">
-              <h3 className="mb-1 text-sm font-semibold text-slate-900">Profile Picture</h3>
-              <p className="mb-4 text-xs text-slate-500">JPG, GIF or PNG. Max size 2MB.</p>
+            <div className="flex-1 text-center sm:text-left">
+              <h3 className="text-sm font-semibold text-slate-800">Cập nhật ảnh đại diện của bạn</h3>
+              <p className="text-xs text-slate-500 mt-1 mb-4">Hỗ trợ JPG, PNG hoặc WEBP. Dung lượng tối đa 2MB.</p>
+              
               <input
                 ref={fileInputRef}
                 type="file"
@@ -185,65 +201,74 @@ export default function EditPersonalInformationPage() {
                 className="hidden"
                 onChange={handleFileChange}
               />
-              <div className="flex gap-3">
+              
+              <div className="flex flex-wrap justify-center sm:justify-start gap-3">
                 <button
                   onClick={handleUploadNew}
                   disabled={isUploading}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                  className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-xs font-bold shadow-md shadow-blue-500/10 transition-all duration-150 active:scale-95 disabled:opacity-50"
                 >
-                  {isUploading ? "Uploading..." : "Upload New"}
+                  Tải ảnh mới
                 </button>
                 <button
                   onClick={handleRemove}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-xs font-bold transition-all duration-150 active:scale-95"
                 >
-                  Remove
+                  Gỡ bỏ
                 </button>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-6">
+        {/* Main Details Form */}
+        <section className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm space-y-6">
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+            <User className="h-5 w-5 text-indigo-600" />
+            Chi tiết hồ sơ cá nhân
+          </h2>
+
           <div className="grid gap-6 md:grid-cols-2">
             <div>
-              <label htmlFor="fullName" className="mb-2 block text-sm font-medium text-slate-700">
-                Full Name
+              <label htmlFor="fullName" className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                Họ và Tên
               </label>
               <input
                 id="fullName"
                 type="text"
                 value={formData.fullName}
                 onChange={(e) => handleInputChange("fullName", e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Nhập họ và tên"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10"
               />
             </div>
 
             <div>
-              <label htmlFor="phone" className="mb-2 block text-sm font-medium text-slate-700">
-                Phone
+              <label htmlFor="phone" className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                Số điện thoại
               </label>
               <input
                 id="phone"
                 type="text"
                 value={formData.phone}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Nhập số điện thoại"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10"
               />
             </div>
           </div>
 
-          <div className="mt-6">
-            <label htmlFor="department" className="mb-2 block text-sm font-medium text-slate-700">
-              Department
+          <div>
+            <label htmlFor="department" className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              Đơn vị / Khoa chuyên ngành
             </label>
             <select
               id="department"
               value={formData.departmentId}
               onChange={(e) => handleInputChange("departmentId", e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10"
             >
-              <option value="">Select department</option>
+              <option value="">Chọn đơn vị / Khoa</option>
               {departments.map((department) => (
                 <option key={department.id} value={department.id}>
                   {department.name}
@@ -252,89 +277,35 @@ export default function EditPersonalInformationPage() {
             </select>
           </div>
 
-          <div className="mt-6">
-            <label htmlFor="about" className="mb-2 block text-sm font-medium text-slate-700">
-              About
+          <div>
+            <label htmlFor="about" className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              Giới thiệu bản thân
             </label>
             <textarea
               id="about"
               value={formData.about}
               onChange={(e) => handleInputChange("about", e.target.value)}
               rows={4}
-              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Viết một đoạn ngắn giới thiệu về bạn..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/10 resize-none"
             />
-            <p className="mt-2 text-xs text-slate-500">
-              Brief description for your profile. URLs are hyperlinked.
-            </p>
-          </div>
-
-          <div className="mt-6 flex items-center gap-3 rounded-lg bg-blue-50 p-4">
-            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-blue-600" fill="currentColor">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 16v-4M12 8h.01" fill="white" />
-            </svg>
-            <p className="text-xs text-slate-600">
-              Last updated 2 days ago
-            </p>
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-6">
-          <div className="mb-4 flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-50">
-              <svg viewBox="0 0 24 24" className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m4.4 4.4l4.2 4.2M1 12h6m6 0h6M5.6 18.4l4.2-4.2m4.4-4.4l4.2-4.2" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-slate-900">Privacy Settings</h3>
-              <p className="mt-1 text-xs text-slate-500">
-                Choose what information is visible to external guests.
-              </p>
-            </div>
-            <button
-              onClick={handleEditPrivacy}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Edit privacy
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-slate-200 bg-white p-6">
-          <div className="mb-4 flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50">
-              <svg viewBox="0 0 24 24" className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z" />
-                <path d="M12 6v6l4 2" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-slate-900">Edit History</h3>
-              <p className="mt-1 text-xs text-slate-500">
-                View your profile modification history over the last 90 days.
-              </p>
-            </div>
-            <button className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50">
-              View history
-            </button>
-          </div>
-        </section>
-
-        <div className="flex justify-end gap-3">
+        {/* Action buttons */}
+        <div className="flex justify-end gap-3 pt-2">
           <button
             onClick={handleCancel}
-            className="rounded-lg border border-slate-300 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-6 py-3 text-sm font-semibold transition-all duration-150 active:scale-95"
           >
-            Cancel
+            Hủy bỏ
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving || isLoading}
-            className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 text-sm font-semibold shadow-md shadow-blue-500/10 transition-all duration-150 active:scale-95 disabled:opacity-50"
           >
-            {isSaving ? "Saving..." : "Save Changes"}
+            {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
           </button>
         </div>
       </div>
