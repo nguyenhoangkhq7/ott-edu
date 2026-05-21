@@ -72,6 +72,10 @@ public class Assignment {
     @Column(name = "max_attempts")
     private Integer maxAttempts;
 
+    // NEW: timeLimit - thời gian làm bài QUIZ tính bằng phút (null = không giới hạn)
+    @Column(name = "time_limit")
+    private Integer timeLimit;
+
     @Column(name = "department_id")
     private Long departmentId;
 

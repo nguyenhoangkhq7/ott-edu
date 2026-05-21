@@ -22,4 +22,7 @@ public class AssignmentDetailDto {
 
     // NEW: maxAttempts - quiz attempt limit
     private Integer maxAttempts;
+
+    // NEW: timeLimit - quiz time limit in minutes (null = unlimited)
+    private Integer timeLimit;
 }

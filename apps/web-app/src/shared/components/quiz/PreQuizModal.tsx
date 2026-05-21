@@ -21,7 +21,8 @@ export const PreQuizModal: React.FC<PreQuizModalProps> = ({ assignment, onStart 
   };
 
   const totalPoints = assignment.questions.reduce((sum, q) => sum + (q.points ?? 1), 0);
-  const estimatedMinutes = Math.max(15, assignment.questions.length * 3);
+  // Use actual timeLimit from assignment; null/undefined means unlimited
+  const timeLimitMinutes = assignment.timeLimit ?? null;
 
   const formatDate = (isoDate: string) => {
     return new Date(isoDate).toLocaleString('vi-VN', {
@@ -63,8 +64,10 @@ export const PreQuizModal: React.FC<PreQuizModalProps> = ({ assignment, onStart 
                   d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div>
-                <div className="text-xs text-slate-500 uppercase tracking-wide">Thời gian</div>
-                <div className="text-base font-bold text-slate-800">{estimatedMinutes} phút</div>
+                <div className="text-xs text-slate-500 uppercase tracking-wide">Thời gian làm bài</div>
+                <div className="text-base font-bold text-slate-800">
+                  {timeLimitMinutes ? `${timeLimitMinutes} phút` : 'Không giới hạn'}
+                </div>
               </div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 flex items-center gap-3">
