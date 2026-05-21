@@ -139,6 +139,38 @@ export const submissionApi = {
   },
 
   /**
+   * Get ALL submissions for an assignment (pending + graded) - TEACHER only
+   * Primary endpoint: GET /api/v1/submissions/assignment/{id}
+   * Fallback: GET /api/v1/submissions/assignment/{id}/pending
+   */
+  getAllSubmissions: async (assignmentId: number): Promise<unknown[]> => {
+    try {
+      // Primary: /assignment/{id} returns all submissions (graded + pending)
+      const response = await axiosV1.get(
+        `/api/v1/submissions/assignment/${assignmentId}`
+      );
+      // Handle Spring Page object
+      const data = response.data;
+      if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.content)) return data.content;
+      return [];
+    } catch (err: unknown) {
+      // Fallback to /pending if primary fails
+      const status = (err as { response?: { status?: number } }).response?.status;
+      if (status === 404 || status === 405 || status === 403) {
+        const response = await axiosV1.get(
+          `/api/v1/submissions/assignment/${assignmentId}/pending`
+        );
+        const data = response.data;
+        if (Array.isArray(data)) return data;
+        if (data && Array.isArray(data.content)) return data.content;
+        return [];
+      }
+      throw err;
+    }
+  },
+
+  /**
    * Grade a submission (TEACHER only)
    */
   gradeSubmission: async (submissionId: number, data: { score: number; feedback: string }): Promise<unknown> => {

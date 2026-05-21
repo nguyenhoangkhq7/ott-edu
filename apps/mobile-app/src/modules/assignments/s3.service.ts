@@ -29,10 +29,10 @@ export const uploadFileToS3 = async (
     type: fileType,
   });
 
-  // Backend endpoint: /api/core/attachments/class/{classId}
+  // Backend endpoint: /api/core/attachments/class/assignments
   // Base API_URL usually points to the gateway.
   // We need to use the /api/core/ prefix defined in nginx.conf
-  const uploadUrl = `${API_URL}/api/core/attachments/class/${teamId}`;
+  const uploadUrl = `${API_URL}/api/core/attachments/class/assignments`;
 
   try {
     const response = await axios.post(uploadUrl, formData, {

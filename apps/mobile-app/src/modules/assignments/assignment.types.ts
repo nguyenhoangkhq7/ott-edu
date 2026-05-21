@@ -43,6 +43,8 @@ export type AssignmentDetail = {
   type: AssignmentType;
   teamIds: number[];
   questions: Question[];
+  timeLimit?: number;
+  maxAttempts?: number;
 };
 
 export type Assignment = {

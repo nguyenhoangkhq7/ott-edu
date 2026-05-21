@@ -245,7 +245,8 @@ function QuestionCard({
 
             <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
               {optionFields.map((option, oIndex) => {
-                const isCorrect = option.isCorrect === true;
+                // Use watched value for isCorrect so it updates immediately after setValue()
+                const isCorrect = options?.[oIndex]?.isCorrect === true;
 
                 return (
                   <div

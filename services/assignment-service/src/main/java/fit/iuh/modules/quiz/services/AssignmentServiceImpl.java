@@ -58,6 +58,9 @@ public class AssignmentServiceImpl implements AssignmentService {
         // Set maxAttempts (for QUIZ assignments)
         assignment.setMaxAttempts(request.getMaxAttempts());
 
+        // Set timeLimit (for QUIZ assignments) - stored in minutes
+        assignment.setTimeLimit(request.getTimeLimit());
+
         // Save assignment first
         Assignment saved = assignmentRepository.save(assignment);
 
@@ -239,6 +242,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         // NEW: Set material URLs and max attempts
         dto.setMaterialUrls(assignment.getMaterialUrls());
         dto.setMaxAttempts(assignment.getMaxAttempts());
+        dto.setTimeLimit(assignment.getTimeLimit());
 
         // Convert questions to DTOs (without exposing correct answers)
         if (assignment.getQuestions() != null) {

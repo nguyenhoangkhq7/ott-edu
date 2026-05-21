@@ -211,8 +211,17 @@ export default function TakeQuizScreen({
   );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<LocalAnswers>({}); // { questionId: [optionId...] }
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(
+    detail.timeLimit ? detail.timeLimit * 60 : null
+  );
 
   const questions = detail.questions ?? [];
+
+  // Track latest answers in a ref to avoid dependency re-triggering for countdown doSubmit
+  const answersRef = useRef(answers);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   // ─── Start / Initialize ──────────────────────────────────────────────────
 
@@ -255,6 +264,29 @@ export default function TakeQuizScreen({
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Countdown timer effect
+  useEffect(() => {
+    if (phase.kind !== "taking") return;
+    if (timeRemaining === null) return;
+
+    const subId = phase.submissionId;
+
+    const interval = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(interval);
+          void doSubmit(subId);
+          Alert.alert("Hết giờ làm bài", "Thời gian làm bài của bạn đã hết. Hệ thống đã tự động nộp bài.");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [phase.kind, phase.kind === "taking" ? phase.submissionId : null, timeRemaining === null]);
+
   // ─── Save draft (debounced when answer changes) ──────────────────────────
 
   const handleAnswer = useCallback(
@@ -290,7 +322,7 @@ export default function TakeQuizScreen({
   const doSubmit = async (submissionId: number) => {
     setPhase({ kind: "submitting" });
     try {
-      const questionAnswers = Object.entries(answers).map(([qId, optIds]) => ({
+      const questionAnswers = Object.entries(answersRef.current).map(([qId, optIds]) => ({
         questionId: Number(qId),
         selectedOptionIds: optIds,
       }));
@@ -305,7 +337,7 @@ export default function TakeQuizScreen({
         // ignore if not available yet
       }
 
-      const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
+      const answeredCount = Object.values(answersRef.current).filter((ids) => ids.length > 0).length;
       setPhase({
         kind: "result",
         result: {
@@ -497,6 +529,16 @@ export default function TakeQuizScreen({
   const answeredCount = questions.filter((q) => (answers[q.id]?.length ?? 0) > 0).length;
   const isLastQuestion = currentIndex === questions.length - 1;
 
+  const formatTimeRemaining = () => {
+    if (timeRemaining === null) return "Không giới hạn";
+    const minutes = Math.floor(timeRemaining / 60);
+    const seconds = timeRemaining % 60;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${pad(minutes)}:${pad(seconds)}`;
+  };
+
+  const isTimeCritical = timeRemaining !== null && timeRemaining <= 60;
+
   if (!question) {
     return (
       <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -523,7 +565,10 @@ export default function TakeQuizScreen({
             {detail.title}
           </Text>
           <Text style={styles.headerSub}>
-            Đã trả lời: {answeredCount}/{questions.length}
+            Đã trả lời: {answeredCount}/{questions.length} |{" "}
+            <Text style={isTimeCritical ? styles.timerCritical : undefined}>
+              ⏳ {formatTimeRemaining()}
+            </Text>
           </Text>
         </View>
         <Pressable
@@ -955,4 +1000,8 @@ const styles = StyleSheet.create({
   },
   dotText: { fontSize: 10, fontWeight: "700", color: "#64748b" },
   dotTextActive: { color: "#fff" },
+  timerCritical: {
+    color: "#ef4444",
+    fontWeight: "800",
+  },
 });
