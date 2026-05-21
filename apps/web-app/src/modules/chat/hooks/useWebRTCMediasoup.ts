@@ -785,7 +785,15 @@ export default function useWebRTCMediasoup({
     pendingProducersRef.current = [];
 
     for (const producer of pending) {
-      await consumeProducer(producer.producerId, producer.kind, producer.userId);
+      if (requestedCallTypeRef.current === "audio" && producer.kind === "video") {
+        continue;
+      }
+
+      try {
+        await consumeProducer(producer.producerId, producer.kind, producer.userId);
+      } catch (error) {
+        console.warn("[useWebRTCMediasoup] Skipping pending producer:", producer.producerId, error);
+      }
     }
   }, [consumeProducer]);
 
@@ -867,11 +875,23 @@ export default function useWebRTCMediasoup({
         await flushPendingProducers();
 
         for (const existingProducer of joinResponse.existingProducers) {
-          await consumeProducer(
-            existingProducer.producerId,
-            existingProducer.kind,
-            existingProducer.userId,
-          );
+          if (effectiveCallType === "audio" && existingProducer.kind === "video") {
+            continue;
+          }
+
+          try {
+            await consumeProducer(
+              existingProducer.producerId,
+              existingProducer.kind,
+              existingProducer.userId,
+            );
+          } catch (error) {
+            console.warn(
+              "[useWebRTCMediasoup] Skipping existing producer:",
+              existingProducer.producerId,
+              error,
+            );
+          }
         }
 
         // Produce audio/video
@@ -960,6 +980,10 @@ export default function useWebRTCMediasoup({
         return;
       }
 
+      if (requestedCallTypeRef.current === "audio" && kind === "video") {
+        return;
+      }
+
       if (!deviceRef.current?.loaded || !recvTransportRef.current) {
         pendingProducersRef.current.push({ producerId, kind, userId });
         return;
@@ -986,6 +1010,7 @@ export default function useWebRTCMediasoup({
       initiatorUserId,
       initiatedAt,
       callType,
+      isPrivate,
     }: {
       conversationId: string;
       initiatorUserId: string;
