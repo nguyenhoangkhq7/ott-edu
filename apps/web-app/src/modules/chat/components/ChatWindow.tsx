@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import {
   ActiveVideoCall,
   Attachment,
@@ -997,9 +997,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     socket.emit("revokeForMe", { messageId, conversationId: conversation.id });
   };
 
+  const callOverlay = showFullScreenCall ? renderFullScreenCallOverlay() : null;
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
-      {showFullScreenCall && renderFullScreenCallOverlay()}
+      {callOverlay}
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
         <div className="flex items-center gap-3">
           <Image
