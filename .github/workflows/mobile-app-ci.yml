@@ -25,7 +25,7 @@ jobs:
           cache-dependency-path: apps/mobile-app/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Type Checking
         run: npx tsc --noEmit
