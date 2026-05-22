@@ -113,12 +113,14 @@ export type CreateAssignmentPayload = {
   title: string;
   instructions?: string;
   type: AssignmentType;
-  /** ISO-8601 datetime string, e.g. "2025-12-31T23:59:00" */
+  /** ISO-8601 datetime string with UTC timezone, e.g. "2025-12-31T23:59:00.000Z" */
   dueDate: string;
   maxScore: number;
   teamIds: number[];
   /** QUIZ only – null/undefined means unlimited */
   maxAttempts?: number;
+  /** QUIZ only – duration in minutes (e.g. 30, 60, 120) */
+  timeLimit?: number;
   /** QUIZ only – list of questions with options */
   questions?: QuestionRequest[];
 };

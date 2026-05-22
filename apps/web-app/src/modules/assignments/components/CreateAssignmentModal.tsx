@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import axiosClient from '@/services/api/axiosClient';
+import { localDateTimeToISO8601UTC } from '@/shared/utils/date';
 
 interface CreateAssignmentModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export default function CreateAssignmentModal({
     maxScore: 10,
     dueDate: '',
     type: 'QUIZ' as 'QUIZ' | 'ESSAY',
+    timeLimit: '', // Duration in minutes for QUIZ
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState('');
@@ -47,6 +49,14 @@ export default function CreateAssignmentModal({
       newErrors.maxScore = 'Điểm tối đa phải lớn hơn 0';
     }
 
+    // Validate timeLimit if QUIZ type
+    if (formData.type === 'QUIZ' && formData.timeLimit) {
+      const timeLimitNum = parseInt(formData.timeLimit, 10);
+      if (isNaN(timeLimitNum) || timeLimitNum < 1 || timeLimitNum > 480) {
+        newErrors.timeLimit = 'Thời gian làm bài phải từ 1 đến 480 phút';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -58,17 +68,32 @@ export default function CreateAssignmentModal({
 
     setLoading(true);
     try {
-      // Convert datetime-local string to ISO format for backend
-      const dueDateISO = formData.dueDate ? new Date(formData.dueDate).toISOString() : null;
+      // Convert datetime-local string to ISO 8601 UTC format for backend
+      const dueDateISO = formData.dueDate ? localDateTimeToISO8601UTC(formData.dueDate) : null;
       
-      await axiosClient.post('/api/v1/assignments/create', {
+      const payload: {
+        title: string;
+        instructions?: string;
+        maxScore: number;
+        dueDate: string | null;
+        type: 'QUIZ' | 'ESSAY';
+        teamIds: number[];
+        timeLimit?: number;
+      } = {
         title: formData.title,
         instructions: formData.instructions || undefined,
         maxScore: formData.maxScore,
         dueDate: dueDateISO,
         type: formData.type,
         teamIds: [teamId],
-      });
+      };
+
+      // Add timeLimit for QUIZ type
+      if (formData.type === 'QUIZ' && formData.timeLimit) {
+        payload.timeLimit = parseInt(formData.timeLimit, 10);
+      }
+
+      await axiosClient.post('/api/v1/assignments/create', payload);
 
       setSuccessMessage('Bài tập đã được tạo thành công!');
       setTimeout(() => {
@@ -103,6 +128,7 @@ export default function CreateAssignmentModal({
       maxScore: 10,
       dueDate: '',
       type: 'QUIZ',
+      timeLimit: '',
     });
     setErrors({});
   };
@@ -206,6 +232,29 @@ export default function CreateAssignmentModal({
               </div>
             </div>
 
+            {/* Time Limit (QUIZ only) */}
+            {formData.type === 'QUIZ' && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-900 mb-2">
+                  Thời gian làm bài (phút) - Không bắt buộc
+                </label>
+                <input
+                  type="number"
+                  value={formData.timeLimit}
+                  onChange={(e) => setFormData({ ...formData, timeLimit: e.target.value })}
+                  placeholder="VD: 30, 60, 120 (bỏ trống = không giới hạn)"
+                  min="1"
+                  max="480"
+                  className={`w-full px-4 py-2.5 rounded-lg border bg-white text-slate-900 placeholder-slate-400 transition-colors ${
+                    errors.timeLimit
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                      : 'border-slate-200 focus:border-blue-500 focus:ring-blue-500'
+                  } focus:outline-none focus:ring-2`}
+                />
+                {errors.timeLimit && <p className="text-sm text-red-600 mt-1">{errors.timeLimit}</p>}
+              </div>
+            )}
+
             {/* Due Date */}
             <div>
               <label className="block text-sm font-semibold text-slate-900 mb-2">
@@ -222,6 +271,9 @@ export default function CreateAssignmentModal({
                 } focus:outline-none focus:ring-2`}
               />
               {errors.dueDate && <p className="text-sm text-red-600 mt-1">{errors.dueDate}</p>}
+              <p className="text-xs text-slate-500 mt-1">
+                ℹ️ Thời gian sẽ được chuyển đổi sang UTC khi gửi đến server
+              </p>
             </div>
 
             {/* Error Message */}

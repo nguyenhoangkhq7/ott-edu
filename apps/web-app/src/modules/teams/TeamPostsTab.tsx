@@ -673,7 +673,7 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const loadCommentsForPost = async (postId: string) => {
+  const loadCommentsForPost = useCallback(async (postId: string) => {
     try {
       const comments = await httpService.get<ApiPost[]>(`/interact/comments/post/${postId}`);
       const currentUser = userEmail || Cookies.get('userEmail') || "";
@@ -711,7 +711,7 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
       
       setPosts(prevPosts => prevPosts.map(p => p.id === postId ? { ...p, replies: mappedComments, commentCount: mappedComments.length } : p));
     } catch (error) { console.error("Error loading comments:", error); }
-  };
+  }, [userEmail]);
 
   const toggleExpandPost = async (postId: string) => {
     if (expandedPostIds.includes(postId)) {

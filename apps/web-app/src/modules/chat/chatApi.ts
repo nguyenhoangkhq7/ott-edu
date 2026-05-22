@@ -431,6 +431,98 @@ export async function leaveGroup(
   return mapApiConversationToConversation(data.data, "");
 }
 
+/**
+ * GET /api/chat/info/:conversationId
+ * Lấy thông tin chi tiết của conversation (participants, settings, etc.)
+ */
+export async function fetchConversationInfo(
+  conversationId: string,
+): Promise<{
+  conversationId: string;
+  name: string;
+  avatarUrl: string;
+  type: "private" | "class";
+  ownerId: string | null;
+  deputyId: string | null;
+  joinPolicy: "open" | "approval";
+  participants: Array<{
+    _id: string;
+    fullName: string;
+    avatarUrl: string;
+    email: string;
+  }>;
+  totalMembers: number;
+}> {
+  const data = await chatHttpService.get<{
+    data: {
+      conversationId: string;
+      name: string;
+      avatarUrl: string;
+      type: "private" | "class";
+      ownerId: string | null;
+      deputyId: string | null;
+      joinPolicy: "open" | "approval";
+      participants: Array<{
+        _id: string;
+        fullName: string;
+        avatarUrl: string;
+        email: string;
+      }>;
+      totalMembers: number;
+    };
+  }>(`/chat/info/${conversationId}`);
+
+  return data.data;
+}
+
+/**
+ * GET /api/chat/info/:conversationId/media
+ * Lấy danh sách message chứa media (images, videos) từ conversation
+ */
+export async function fetchMediaItems(
+  conversationId: string,
+  limit = 50,
+): Promise<ApiMessage[]> {
+  const data = await chatHttpService.get<{ data: ApiMessage[] }>(
+    `/chat/info/${conversationId}/media`,
+    { params: { limit } },
+  );
+
+  return data.data || [];
+}
+
+/**
+ * GET /api/chat/info/:conversationId/files
+ * Lấy danh sách message chứa files (documents) từ conversation
+ */
+export async function fetchFileItems(
+  conversationId: string,
+  limit = 50,
+): Promise<ApiMessage[]> {
+  const data = await chatHttpService.get<{ data: ApiMessage[] }>(
+    `/chat/info/${conversationId}/files`,
+    { params: { limit } },
+  );
+
+  return data.data || [];
+}
+
+/**
+ * GET /api/chat/info/:conversationId/links
+ * Lấy danh sách message chứa links từ conversation
+ */
+export async function fetchLinkItems(
+  conversationId: string,
+  limit = 50,
+): Promise<ApiMessage[]> {
+  const data = await chatHttpService.get<{ data: ApiMessage[] }>(
+    `/chat/info/${conversationId}/links`,
+    { params: { limit } },
+  );
+
+  return data.data || [];
+}
+
 
 export async function fetchFriendRequests(): Promise<User[]> {
   try {

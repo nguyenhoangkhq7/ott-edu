@@ -847,7 +847,6 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   // ── Fetch Messages khi đổi cuộc thoại ───────────────────────────────────
   useEffect(() => {
     if (!activeConversationId) {
-      setMessages([]);
       return;
     }
 
@@ -863,7 +862,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       }
     };
 
-    load();
+    void load();
   }, [activeConversationId]);
 
   // ── Fetch call history cho private conversation hiện tại ────────────────
@@ -1078,6 +1077,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     [conversations, activeConversationId, draftReceiver, currentUser],
   );
 
+  const displayedMessages = activeConversationId ? messages : [];
+
   /*
   const activePrivatePeer =
     activeConversation?.type === "private"
@@ -1181,7 +1182,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       />
       <ChatWindow
         conversation={activeConversation}
-        messages={messages}
+        messages={displayedMessages}
         currentUser={currentUser}
         onSendMessage={handleSendMessage}
         isLoadingMessages={isLoadingMessages}

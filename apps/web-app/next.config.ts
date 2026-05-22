@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: process.cwd(),
+  },
+
   // THÊM PHẦN IMAGES VÀO ĐÂY:
   images: {
     remotePatterns: [
@@ -40,17 +44,43 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Allow all external link preview images from any HTTPS host
+      {
+        protocol: 'https',
+        hostname: '**.gstatic.com',
+        port: '',
+        pathname: '/**', // Google static images
+      },
+      {
+        protocol: 'https',
+        hostname: '**.gvt1.com',
+        port: '',
+        pathname: '/**', // Google Vt1 images
+      },
+      {
+        protocol: 'https',
+        hostname: '**.githubusercontent.com',
+        port: '',
+        pathname: '/**', // GitHub images
+      },
+      {
+        protocol: 'https',
+        hostname: '**.cloudflare.com',
+        port: '',
+        pathname: '/**', // Cloudflare images
+      },
+      {
+        protocol: 'https',
+        hostname: '**',
+        port: '',
+        pathname: '/**', // Wildcard: Allow ANY HTTPS domain for link previews
+      },
     ],
   },
   
   // Phần rewrites cũ của bạn giữ nguyên:
   async rewrites() {
     return [
-      {
-        // Khi thấy request bắt đầu bằng /api/v1 (Assignment Service)
-        source: '/api/v1/:path*',
-        destination: 'http://gateway:80/api/v1/:path*',
-      },
       {
         // Khi thấy request bắt đầu bằng /api/core
         source: '/api/core/:path*',

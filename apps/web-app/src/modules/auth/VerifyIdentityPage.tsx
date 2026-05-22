@@ -9,20 +9,17 @@ export default function VerifyIdentityPage() {
   const router = useRouter();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(48); // 48 seconds
-  const [maskedEmail, setMaskedEmail] = useState("m***@example.com");
+  const [maskedEmail, setMaskedEmail] = useState(getForgotOtpState()?.maskedEmail ?? "m***@example.com");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const otpState = getForgotOtpState();
 
   useEffect(() => {
-    const state = getForgotOtpState();
-    if (!state) {
+    if (!otpState) {
       router.replace("/forgot-password");
-      return;
     }
-
-    setMaskedEmail(state.maskedEmail);
-  }, [router]);
+  }, [otpState, router]);
 
   useEffect(() => {
     if (timeLeft > 0) {

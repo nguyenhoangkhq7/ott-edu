@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { submissionApi } from '@/services/api/assignment.service';
 
 interface TeacherGradingDashboardProps {
@@ -48,12 +48,7 @@ export default function TeacherGradingDashboard({
   const [score, setScore] = useState<number | string>('');
   const [feedback, setFeedback] = useState('');
 
-  useEffect(() => {
-    loadPendingSubmissions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentId]);
-
-  const loadPendingSubmissions = async () => {
+  const loadPendingSubmissions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -84,7 +79,11 @@ export default function TeacherGradingDashboard({
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId]);
+
+  useEffect(() => {
+    void loadPendingSubmissions();
+  }, [loadPendingSubmissions]);
 
   const handleSelectSubmission = (submission: PendingSubmission) => {
     setSelectedSubmission(submission);

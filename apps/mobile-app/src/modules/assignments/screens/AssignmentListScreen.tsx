@@ -98,8 +98,19 @@ export default function AssignmentListScreen({
 
   const fetchAssignments = useCallback(async (silent = false) => {
     try {
-      if (!silent) setLoading(true);
+      // Clear existing assignments before fetching new ones
+      if (!silent) {
+        setAssignments([]);
+        setLoading(true);
+      }
       setError(null);
+      
+      if (!teamId) {
+        setAssignments([]);
+        setLoading(false);
+        return;
+      }
+      
       const data = await assignmentApi.getAssignments(teamId);
       setAssignments(Array.isArray(data) ? data : []);
     } catch (err) {
