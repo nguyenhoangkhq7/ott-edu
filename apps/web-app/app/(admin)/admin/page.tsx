@@ -19,7 +19,6 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        setLoading(true);
         const [statsData, activitiesData] = await Promise.all([
           getDashboardStats(),
           getRecentActivity(),

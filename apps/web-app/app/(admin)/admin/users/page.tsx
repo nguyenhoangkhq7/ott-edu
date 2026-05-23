@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import UserFilterBar from "@/modules/admin/components/UserFilterBar";
 import UserTable from "@/modules/admin/components/UserTable";
@@ -18,7 +18,6 @@ import {
 } from "@/services/api/admin.service";
 import type { AdminUser, PaginatedResponse } from "@/shared/types/admin";
 import { ROLE_OPTIONS, STATUS_OPTIONS } from "@/modules/admin/constants";
-import AppLoader from "@/shared/components/common/AppLoader";
 
 export default function AdminUserManagementPage() {
   const searchParams = useSearchParams();
@@ -48,13 +47,17 @@ export default function AdminUserManagementPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
 
+  const shouldOpenAddModal = searchParams.get("add") === "true";
+
   // Detect ?add=true on initial load
   useEffect(() => {
-    if (searchParams.get("add") === "true") {
+    if (!shouldOpenAddModal) return;
+
+    queueMicrotask(() => {
       setShowAddModal(true);
       router.replace("/admin/users");
-    }
-  }, [searchParams, router]);
+    });
+  }, [shouldOpenAddModal, router]);
 
   // Load summary metrics once
   useEffect(() => {
@@ -70,8 +73,7 @@ export default function AdminUserManagementPage() {
   }, []);
 
   // Fetch paginated user table data
-  const fetchUserData = async () => {
-    setLoading(true);
+  const fetchUserData = useCallback(async () => {
     try {
       const data = await getUsers({
         search,
@@ -86,12 +88,14 @@ export default function AdminUserManagementPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, role, status, page, size]);
 
   useEffect(() => {
-    fetchUserData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, role, status, page, size]);
+    queueMicrotask(() => {
+      setLoading(true);
+      void fetchUserData();
+    });
+  }, [fetchUserData]);
 
   // Handle Create Account
   const handleCreateUser = async (payload: Parameters<typeof createUser>[0]) => {

@@ -25,7 +25,6 @@ export default function AdminStatisticsPage() {
   useEffect(() => {
     async function loadStats() {
       try {
-        setLoading(true);
         const [msgStats, growthStats, activeUsers] = await Promise.all([
           getMessageStats(),
           getUserGrowthStats(),
