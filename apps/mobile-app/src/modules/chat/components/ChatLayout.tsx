@@ -1,15 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { View, StyleSheet, DeviceEventEmitter, Modal, Pressable, Text } from "react-native";
-import { io, Socket } from "socket.io-client";
-import { Sidebar } from "./Sidebar";
-import { ChatWindow } from "./ChatWindow";
-import { ForwardMessageModal } from "./ForwardMessageModal";
-import { ChatUserProfileModal } from "./ChatUserProfileModal";
-import { ChatGroupManageModal } from "./ChatGroupManageModal";
-import { GroupCallScreen } from "./GroupCallScreen";
-import { ChatMode, Conversation, Message, User } from "../types";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, StyleSheet, Modal } from 'react-native';
+import { io, Socket } from 'socket.io-client';
+import { Sidebar } from './Sidebar';
+import { ChatWindow } from './ChatWindow';
+import { IncomingCallModal } from './IncomingCallModal';
+import { ForwardMessageModal } from './ForwardMessageModal';
+import { ChatUserProfileModal } from './ChatUserProfileModal';
+import { ChatGroupManageModal } from './ChatGroupManageModal';
+import { GroupCallScreen } from './GroupCallScreen';
+import { CallHistoryItem, ChatMode, Conversation, Message, User } from '../types';
+import type { MediaCallKind } from '../types';
 import {
   fetchConversations,
+  fetchCallHistory,
   fetchMessages,
   sendMessage,
   mapApiMessageToMessage,
@@ -42,6 +45,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [callHistory, setCallHistory] = useState<CallHistoryItem[]>([]);
+  const [isLoadingCallHistory, setIsLoadingCallHistory] = useState(false);
+  const [callHistoryPage, setCallHistoryPage] = useState(1);
+  const [callHistoryTotalPages, setCallHistoryTotalPages] = useState(1);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forwardMessageTarget, setForwardMessageTarget] =
@@ -53,11 +60,13 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [callConversationId, setCallConversationId] = useState<string | null>(null);
   const [callInitiatorUserId, setCallInitiatorUserId] = useState<string | null>(null);
   const [callIsPrivate, setCallIsPrivate] = useState(false);
+  const [callMediaKind, setCallMediaKind] = useState<MediaCallKind>('video');
   const [leaveSignal, setLeaveSignal] = useState(0);
   const [incomingCallRequest, setIncomingCallRequest] = useState<{
     conversationId: string;
     initiatorUserId: string;
     isPrivate?: boolean;
+    callType?: MediaCallKind;
   } | null>(null);
 
   // chatMongoId: MongoDB ObjectId của user hiện tại trong chat-service
@@ -93,11 +102,25 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const isCallActiveRef = useRef(false);
   const conversationsRef = useRef<Conversation[]>([]);
   const callConversationIdRef = useRef<string | null>(null);
+  const joinedConversationRoomRef = useRef<string | null>(null);
   const incomingCallRequestRef = useRef<{
     conversationId: string;
     initiatorUserId: string;
     isPrivate?: boolean;
+    callType?: MediaCallKind;
   } | null>(null);
+
+  const incomingCallConversation = React.useMemo(
+    () => conversations.find((item) => item.id === incomingCallRequest?.conversationId) || null,
+    [conversations, incomingCallRequest?.conversationId],
+  );
+
+  const incomingCaller = React.useMemo(() => {
+    if (!incomingCallRequest) return null;
+    const conversation = incomingCallConversation;
+    if (!conversation) return null;
+    return conversation.participants.find((participant) => participant.id === incomingCallRequest.initiatorUserId) || null;
+  }, [incomingCallConversation, incomingCallRequest]);
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
@@ -146,6 +169,30 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   useEffect(() => {
     callConversationIdRef.current = callConversationId;
   }, [callConversationId]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    const roomId = activeConversationId;
+
+    if (!socket) return;
+
+    if (joinedConversationRoomRef.current && joinedConversationRoomRef.current !== roomId) {
+      socket.emit('leave_room', { roomId: joinedConversationRoomRef.current });
+    }
+
+    if (roomId) {
+      socket.emit('joinRoom', roomId);
+      joinedConversationRoomRef.current = roomId;
+    } else {
+      joinedConversationRoomRef.current = null;
+    }
+
+    return () => {
+      if (socket && joinedConversationRoomRef.current === roomId && roomId) {
+        socket.emit('leave_room', { roomId });
+      }
+    };
+  }, [activeConversationId]);
 
   useEffect(() => {
     conversationsRef.current = conversations;
@@ -267,28 +314,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         );
       });
 
-      // --- KẾT HỢP: GROUP VÀ FRIEND CỦA ÔNG ---
-      const handleGroupUpdate = () => {
-        console.log("👥 [Trạm Chính] Phát hiện thay đổi nhóm, tải lại danh sách...");
-        loadConversations();
-      };
-
-      socket.on("new_group_created", handleGroupUpdate);
-      socket.on("added_to_group", handleGroupUpdate);
-      socket.on("group_updated", handleGroupUpdate);
-
-      const handleFriendUpdate = () => {
-        console.log("📣 [Trạm Chính] Nhận được tín hiệu kết bạn! Đang phát loa...");
-        DeviceEventEmitter.emit('SYNC_FRIENDS_DATA'); 
-        loadConversations();
-      };
-
-      socket.on("friend_status_updated", handleFriendUpdate);
-      socket.on("friend_request_rejected", handleFriendUpdate);
-      socket.on("friend_request_accepted", handleFriendUpdate);
-
-      // --- KẾT HỢP: CUỘC GỌI CỦA TEAM ---
-      socket.on('incomingGroupMediaCall', (payload: { conversationId: string; initiatorUserId: string }) => {
+      socket.on('incomingGroupMediaCall', (payload: { conversationId: string; initiatorUserId: string; callType?: MediaCallKind; isPrivate?: boolean }) => {
         if (!payload?.conversationId || payload.initiatorUserId === chatMongoId) return;
         if (isCallActiveRef.current || incomingCallRequestRef.current) return;
         const matchedConversation = conversationsRef.current.find(
@@ -297,7 +323,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         setIncomingCallRequest({
           conversationId: payload.conversationId,
           initiatorUserId: payload.initiatorUserId,
-          isPrivate: matchedConversation?.type === 'private',
+          isPrivate: payload.isPrivate ?? matchedConversation?.type === 'private',
+          callType: payload.callType ?? 'video',
         });
         setActiveConversationId(payload.conversationId);
         setActiveView('chat');
@@ -317,6 +344,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         setCallConversationId(null);
         setCallInitiatorUserId(null);
         setCallIsPrivate(false);
+        setCallMediaKind('video');
       };
 
       socket.on('callEnded', handleCallEnded);
@@ -368,18 +396,28 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   useEffect(() => {
     if (!activeConversationId) {
       setMessages([]);
+      setCallHistory([]);
       return;
     }
 
     const load = async () => {
       setIsLoadingMessages(true);
+      setIsLoadingCallHistory(true);
       try {
-        const data = await fetchMessages(activeConversationId);
-        setMessages(data);
+        const [messagesData, callHistoryData] = await Promise.all([
+          fetchMessages(activeConversationId),
+          fetchCallHistory({ conversationId: activeConversationId, limit: 50, page: 1 }),
+        ]);
+        setMessages(messagesData);
+        setCallHistory(callHistoryData.items || []);
+        setCallHistoryPage(callHistoryData.pagination?.page || 1);
+        setCallHistoryTotalPages(callHistoryData.pagination?.totalPages || 1);
       } catch (err) {
-        console.error("[ChatLayout] fetch messages error:", err);
+        console.error('[ChatLayout] fetch messages error:', err);
+        setCallHistory([]);
       } finally {
         setIsLoadingMessages(false);
+        setIsLoadingCallHistory(false);
       }
     };
 
@@ -691,24 +729,32 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       .slice(0, 20);
   }, [conversations, chatMongoId, searchQuery]);
 
-  const handleStartVideoCall = useCallback(() => {
+    const handleStartVideoCall = useCallback(() => {
     if (!activeConversation || activeConversation.id.startsWith('draft_')) return;
     setCallConversationId(activeConversation.id);
     setCallInitiatorUserId(chatMongoId || currentUserId);
     setCallIsPrivate(true);
+    setCallMediaKind('video');
     setIncomingCallRequest(null);
     setIsGroupCallActive(true);
   }, [activeConversation, chatMongoId, currentUserId]);
 
   const handleStartVoiceCall = useCallback(() => {
-    handleStartVideoCall();
-  }, [handleStartVideoCall]);
+    if (!activeConversation || activeConversation.id.startsWith('draft_')) return;
+    setCallConversationId(activeConversation.id);
+    setCallInitiatorUserId(chatMongoId || currentUserId);
+    setCallIsPrivate(true);
+    setCallMediaKind('audio');
+    setIncomingCallRequest(null);
+    setIsGroupCallActive(true);
+  }, [activeConversation, chatMongoId, currentUserId]);
 
-  const handleStartGroupCall = useCallback(() => {
+  const handleStartGroupCall = useCallback((callType: MediaCallKind = 'video') => {
     if (!activeConversationId) return;
     setCallConversationId(activeConversationId);
     setCallInitiatorUserId(chatMongoId || currentUserId);
     setCallIsPrivate(false);
+    setCallMediaKind(callType);
     setIncomingCallRequest(null);
     setIsGroupCallActive(true);
   }, [activeConversationId, chatMongoId, currentUserId]);
@@ -718,6 +764,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setCallConversationId(incomingCallRequest.conversationId);
     setCallInitiatorUserId(incomingCallRequest.initiatorUserId);
     setCallIsPrivate(Boolean(incomingCallRequest.isPrivate));
+    setCallMediaKind(incomingCallRequest.callType ?? 'video');
     setIncomingCallRequest(null);
     setIsGroupCallActive(true);
   }, [incomingCallRequest]);
@@ -738,9 +785,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
     if (socket) {
       if (conversationType === 'private') {
-        socket.emit('joinMediaRoom', { conversationId }, () => {
-          socket.emit('leaveMediaRoom', conversationId);
-        });
+        socket.emit('declineMediaCall', { conversationId });
       } else {
         socket.emit('leaveMediaRoom', conversationId);
       }
@@ -789,6 +834,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
               onSendMessage={handleSendMessage}
               isLoadingMessages={isLoadingMessages}
               isSending={isSending}
+              callHistory={callHistory}
+              isLoadingCallHistory={isLoadingCallHistory}
+              callHistoryPage={callHistoryPage}
+              callHistoryTotalPages={callHistoryTotalPages}
               onBack={handleBackToSidebar}
               socket={socketRef.current}
               onForwardMessage={setForwardMessageTarget}
@@ -814,6 +863,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
                 socket={socketRef.current}
                 participantNames={participantNames}
                 conversationType={callIsPrivate ? 'private' : callConversationType}
+                callType={callMediaKind}
                 initiatorUserId={callInitiatorUserId}
                 leaveSignal={leaveSignal}
                 onLeave={() => {
@@ -821,32 +871,21 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
                   setCallConversationId(null);
                   setCallInitiatorUserId(null);
                   setCallIsPrivate(false);
+                  setCallMediaKind('video');
                 }}
               />
             )}
           </Modal>
 
-          <Modal
-            transparent
-            animationType="fade"
+          <IncomingCallModal
             visible={Boolean(incomingCallRequest)}
-            onRequestClose={handleDeclineIncomingCall}
-          >
-            <View style={styles.incomingOverlay}>
-              <View style={styles.incomingCard}>
-                <Text style={styles.incomingTitle}>Cuộc gọi đến</Text>
-                <Text style={styles.incomingText}>Bạn có cuộc gọi video đến</Text>
-                <View style={styles.incomingActions}>
-                  <Pressable style={[styles.incomingBtn, styles.declineBtn]} onPress={handleDeclineIncomingCall}>
-                    <Text style={styles.incomingBtnText}>Từ chối</Text>
-                  </Pressable>
-                  <Pressable style={[styles.incomingBtn, styles.acceptBtn]} onPress={handleAcceptIncomingCall}>
-                    <Text style={styles.incomingBtnText}>Chấp nhận</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </Modal>
+            callType={incomingCallRequest?.callType ?? 'video'}
+            isPrivate={Boolean(incomingCallRequest?.isPrivate)}
+            callerName={incomingCaller?.name ?? null}
+            conversationName={incomingCallConversation?.name ?? null}
+            onAccept={handleAcceptIncomingCall}
+            onDecline={handleDeclineIncomingCall}
+          />
 
           {forwardMessageTarget && (
             <ForwardMessageModal
@@ -886,53 +925,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
-  },
-  incomingOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(2, 6, 23, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-  },
-  incomingCard: {
-    width: '100%',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  incomingTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  incomingText: {
-    marginTop: 6,
-    color: '#334155',
-    fontSize: 14,
-  },
-  incomingActions: {
-    marginTop: 14,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  incomingBtn: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  acceptBtn: {
-    backgroundColor: '#16a34a',
-  },
-  declineBtn: {
-    backgroundColor: '#334155',
-  },
-  incomingBtnText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
   },
 });

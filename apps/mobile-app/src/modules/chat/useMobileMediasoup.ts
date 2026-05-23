@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import type { MediaStream } from "react-native-webrtc";
+import type { MediaCallKind } from "./types";
 
 // ─── Mediasoup-client types (loaded lazily) ───────────────────────────────────
 type Device = import("mediasoup-client").Device;
@@ -71,6 +72,7 @@ export type RemoteParticipant = {
   audioConsumerId?: string;
   /** consumerId của video track (nếu có) */
   videoConsumerId?: string;
+  isCameraEnabled?: boolean;
 };
 
 export type SfuCallStatus =
@@ -85,6 +87,8 @@ export type UseMobileMediasoupParams = {
   currentUserId: string;
   /** conversationId sẽ được dùng làm roomId cho SFU */
   conversationId: string | null;
+  /** audio hoặc video */
+  callType?: MediaCallKind;
   /** private call: chỉ cần 1 peer rời là kết thúc cuộc gọi */
   endOnPeerLeave?: boolean;
   /** group call: initiator tắt cuộc gọi sẽ kết thúc cho toàn bộ room */
@@ -118,9 +122,11 @@ let webRtcGlobalsRegistered = false;
 
 // ─── Lazy loaders ─────────────────────────────────────────────────────────────
 function loadWebRtcModule() {
-  if (!ENABLE_WEBRTC) return null;
   try {
-    return require("react-native-webrtc") as typeof import("react-native-webrtc");
+    const module = require("react-native-webrtc") as typeof import("react-native-webrtc");
+    if (ENABLE_WEBRTC) return module;
+    // Allow dev builds to proceed if native module exists, even when env flag is missing.
+    return module;
   } catch {
     return null;
   }
@@ -187,6 +193,7 @@ export function useMobileMediasoup({
   socket,
   currentUserId,
   conversationId,
+  callType = "video",
   endOnPeerLeave = false,
   isCallInitiator = false,
 }: UseMobileMediasoupParams): UseMobileMediasoupReturn {
@@ -227,10 +234,15 @@ export function useMobileMediasoup({
   const peerConsumerInfoRef = useRef<
     Map<string, { audioConsumerId?: string; videoConsumerId?: string }>
   >(new Map());
+  const pendingProducersRef = useRef<NewProducerPayload[]>([]);
+  const consumedProducerIdsRef = useRef<Set<string>>(new Set());
+  const remoteCameraStatusRef = useRef<Map<string, boolean>>(new Map());
+  const consumerTracksRef = useRef<Map<string, RNMediaStreamTrack>>(new Map());
 
   const conversationIdRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const isCleaningUpRef = useRef(false);
+  const requestedCallTypeRef = useRef<MediaCallKind>(callType);
 
   // ── sync refs ──
   useEffect(() => {
@@ -240,6 +252,10 @@ export function useMobileMediasoup({
   useEffect(() => {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
+
+  useEffect(() => {
+    requestedCallTypeRef.current = callType;
+  }, [callType]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -269,31 +285,69 @@ export function useMobileMediasoup({
         stream,
         audioConsumerId: info.audioConsumerId,
         videoConsumerId: info.videoConsumerId,
+        isCameraEnabled: remoteCameraStatusRef.current.get(userId) ?? true,
       });
     });
     setRemoteParticipants(participants);
   }, []);
 
   /**
-   * Rebuild remote stream theo kind để RTCView cập nhật ổn định trên mobile.
+   * Rebuild remote stream dynamically based on active audio and video consumers.
    */
-  const upsertRemoteTrack = useCallback((userId: string, track: RNMediaStreamTrack) => {
+  const rebuildRemoteStream = useCallback((userId: string) => {
     const webRtcModule = loadWebRtcModule();
     if (!webRtcModule) return;
 
-    const existing = remoteStreamsRef.current.get(userId) as unknown as import("react-native-webrtc").MediaStream | undefined;
-    const next = new webRtcModule.MediaStream();
+    // Find all active consumer IDs for this user
+    const activeConsumerIds: string[] = [];
+    consumerUserMapRef.current.forEach((uid, cid) => {
+      if (uid === userId) {
+        activeConsumerIds.push(cid);
+      }
+    });
 
-    if (existing) {
-      existing.getTracks().forEach((t) => {
-        if (t.kind !== track.kind && t.readyState !== "ended") {
-          next.addTrack(t);
-        }
-      });
+    // Extract active audio consumer ID (max 1)
+    let audioConsumerId: string | undefined;
+    activeConsumerIds.forEach((cid) => {
+      const track = consumerTracksRef.current.get(cid);
+      if (track && track.kind === "audio") {
+        audioConsumerId = cid;
+      }
+    });
+
+    // Extract active video consumer ID (prioritize the latest screen share or video track)
+    let videoConsumerId: string | undefined;
+    const videoConsumerIds: string[] = [];
+    activeConsumerIds.forEach((cid) => {
+      const track = consumerTracksRef.current.get(cid);
+      if (track && track.kind === "video") {
+        videoConsumerIds.push(cid);
+      }
+    });
+
+    if (videoConsumerIds.length > 0) {
+      // Prioritize the newest video consumer (usually screen share)
+      videoConsumerId = videoConsumerIds[videoConsumerIds.length - 1];
     }
 
-    next.addTrack(track);
-    remoteStreamsRef.current.set(userId, next as unknown as MediaStream);
+    // Sync peer consumer info
+    const info = peerConsumerInfoRef.current.get(userId) || {};
+    info.audioConsumerId = audioConsumerId;
+    info.videoConsumerId = videoConsumerId;
+    peerConsumerInfoRef.current.set(userId, info);
+
+    // Build the remote stream containing active tracks
+    const nextStream = new webRtcModule.MediaStream();
+    if (audioConsumerId) {
+      const track = consumerTracksRef.current.get(audioConsumerId);
+      if (track) nextStream.addTrack(track);
+    }
+    if (videoConsumerId) {
+      const track = consumerTracksRef.current.get(videoConsumerId);
+      if (track) nextStream.addTrack(track);
+    }
+
+    remoteStreamsRef.current.set(userId, nextStream as unknown as MediaStream);
   }, []);
 
   /**
@@ -307,6 +361,7 @@ export function useMobileMediasoup({
       const device = deviceRef.current;
 
       if (!socket || !roomId || !recvTransport || !device) return;
+      if (consumedProducerIdsRef.current.has(producerId)) return;
 
       try {
         const ack = await socketEmitAck<{
@@ -336,19 +391,15 @@ export function useMobileMediasoup({
           rtpParameters: rtpParameters as RtpParameters,
         });
 
+        consumedProducerIdsRef.current.add(producerId);
+
         // Ghi nhận mapping
         consumerUserMapRef.current.set(consumerId, userId);
         producerConsumerMapRef.current.set(producerId, consumerId);
-        const peerInfo = peerConsumerInfoRef.current.get(userId) ?? {};
-        if (kind === "audio") peerInfo.audioConsumerId = consumerId;
-        else peerInfo.videoConsumerId = consumerId;
-        peerConsumerInfoRef.current.set(userId, peerInfo);
+        consumerTracksRef.current.set(consumerId, consumer.track as unknown as RNMediaStreamTrack);
 
-        // Thêm track vào remote stream của userId
-        upsertRemoteTrack(
-          userId,
-          consumer.track as unknown as RNMediaStreamTrack,
-        );
+        // Rebuild remote stream for the user
+        rebuildRemoteStream(userId);
 
         // Resume consumer trên server (server tạo ở trạng thái paused)
         await socketEmitAck(socket, "resume", {
@@ -361,8 +412,19 @@ export function useMobileMediasoup({
         console.error("[useMobileMediasoup] consumeProducer error:", err);
       }
     },
-    [syncRemoteParticipants, upsertRemoteTrack],
+    [syncRemoteParticipants, rebuildRemoteStream],
   );
+
+  const flushPendingProducers = useCallback(async () => {
+    if (!recvTransportRef.current || !deviceRef.current) return;
+    const pending = pendingProducersRef.current.splice(0);
+    for (const producer of pending) {
+      if (requestedCallTypeRef.current === "audio" && producer.kind === "video") {
+        continue;
+      }
+      await consumeProducer(producer.producerId, producer.kind, producer.userId);
+    }
+  }, [consumeProducer]);
 
   // ─── Cleanup toàn bộ SFU state ───────────────────────────────────────────────
   const cleanup = useCallback(
@@ -386,8 +448,12 @@ export function useMobileMediasoup({
       remoteStreamsRef.current.clear();
       consumerUserMapRef.current.clear();
       producerConsumerMapRef.current.clear();
+      consumerTracksRef.current.clear();
       peerConsumerInfoRef.current.clear();
       localProducerIdsRef.current.clear();
+      pendingProducersRef.current = [];
+      consumedProducerIdsRef.current.clear();
+      remoteCameraStatusRef.current.clear();
 
       if (!isMountedRef.current) return;
       setLocalStream(null);
@@ -455,10 +521,18 @@ export function useMobileMediasoup({
       setCallStatus("joining");
 
       // ── 1. Lấy local media ─────────────────────────────────────────────────
-      const stream = await webRtcModule.mediaDevices.getUserMedia({
-        audio: true,
-        video: { facingMode: "user" },
-      });
+      const stream = await webRtcModule.mediaDevices.getUserMedia(
+        callType === "audio"
+          ? { audio: true, video: false }
+          : { audio: true, video: { facingMode: "user" } },
+      );
+
+      const effectiveCallType: MediaCallKind =
+        (stream as unknown as import("react-native-webrtc").MediaStream)
+          .getVideoTracks().length > 0
+          ? callType
+          : "audio";
+      requestedCallTypeRef.current = effectiveCallType;
 
       localStreamRef.current = stream as unknown as MediaStream;
       if (isMountedRef.current) {
@@ -558,8 +632,9 @@ export function useMobileMediasoup({
       // ── 6. Produce local audio & video ────────────────────────────────────
       const audioTrack = (stream as unknown as import("react-native-webrtc").MediaStream)
         .getAudioTracks()[0];
-      const videoTrack = (stream as unknown as import("react-native-webrtc").MediaStream)
-        .getVideoTracks()[0];
+      const videoTrack = effectiveCallType === "audio"
+        ? undefined
+        : (stream as unknown as import("react-native-webrtc").MediaStream).getVideoTracks()[0];
 
       if (audioTrack) {
         const audioProducer = await sendTransport.produce({
@@ -584,11 +659,16 @@ export function useMobileMediasoup({
       }
 
       // ── 7. Consume existing producers ─────────────────────────────────────
+      await flushPendingProducers();
+
       for (const ep of existingProducers) {
+        if (requestedCallTypeRef.current === "audio" && ep.kind === "video") {
+          continue;
+        }
         await consumeProducer(ep.producerId, ep.kind, ep.userId);
       }
 
-      socket.emit("startGroupMediaCall", { conversationId: roomId });
+      socket.emit("startGroupMediaCall", { conversationId: roomId, callType: effectiveCallType });
 
       if (isMountedRef.current) {
         setCallStatus(existingProducers.length > 0 ? "connected" : "ready");
@@ -601,7 +681,7 @@ export function useMobileMediasoup({
       }
       cleanup({ preserveError: true });
     }
-  }, [callStatus, cleanup, consumeProducer, currentUserId]);
+  }, [callStatus, callType, cleanup, consumeProducer, currentUserId, flushPendingProducers]);
 
   // ─── Xử lý media controls ────────────────────────────────────────────────────
   const toggleMicrophone = useCallback(() => {
@@ -622,6 +702,13 @@ export function useMobileMediasoup({
     const shouldEnable = tracks.some((t) => !t.enabled);
     tracks.forEach((t) => { t.enabled = shouldEnable; });
     setIsCameraEnabled(shouldEnable);
+
+    if (socketRef.current && conversationIdRef.current) {
+      socketRef.current.emit("cameraStatusChanged", {
+        conversationId: conversationIdRef.current,
+        isCameraEnabled: shouldEnable,
+      });
+    }
   }, []);
 
   const switchCamera = useCallback(() => {
@@ -644,6 +731,11 @@ export function useMobileMediasoup({
     const handleNewProducer = async (payload: NewProducerPayload) => {
       // Không consume producer của chính mình
       if (payload.userId === currentUserId) return;
+      if (requestedCallTypeRef.current === "audio" && payload.kind === "video") return;
+      if (!deviceRef.current?.loaded || !recvTransportRef.current) {
+        pendingProducersRef.current.push(payload);
+        return;
+      }
       await consumeProducer(payload.producerId, payload.kind, payload.userId);
       if (isMountedRef.current) {
         setCallStatus("connected");
@@ -661,12 +753,13 @@ export function useMobileMediasoup({
       // Xoá consumer khỏi tracking
       producerConsumerMapRef.current.delete(producerId);
       consumerUserMapRef.current.delete(consumerId);
+      consumerTracksRef.current.delete(consumerId);
+
+      // Rebuild remote stream for user to restore old active tracks (e.g. camera)
+      rebuildRemoteStream(userId);
 
       const peerInfo = peerConsumerInfoRef.current.get(userId);
       if (peerInfo) {
-        if (peerInfo.audioConsumerId === consumerId) peerInfo.audioConsumerId = undefined;
-        if (peerInfo.videoConsumerId === consumerId) peerInfo.videoConsumerId = undefined;
-
         // Nếu peer không còn consumer nào → xoá khỏi danh sách
         if (!peerInfo.audioConsumerId && !peerInfo.videoConsumerId) {
           peerConsumerInfoRef.current.delete(userId);
@@ -690,7 +783,10 @@ export function useMobileMediasoup({
       remoteStreamsRef.current.delete(userId);
       // Xoá tất cả consumer mapping của userId này
       consumerUserMapRef.current.forEach((uid, consumerId) => {
-        if (uid === userId) consumerUserMapRef.current.delete(consumerId);
+        if (uid === userId) {
+          consumerUserMapRef.current.delete(consumerId);
+          consumerTracksRef.current.delete(consumerId);
+        }
       });
       producerConsumerMapRef.current.forEach((mappedConsumerId, producerId) => {
         if (mappedConsumerId && !consumerUserMapRef.current.has(mappedConsumerId)) {
@@ -719,12 +815,18 @@ export function useMobileMediasoup({
       }
     };
 
+    const handleCameraStatusChanged = ({ userId, isCameraEnabled }: { userId: string; isCameraEnabled: boolean }) => {
+      remoteCameraStatusRef.current.set(userId, isCameraEnabled);
+      syncRemoteParticipants();
+    };
+
     socket.on("newProducer", handleNewProducer);
     socket.on("producerClosed", handleProducerClosed);
     socket.on("mediaPeerLeft", handleMediaPeerLeft);
     socket.on("mediaError", handleMediaError);
     socket.on("callEnded", handleCallEnded);
     socket.on("videoCallEnded", handleCallEnded);
+    socket.on("cameraStatusChanged", handleCameraStatusChanged);
 
     return () => {
       socket.off("newProducer", handleNewProducer);
@@ -733,6 +835,7 @@ export function useMobileMediasoup({
       socket.off("mediaError", handleMediaError);
       socket.off("callEnded", handleCallEnded);
       socket.off("videoCallEnded", handleCallEnded);
+      socket.off("cameraStatusChanged", handleCameraStatusChanged);
     };
   }, [cleanup, consumeProducer, currentUserId, endOnPeerLeave, socket, stopStream, syncRemoteParticipants]);
 

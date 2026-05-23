@@ -20,6 +20,7 @@ import mediasoupConfig from "./config/mediasoup.ts";
 type StartVideoCallPayload = {
   calleeUserId: string;
   conversationId: string;
+  callType?: MediaCallKind;
 };
 
 type WebRtcOfferPayload = {
@@ -45,6 +46,15 @@ type EndVideoCallPayload = {
   reason?: string;
 };
 
+type DeclineVideoCallPayload = {
+  callId: string;
+  reason?: string;
+};
+
+type DeclineMediaCallPayload = {
+  conversationId: string;
+};
+
 type CallSessionStatus = "ringing" | "connected";
 
 type CallSession = {
@@ -52,6 +62,7 @@ type CallSession = {
   conversationId: string;
   callerId: string;
   calleeId: string;
+  callType?: MediaCallKind;
   status: CallSessionStatus;
   createdAt: number;
   connectedAt?: number;
@@ -98,9 +109,9 @@ type ResumeConsumerPayload = {
 type MediaAck =
   | ((response: { ok: true; data: unknown }) => void)
   | ((response: {
-      ok: false;
-      error: { code: string; message: string };
-    }) => void);
+    ok: false;
+    error: { code: string; message: string };
+  }) => void);
 
 type MediaPeer = {
   socketId: string;
@@ -224,7 +235,7 @@ class SocketManager {
         conversationId: new mongoose.Types.ObjectId(session.conversationId),
         callerId: new mongoose.Types.ObjectId(session.callerId),
         calleeId: new mongoose.Types.ObjectId(session.calleeId),
-        callType: "video",
+        callType: session.callType || "video",
         status: "ringing",
         startedAt: new Date(session.createdAt),
       });
@@ -371,11 +382,10 @@ class SocketManager {
     const conversation = await Conversation.findOne(
       {
         _id: conversationId,
-        type: "private",
         isArchived: { $ne: true },
         participants: callerId,
       },
-      { participants: 1 },
+      { participants: 1, type: 1 },
     ).lean();
 
     if (!conversation || !Array.isArray(conversation.participants)) {
@@ -386,11 +396,12 @@ class SocketManager {
       participant.toString(),
     );
 
-    if (participantIds.length !== 2) {
-      return;
-    }
+    const conversationType = (conversation as { type?: string }).type || "private";
+    const calleeId =
+      conversationType === "class"
+        ? callerId
+        : participantIds.find((id) => id !== callerId);
 
-    const calleeId = participantIds.find((id) => id !== callerId);
     if (!calleeId || !mongoose.Types.ObjectId.isValid(calleeId)) {
       return;
     }
@@ -832,7 +843,7 @@ class SocketManager {
 
             socket.join(conversationId);
 
-            if (room.peers.size === 2) {
+            if (room.peers.size >= 2) {
               this.markMediaConversationConnected(conversationId);
             }
 
@@ -1411,6 +1422,45 @@ class SocketManager {
         this.closeRoomIfEmpty(room);
       });
 
+      socket.on("declineMediaCall", async (data: DeclineMediaCallPayload, ack?: MediaAck) => {
+        const conversationId = data?.conversationId?.trim();
+        if (!conversationId) {
+          this.emitMediaError(socket, "INVALID_PAYLOAD", "conversationId is required.", ack);
+          return;
+        }
+
+        try {
+          const conversation = await Conversation.findOne(
+            {
+              _id: conversationId,
+              isArchived: { $ne: true },
+              participants: userId,
+            },
+            { type: 1 },
+          ).lean();
+
+          if (!conversation) {
+            this.emitMediaError(socket, "ROOM_NOT_FOUND", "Conversation not found.", ack);
+            return;
+          }
+
+          const isPrivateConversation = (conversation as { type?: string }).type === "private";
+          if (isPrivateConversation) {
+            this.finalizeMediaConversationCall(conversationId, "declined");
+            this.io?.to(conversationId).emit("callEnded", {
+              conversationId,
+              endedByUserId: userId,
+              reason: "declined",
+            });
+          }
+
+          this.safeAck(ack, { ok: true, data: { declined: true } });
+        } catch (error) {
+          console.error("[Mediasoup] declineMediaCall error:", error);
+          this.emitMediaError(socket, "MEDIA_DECLINE_FAILED", "Unable to decline media call.", ack);
+        }
+      });
+
       // For group calls: broadcast incoming call event when joining media room
       socket.on(
         "startGroupMediaCall",
@@ -1433,6 +1483,24 @@ class SocketManager {
           }
 
           try {
+            const conversation = await Conversation.findOne(
+              {
+                _id: conversationId,
+                isArchived: { $ne: true },
+                participants: userId,
+              },
+              { type: 1 },
+            ).lean();
+
+            if (!conversation) {
+              socket.emit("videoCallError", {
+                code: "ROOM_NOT_FOUND",
+                message: "Conversation not found.",
+              });
+              return;
+            }
+
+            const isPrivateConversation = (conversation as { type?: string }).type === "private";
             const room = this.mediaRooms.get(conversationId);
             if (!room) {
               socket.emit("videoCallError", {
@@ -1451,6 +1519,7 @@ class SocketManager {
               initiatorUserId: userId,
               initiatedAt: new Date().toISOString(),
               callType,
+              isPrivate: isPrivateConversation,
             });
 
             socket.emit("groupMediaCallStarted", {
@@ -1533,6 +1602,7 @@ class SocketManager {
             conversationId,
             callerId: userId,
             calleeId: calleeUserId,
+            callType: data.callType || "video",
             status: "ringing",
             createdAt: Date.now(),
           };
@@ -1548,6 +1618,7 @@ class SocketManager {
             fromUserId: userId,
             toUserId: calleeUserId,
             initiatedAt: new Date(session.createdAt).toISOString(),
+            callType: session.callType,
           };
 
           const emitted = this.emitToUser(
@@ -1618,6 +1689,42 @@ class SocketManager {
         }
 
         this.endCallSession(callId, userId, data.reason || "ended");
+      });
+
+      socket.on("declineVideoCall", (data: DeclineVideoCallPayload) => {
+        if (!userId) {
+          return;
+        }
+
+        const callId = data?.callId?.trim();
+        if (!callId) {
+          socket.emit("videoCallError", {
+            code: "INVALID_PAYLOAD",
+            message: "callId is required.",
+          });
+          return;
+        }
+
+        const session = this.callSessions.get(callId);
+        if (!session) {
+          socket.emit("videoCallError", {
+            code: "CALL_NOT_FOUND",
+            message: "Video call session not found.",
+            callId,
+          });
+          return;
+        }
+
+        if (!this.isSessionParticipant(session, userId)) {
+          socket.emit("videoCallError", {
+            code: "CALL_FORBIDDEN",
+            message: "You are not a participant of this call.",
+            callId,
+          });
+          return;
+        }
+
+        this.endCallSession(callId, userId, data.reason || "declined");
       });
 
       // Handle message reactions

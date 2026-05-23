@@ -4,33 +4,28 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getCurrentUser, type AuthUser } from "@/services/auth/auth.service";
-
-type TabId = "overview" | "activity" | "organization" | "files";
-
-interface Tab {
-  id: TabId;
-  label: string;
-}
-
-const tabs: Tab[] = [
-  { id: "overview", label: "Overview" },
-  { id: "activity", label: "Activity" },
-  { id: "organization", label: "Organization" },
-  { id: "files", label: "Files" },
-];
+import { Mail, Phone, User, Building, Shield, Info, Edit, Sparkles } from "lucide-react";
 
 export default function ProfileOverviewPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
     const loadCurrentUser = async () => {
-      const result = await getCurrentUser();
-      if (mounted) {
-        setUser(result);
+      try {
+        const result = await getCurrentUser();
+        if (mounted) {
+          setUser(result);
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải thông tin người dùng:", err);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -43,244 +38,187 @@ export default function ProfileOverviewPage() {
 
   const fullName = useMemo(() => {
     if (!user) {
-      return "Unknown User";
+      return "Đang tải...";
     }
-
     return [user.lastName, user.firstName].filter(Boolean).join(" ") || user.email;
   }, [user]);
+
+  const roleLabel = useMemo(() => {
+    const roles = user?.roles;
+    if (!roles || roles.length === 0) return "Thành viên";
+    if (roles.includes("ROLE_STUDENT") || roles.includes("student")) return "Học viên";
+    if (roles.includes("ROLE_TEACHER") || roles.includes("teacher")) return "Giảng viên";
+    const raw = roles[0] ?? "Thành viên";
+    return raw.replace(/^ROLE_/, "").replace(/_/g, " ");
+  }, [user?.roles]);
 
   const handleEditProfile = () => {
     router.push("/account/edit");
   };
 
-  const handleJoinCall = () => {
-    console.log("Join call");
-  };
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] w-full items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+          <p className="text-sm font-medium text-slate-500">Đang tải thông tin cá nhân...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-6 flex items-start gap-6">
-        <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-lg">
-          <Image
-            src={user?.avatarUrl || "/assets/avatar-placeholder.png"}
-            alt={fullName}
-            fill
-            className="object-cover"
-          />
-          <div className="absolute bottom-2 right-2 h-4 w-4 rounded-full border-2 border-white bg-green-500" />
+    <div className="mx-auto max-w-4xl px-4 py-8">
+      {/* Banner & Avatar Section */}
+      <div className="relative overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-slate-100">
+        {/* Banner with a modern gradient and subtle glow */}
+        <div className="relative h-48 w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-700">
+          <div className="absolute inset-0 bg-grid-white/10 opacity-30" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
         </div>
 
-        <div className="flex-1">
-          <div className="mb-2 flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">{fullName}</h1>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="flex items-center gap-1.5 text-sm text-green-600">
-                  <span className="h-2 w-2 rounded-full bg-green-600" />
-                  Available
-                </span>
-                <span className="text-slate-300">•</span>
-                <span className="text-sm text-slate-600">{user?.departmentName || "No department"}</span>
+        {/* Profile Info Overlay Row */}
+        <div className="relative px-6 pb-8 pt-0 sm:px-8">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:gap-6 -mt-20 sm:-mt-16">
+            {/* Avatar container */}
+            <div className="relative h-32 w-32 shrink-0 rounded-2xl bg-white p-1.5 shadow-xl ring-4 ring-white/85">
+              <div className="relative h-full w-full overflow-hidden rounded-xl bg-slate-100">
+                <Image
+                  src={user?.avatarUrl || "/assets/avatar-placeholder.png"}
+                  alt={fullName}
+                  fill
+                  className="object-cover"
+                  priority
+                />
+              </div>
+              {/* Online indicator badge */}
+              <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-4 border-white bg-green-500">
+                <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-white" />
+              </span>
+            </div>
+
+            {/* Name and main titles */}
+            <div className="mt-4 flex-1 sm:mt-0">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between md:gap-4">
+                <div>
+                  <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+                    {fullName}
+                    <Sparkles className="h-5 w-5 text-amber-500 animate-bounce" />
+                  </h1>
+                  
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full text-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-ping" />
+                      Đang hoạt động
+                    </span>
+                    {user?.departmentName && (
+                      <>
+                        <span className="text-slate-300">•</span>
+                        <span className="font-medium text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full text-xs">
+                          {user.departmentName}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Edit profile action button */}
+                <button
+                  onClick={handleEditProfile}
+                  className="mt-4 sm:mt-0 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-blue-500/10 transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-lg active:scale-95 duration-150"
+                >
+                  <Edit className="h-4 w-4" />
+                  Chỉnh sửa hồ sơ
+                </button>
               </div>
             </div>
-            <button
-              onClick={handleEditProfile}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-              Edit Profile
-            </button>
-          </div>
-
-          <p className="mb-4 text-sm text-slate-600">{user?.email || "-"}</p>
-
-          <div className="mb-6 border-b border-slate-200">
-            <nav className="flex gap-6">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`relative pb-3 text-sm font-medium transition-colors ${
-                    activeTab === tab.id
-                      ? "text-blue-600"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {tab.label}
-                  {activeTab === tab.id && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
-                  )}
-                </button>
-              ))}
-            </nav>
           </div>
         </div>
       </div>
 
-      {activeTab === "overview" && (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <section className="mb-6 rounded-lg border border-slate-200 bg-white p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 text-blue-600" fill="currentColor">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4M12 8h.01" fill="white" />
-                </svg>
-                <h2 className="text-sm font-semibold text-slate-900">Contact Information</h2>
+      {/* Main Profile Details Cards */}
+      <div className="mt-8 grid gap-6 md:grid-cols-2">
+        {/* Left Side: Contact Information */}
+        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+            <Mail className="h-5 w-5 text-blue-600" />
+            Thông tin liên hệ
+          </h2>
+
+          <div className="space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                <Mail className="h-5 w-5" />
               </div>
-
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect width="20" height="16" x="2" y="4" rx="2" />
-                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                  </svg>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500">EMAIL</p>
-                    <a href={`mailto:${user?.email || ""}`} className="text-sm text-blue-600 hover:underline">
-                      {user?.email || "-"}
-                    </a>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M16 2H8L2 8v8l6 6h8l6-6V8l-6-6z" />
-                    <path d="M8 2v6H2m14-6v6h6M8 22v-6H2m14 6v-6h6" />
-                  </svg>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500">PHONE</p>
-                    <p className="text-sm text-slate-700">{user?.phone || "Chua cap nhat"}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-500">ABOUT</p>
-                    <p className="text-sm text-slate-700">{user?.bio || "Chua co mo ta"}</p>
-                  </div>
-                </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Địa chỉ Email</p>
+                <a href={`mailto:${user?.email || ""}`} className="text-sm font-medium text-blue-600 hover:underline break-all">
+                  {user?.email || "-"}
+                </a>
               </div>
-            </section>
+            </div>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z" />
-                  <path d="M12 6v6l4 2" />
-                </svg>
-                <h2 className="text-sm font-semibold text-slate-900">Recent Updates</h2>
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                <Phone className="h-5 w-5" />
               </div>
-
-              <div className="space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex h-2 w-2 shrink-0 items-center justify-center">
-                    <span className="h-2 w-2 rounded-full bg-blue-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-700">
-                      Updated status to <span className="font-medium text-green-600">Available</span>
-                    </p>
-                    <p className="text-xs text-slate-500">Yesterday, 4:30 PM</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="flex h-2 w-2 shrink-0 items-center justify-center">
-                    <span className="h-2 w-2 rounded-full bg-slate-300" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-700">
-                      Shared a file: <span className="font-medium">Project_Overview_V2.pdf</span>
-                    </p>
-                    <p className="text-xs text-slate-500">Oct 24, 2023</p>
-                  </div>
-                </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Số điện thoại</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {user?.phone || <span className="font-normal text-slate-400 italic">Chưa cập nhật</span>}
+                </p>
               </div>
-            </section>
-          </div>
-
-          <div className="space-y-6">
-            <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Current Team
-              </h2>
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-                  <svg viewBox="0 0 24 24" className="h-6 w-6 text-blue-600" fill="currentColor">
-                    <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-                  </svg>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-slate-900">Design Guild</h3>
-                  <p className="text-xs text-slate-500">12 members</p>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Mutual Contacts
-              </h2>
-              <div className="flex items-center gap-2">
-                <div className="flex -space-x-2">
-                  <div className="h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-blue-200" />
-                  <div className="h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-green-200" />
-                  <div className="h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-purple-200" />
-                  <div className="h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-orange-200" />
-                  <div className="h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-pink-200" />
-                </div>
-                <span className="text-sm font-medium text-slate-600">+5</span>
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Next Meeting
-              </h2>
-              <div className="mb-4 rounded-lg bg-blue-50 p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-blue-600">OCT</span>
-                  <span className="text-2xl font-bold text-blue-600">28</span>
-                </div>
-                <p className="text-sm font-semibold text-slate-900">Weekly Sync</p>
-                <p className="text-xs text-slate-500">10:00 AM - 11:00 AM</p>
-              </div>
-              <button
-                onClick={handleJoinCall}
-                className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-              >
-                Join Call
-              </button>
-            </section>
+            </div>
           </div>
         </div>
-      )}
 
-      {activeTab === "activity" && (
-        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center">
-          <p className="text-slate-500">No recent activity</p>
-        </div>
-      )}
+        {/* Right Side: Account Details */}
+        <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+            <User className="h-5 w-5 text-indigo-600" />
+            Thông tin tài khoản
+          </h2>
 
-      {activeTab === "organization" && (
-        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center">
-          <p className="text-slate-500">Organization details will be displayed here</p>
-        </div>
-      )}
+          <div className="space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                <Building className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Đơn vị / Khoa</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {user?.departmentName || <span className="font-normal text-slate-400 italic">Chưa cập nhật</span>}
+                </p>
+              </div>
+            </div>
 
-      {activeTab === "files" && (
-        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center">
-          <p className="text-slate-500">No files shared</p>
+            <div className="flex items-start gap-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <Shield className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Vai trò thành viên</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {roleLabel}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Bio / About Section */}
+      <div className="mt-6 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+          <Info className="h-5 w-5 text-violet-600" />
+          Giới thiệu bản thân
+        </h2>
+        <div className="rounded-2xl bg-slate-50 p-4">
+          <p className="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">
+            {user?.bio || "Không có tiểu sử nào được cung cấp. Hãy cập nhật tiểu sử để mọi người hiểu bạn hơn!"}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

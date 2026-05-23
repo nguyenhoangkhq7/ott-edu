@@ -1,23 +1,16 @@
 import React, { useRef, useEffect, useState, useMemo } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  StyleSheet,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { Socket } from "socket.io-client";
-import { Conversation, Message, User, Attachment, Reaction } from "../types";
-import { MessageBubble } from "./MessageBubble";
-import { MessageInput } from "./MessageInput";
-import { ChatInfoSidebar } from "./ChatInfoSidebar";
-// 🚀 IMPORT MODAL THÊM THÀNH VIÊN CỦA BẠN
-import AddMemberModal from "./AddMemberModal";
+  View, Text, TouchableOpacity, Image, FlatList,
+  KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Socket } from 'socket.io-client';
+import { CallHistoryItem, Conversation, Message, User, Attachment, Reaction } from '../types';
+import type { MediaCallKind } from '../types';
+import { MessageBubble } from './MessageBubble';
+import { MessageInput } from './MessageInput';
+import { ChatInfoSidebar } from './ChatInfoSidebar';
+import AddMemberModal from './AddMemberModal';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -32,6 +25,10 @@ interface ChatWindowProps {
   ) => Promise<void>;
   isLoadingMessages: boolean;
   isSending: boolean;
+  callHistory?: CallHistoryItem[];
+  isLoadingCallHistory?: boolean;
+  callHistoryPage?: number;
+  callHistoryTotalPages?: number;
   onBack: () => void;
   socket: Socket | null;
   onForwardMessage?: (message: Message) => void;
@@ -42,7 +39,7 @@ interface ChatWindowProps {
   /** Gọi video 1-1 */
   onStartVideoCall?: () => void;
   /** Gọi nhóm SFU (group/class chat) */
-  onStartGroupCall?: () => void;
+  onStartGroupCall?: (callType?: MediaCallKind) => void;
   /** Trạng thái cuộc gọi đang diễn ra (để disable nút khi đang gọi) */
   isCallActive?: boolean;
   typingUsers?: Record<string, string>;
@@ -58,6 +55,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   onSendMessage,
   isLoadingMessages,
   isSending,
+  callHistory = [],
+  isLoadingCallHistory: _isLoadingCallHistory = false,
   onBack,
   socket,
   onForwardMessage,
@@ -74,6 +73,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const isLoadingTimeline = isLoadingMessages || _isLoadingCallHistory;
+
+  const formatCallStatus = (item: CallHistoryItem): string => {
+    switch (item.status) {
+      case "connected":
+      case "ended":
+        return "Da goi";
+      case "declined":
+        return "Bi tu choi";
+      case "unavailable":
+        return "Khong lien lac duoc";
+      case "failed":
+        return "Loi ket noi";
+      case "ringing":
+        return "Dang do chuong";
+      default:
+        return item.status;
+    }
+  };
 
   // 🚀 STATE ĐIỀU KHIỂN MODAL THÊM NGƯỜI CỦA BẠN
   const [showAddMember, setShowAddMember] = useState(false);
@@ -217,7 +235,40 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     ? otherParticipant?.avatarUrl || `https://i.pravatar.cc/150?u=${otherParticipant?.id}`
     : conversation.avatarUrl || `https://i.pravatar.cc/150?img=30`;
 
-  const invertedMessages = [...localMessages].reverse();
+  const callHistoryMessages = React.useMemo(
+    () =>
+      callHistory.map((item) => ({
+        id: item._id,
+        conversationId: item.conversationId,
+        senderId: item.callerId,
+        content: `[call_log] ${JSON.stringify({
+          callType: item.callType || "video",
+          status: item.status,
+          durationSec: item.durationSec,
+          label: `Cuoc goi ${formatCallStatus(item).toLowerCase()}`,
+        })}`,
+        createdAt: item.startedAt,
+        status: "sent" as const,
+        attachments: [],
+        linkPreview: undefined,
+        replyTo: null,
+        isRevoked: false,
+        revokedFor: [],
+        isForwarded: false,
+        reactions: [],
+      })),
+    [callHistory],
+  );
+
+  const timelineMessages = React.useMemo(() => {
+    const combined = [...localMessages, ...callHistoryMessages];
+    return combined.sort(
+      (left, right) =>
+        new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
+    );
+  }, [callHistoryMessages, localMessages]);
+
+  const invertedMessages = [...timelineMessages].reverse();
 
   const typingNames = Object.values(typingUsers);
   const typingText = typingNames.length > 0
@@ -319,21 +370,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* Nút gọi nhóm – luôn hiện trong group/class chat */}
         {!isPrivate && (
-          <TouchableOpacity
-            style={[
-              styles.callBtn,
-              isCallActive && styles.callBtnActive,
-              !onStartGroupCall && styles.callBtnDimmed,
-            ]}
-            onPress={onStartGroupCall}
-            disabled={isCallActive || !onStartGroupCall}
-          >
-            <Ionicons
-              name={isCallActive ? "videocam" : "videocam-outline"}
-              size={22}
-              color={isCallActive ? "#22C55E" : "#3B82F6"}
-            />
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[
+                styles.callBtn,
+                isCallActive && styles.callBtnActive,
+                !onStartGroupCall && styles.callBtnDimmed,
+              ]}
+              onPress={() => onStartGroupCall?.('audio')}
+              disabled={isCallActive || !onStartGroupCall}
+            >
+              <Ionicons
+                name={isCallActive ? 'call' : 'call-outline'}
+                size={20}
+                color={isCallActive ? '#22C55E' : '#3B82F6'}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.callBtn,
+                isCallActive && styles.callBtnActive,
+                !onStartGroupCall && styles.callBtnDimmed,
+              ]}
+              onPress={() => onStartGroupCall?.('video')}
+              disabled={isCallActive || !onStartGroupCall}
+            >
+              <Ionicons
+                name={isCallActive ? 'videocam' : 'videocam-outline'}
+                size={22}
+                color={isCallActive ? '#22C55E' : '#3B82F6'}
+              />
+            </TouchableOpacity>
+          </>
         )}
 
         <TouchableOpacity
@@ -346,7 +414,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
       {/* Messages */}
       <View style={styles.messagesList}>
-        {isLoadingMessages ? (
+        {isLoadingTimeline ? (
           <View style={styles.loadingCenter}>
             <ActivityIndicator size="large" color="#3b82f6" />
           </View>
@@ -383,6 +451,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     onForward={onForwardMessage}
                     onOpenProfile={onOpenProfile}
                     showAvatar={!isSelf && !isConsecutive}
+                    onStartVoiceCall={onStartVoiceCall}
+                    onStartVideoCall={onStartVideoCall}
                   />
                   {!isConsecutive && <View style={{ height: 6 }} />}
                 </View>
@@ -465,7 +535,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   header: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 8,
@@ -534,47 +603,18 @@ const styles = StyleSheet.create({
   callBtnDimmed: {
     opacity: 0.35,
   },
-  messageList: { flex: 1 },
-  emptyMessages: { alignItems: "center", paddingTop: 80, paddingHorizontal: 40 },
-  emptyMsgIcon: {
-    width: 72, 
-    height: 72, 
-    borderRadius: 36,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center", 
-    justifyContent: "center", 
-    marginBottom: 14,
-  },
   messagesList: { flex: 1 },
-  loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
-  listContent: { paddingHorizontal: 4, paddingVertical: 12 },
-  listEmpty: {
-    alignItems: "center",
-    paddingTop: 80,
-    paddingHorizontal: 40,
-    transform: [{ scaleY: -1 }],
-  },
+  loadingCenter: { flex: 1, justifyContent: "center", alignItems: "center" },
+  listContent: { paddingVertical: 10, paddingHorizontal: 12 },
+  listEmpty: { alignItems: "center", paddingTop: 80, paddingHorizontal: 40 },
   emptyStateIconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#334155",
-    marginBottom: 6,
-  },
-  emptyStateSub: { fontSize: 13, color: "#94A3B8", textAlign: "center" },
-  typingIndicatorBar: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    backgroundColor: "rgba(248, 250, 252, 0.95)",
-  },
+  emptyStateTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 6 },
+  emptyStateSub: { fontSize: 13, color: '#64748B', textAlign: 'center' },
+  typingIndicatorBar: { paddingHorizontal: 16, paddingVertical: 6, backgroundColor: '#F8FAFC' },
   typingText: {
     fontSize: 13,
     color: "#4F46E5",
