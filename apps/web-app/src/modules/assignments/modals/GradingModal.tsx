@@ -51,19 +51,9 @@ export default function GradingModal({
 
   useEffect(() => {
     if (isOpen) {
-      queueMicrotask(() => {
-        void fetchPendingSubmissions();
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, assignmentId, fetchPendingSubmissions]);
-
-  useEffect(() => {
-    if (isOpen) {
       void fetchPendingSubmissions();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, assignmentId]);
+  }, [isOpen, fetchPendingSubmissions]);
 
 
   const handleSelectSubmission = (submission: Submission) => {

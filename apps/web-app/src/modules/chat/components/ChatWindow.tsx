@@ -157,26 +157,7 @@ const RemoteAudio: React.FC<RemoteAudioProps> = ({ stream, ...props }) => {
   return <audio ref={audioRef} {...props} />;
 };
 
-interface LocalVideoProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
-  stream: MediaStream | null;
-}
 
-const LocalVideo: React.FC<LocalVideoProps> = ({ stream, ...props }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    if (el.srcObject !== stream) {
-      el.srcObject = stream;
-    }
-    if (stream) {
-      el.play().catch(() => {});
-    }
-  }, [stream]);
-
-  return <video ref={videoRef} {...props} />;
-};
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
   conversation,
@@ -198,9 +179,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   incomingCaller = null,
   activeCall = null,
   callHistory = [],
-  isLoadingCallHistory: _isLoadingCallHistory = false,
-  callHistoryPage: _callHistoryPage = 1,
-  callHistoryTotalPages: _callHistoryTotalPages = 1,
   isMicrophoneEnabled = true,
   isCameraEnabled = true,
   isScreenSharing = false,
@@ -1075,7 +1053,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
-      {/* eslint-disable-next-line react-hooks/refs */}
       {renderFullScreenCallOverlay()}
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
         <div className="flex items-center gap-3">

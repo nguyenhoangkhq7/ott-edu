@@ -46,18 +46,7 @@ type JoinMediaRoomResponse = {
   existingProducers: Array<{ producerId: string; kind: "audio" | "video"; userId: string }>;
 };
 
-const _RTC_ICE_SERVERS = (() => {
-  if (typeof window === "undefined") return [{ urls: "stun:stun.l.google.com:19302" }];
-  const w = window as unknown as { MEDIASOUP_ICE_SERVERS?: string };
-  if (w.MEDIASOUP_ICE_SERVERS) {
-    try {
-      return JSON.parse(w.MEDIASOUP_ICE_SERVERS);
-    } catch {
-      return [{ urls: "stun:stun.l.google.com:19302" }];
-    }
-  }
-  return [{ urls: "stun:stun.l.google.com:19302" }];
-})();
+
 
 function isMobileUserAgent(): boolean {
   if (typeof navigator === "undefined") {
@@ -815,8 +804,8 @@ export default function useWebRTCMediasoup({
   }, [consumeProducer]);
 
   const endCall = useCallback(
-    (_reason?: string) => {
-      console.log("[useWebRTCMediasoup] endCall called for conversation:", currentConversationIdRef.current, "socket:", !!socket, "producers:", [...producersRef.current.keys()]);
+    (reason?: string) => {
+      console.log("[useWebRTCMediasoup] endCall called for conversation:", currentConversationIdRef.current, "reason:", reason, "socket:", !!socket, "producers:", [...producersRef.current.keys()]);
       if (currentConversationIdRef.current) {
         socket?.emit("leaveMediaRoom", currentConversationIdRef.current);
         console.log("[useWebRTCMediasoup] emitted leaveMediaRoom for", currentConversationIdRef.current);

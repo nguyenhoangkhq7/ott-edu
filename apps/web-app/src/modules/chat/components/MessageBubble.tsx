@@ -47,31 +47,7 @@ type CallMessageMeta = {
 };
 
 const CALL_MARKER_PATTERN = /^(\[call(?:_log)?\]|call_log:|call:|system_call:)/i;
-const CALL_STATUS_LABELS: Record<string, string> = {
-  ringing: "Cuoc goi dang do chuong",
-  connected: "Cuoc goi da ket noi",
-  ended: "Cuoc goi da ket thuc",
-  declined: "Cuoc goi bi tu choi",
-  unavailable: "Khong lien lac duoc",
-  failed: "Cuoc goi loi",
-  missed: "Cuoc goi nho",
-};
 
-const CALL_STATUS_KEYS = new Set(Object.keys(CALL_STATUS_LABELS));
-
-const formatCallDuration = (durationSec?: number): string => {
-  if (!durationSec || durationSec <= 0) {
-    return "0s";
-  }
-
-  const minutes = Math.floor(durationSec / 60);
-  const seconds = durationSec % 60;
-  if (minutes <= 0) {
-    return `${seconds}s`;
-  }
-
-  return `${minutes}m ${seconds}s`;
-};
 
 const parseCallMessage = (content: string, sender?: User): CallMessageMeta | null => {
   const trimmed = content.trim();
@@ -131,29 +107,7 @@ const parseCallMessage = (content: string, sender?: User): CallMessageMeta | nul
   return null;
 };
 
-const buildCallLabel = (meta: CallMessageMeta): string => {
-  if (meta.label) {
-    return meta.label;
-  }
 
-  const callTypeLabel = meta.callType === "audio" ? "Cuoc goi thoai" : "Cuoc goi video";
-  const statusKey = meta.status?.toLowerCase();
-
-  if (statusKey && CALL_STATUS_KEYS.has(statusKey)) {
-    if (statusKey === "connected" || statusKey === "ended") {
-      const durationText = meta.durationSec ? ` - ${formatCallDuration(meta.durationSec)}` : "";
-      return `${callTypeLabel}${durationText}`;
-    }
-
-    return `${callTypeLabel} - ${CALL_STATUS_LABELS[statusKey]}`;
-  }
-
-  if (meta.durationSec) {
-    return `${callTypeLabel} - ${formatCallDuration(meta.durationSec)}`;
-  }
-
-  return callTypeLabel;
-};
 
 const getCallLogDetails = (
   callMeta: CallMessageMeta,

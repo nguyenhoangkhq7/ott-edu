@@ -4,6 +4,29 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { submissionApi, assignmentApi } from '@/services/api/assignment.service';
 import { teamApi } from '@/services/api/teamApi';
 import { formatDisplayFileName } from '@/shared/utils/file';
+import { AssignmentDetail } from '@/shared/types/quiz';
+
+interface StudentAnswer {
+  questionId: number;
+  selectedOptionIds: number[];
+  earnedPoints: number;
+}
+
+interface SubmissionGrade {
+  feedback?: string;
+  score?: number;
+  gradedAt?: string;
+}
+
+interface SubmissionDetail {
+  submissionId: number;
+  studentAccountId: number;
+  assignmentId: number;
+  status: string;
+  submittedAt: string;
+  grade?: SubmissionGrade | null;
+  studentAnswers?: StudentAnswer[];
+}
 
 interface TeacherGradingDashboardProps {
   assignmentId: number;
@@ -118,8 +141,8 @@ export default function TeacherGradingDashboard({
   const [score, setScore] = useState<number | string>('');
   const [feedback, setFeedback] = useState('');
   const [studentNamesMap, setStudentNamesMap] = useState<Record<number, string>>({});
-  const [assignment, setAssignment] = useState<any | null>(null);
-  const [submissionDetail, setSubmissionDetail] = useState<any | null>(null);
+  const [assignment, setAssignment] = useState<AssignmentDetail | null>(null);
+  const [submissionDetail, setSubmissionDetail] = useState<SubmissionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
@@ -219,15 +242,16 @@ export default function TeacherGradingDashboard({
 
     try {
       setLoadingDetail(true);
-      const detail = await submissionApi.getSubmissionDetailForTeacher(submission.submissionId) as any;
+      const detail = await submissionApi.getSubmissionDetailForTeacher(submission.submissionId) as unknown as SubmissionDetail;
       setSubmissionDetail(detail);
       if (detail && detail.grade) {
         setFeedback(detail.grade.feedback || '');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[GradingDashboard] Error fetching submission details:', err);
       if (assignment?.type === 'QUIZ') {
-        setError(err.response?.data?.message || 'Không thể tải chi tiết bài làm trắc nghiệm');
+        const error = err as { response?: { data?: { message?: string } } };
+        setError(error.response?.data?.message || 'Không thể tải chi tiết bài làm trắc nghiệm');
       }
     } finally {
       setLoadingDetail(false);
@@ -515,10 +539,10 @@ export default function TeacherGradingDashboard({
                     </div>
                   ) : submissionDetail && submissionDetail.studentAnswers ? (
                     <div className="space-y-6">
-                      {assignment.questions?.map((question: any, qIdx: number) => {
+                      {assignment.questions?.map((question, qIdx) => {
                         // Find the student's answer for this question
                         const studentAnswer = submissionDetail.studentAnswers.find(
-                          (sa: any) => sa.questionId === question.id
+                          (sa) => sa.questionId === question.id
                         );
                         const selectedOptionIds = studentAnswer?.selectedOptionIds || [];
                         const earnedPoints = studentAnswer?.earnedPoints ?? 0;
@@ -547,7 +571,7 @@ export default function TeacherGradingDashboard({
 
                             {/* Options */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                              {question.options?.map((option: any, oIdx: number) => {
+                              {question.options?.map((option, oIdx) => {
                                 const isSelected = selectedOptionIds.includes(option.id);
                                 const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
 
