@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { formatDisplayFileName } from '@/shared/utils/file';
 
 interface StudentSubmissionStatusTableProps {
   assignment: {
@@ -82,12 +83,7 @@ export default function StudentSubmissionStatusTable({
   }, [assignment.dueDate, submission.submittedAt, submission.gradedAt, submission.score]);
 
   const getFileName = (url?: string) => {
-    if (!url) return 'Tập tin';
-    try {
-      return url.split('/').pop() || 'Tập tin đã nộp';
-    } catch {
-      return 'Tập tin đã nộp';
-    }
+    return formatDisplayFileName(url, 'Tập tin');
   };
 
   return (

@@ -15,19 +15,20 @@ interface TakeQuizEngineProps {
   submission: Submission;
 }
 
-const DEFAULT_DURATION_SECONDS = 30 * 60; // 30 minutes fallback
+const DEFAULT_DURATION_SECONDS = null; // null means no enforced time limit
 
 export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
   assignment,
   submission,
 }) => {
   const questions = assignment.questions ?? [];
-  const totalSeconds = DEFAULT_DURATION_SECONDS;
+  // Derive duration from assignment.timeLimit (minutes) -> seconds. Null = unlimited.
+  const totalSeconds = assignment.timeLimit ? assignment.timeLimit * 60 : DEFAULT_DURATION_SECONDS;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<LocalAnswers>({});
   const [flaggedIds, setFlaggedIds] = useState<Set<number>>(new Set());
-  const [timeRemaining, setTimeRemaining] = useState(totalSeconds);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(totalSeconds);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<SubmissionResult | null>(null);
@@ -70,11 +71,13 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
     }
   }, [submission.id, answers, flushPendingAnswerSave]);
 
-  // Countdown timer
+  // Countdown timer (only active when timeRemaining is not null)
   useEffect(() => {
     if (result) return;
+    if (timeRemaining === null) return; // Unlimited time — no countdown
     const interval = setInterval(() => {
       setTimeRemaining((prev) => {
+        if (prev === null) return null;
         if (prev <= 1) {
           clearInterval(interval);
           handleForceSubmit();
@@ -84,7 +87,7 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [result, handleForceSubmit]);
+  }, [result, handleForceSubmit, timeRemaining]);
 
   const handleAnswerChange = useCallback(
     (questionId: number, selectedOptionIds: number[]) => {

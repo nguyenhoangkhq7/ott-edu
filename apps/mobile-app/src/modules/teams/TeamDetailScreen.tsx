@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import EditTeamScreen from './EditTeamScreen';
 import { 
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity, 
-  FlatList, StatusBar 
+  View, Text, StyleSheet, TouchableOpacity, 
+  FlatList, StatusBar, Platform 
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 // IMPORT CÁC TAB
@@ -27,16 +28,19 @@ export default function TeamDetailScreen({ team, onBack }: TeamDetailScreenProps
   });
 
   // Hàm render nội dung tùy theo Tab
+  // Hàm render nội dung tùy theo Tab
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'Posts': return <PostsTab teamTitle={teamState.name} />;
-      case 'Files': return <FilesTab />;
+      case 'Posts': 
+        // TRUYỀN classId DƯỚI DẠNG STRING Ở ĐÂY
+        return <PostsTab teamTitle={teamState.name} classId={String(teamState.id)} />;
+      case 'Files': return <FilesTab classId={String(teamState.id)} />;
       case 'Members': return <MembersTab teamId={teamState.id} />;
       case 'Assignments':
         return <AssignmentsTab teamId={teamState.id} teamTitle={teamState.name} />;
       case 'Grades': 
         return <View style={styles.center}><Text style={styles.emptyText}>Grades will appear here.</Text></View>;
-      default: return <PostsTab teamTitle={teamState.name} />;
+      default: return <PostsTab teamTitle={teamState.name} classId={String(teamState.id)} />;
     }
   };
 
@@ -114,7 +118,11 @@ export default function TeamDetailScreen({ team, onBack }: TeamDetailScreenProps
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#ffffff',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, 
     paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9'

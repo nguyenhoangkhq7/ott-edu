@@ -17,6 +17,7 @@ import { format, isValid } from "date-fns";
 import { assignmentApi } from "../assignment.api";
 import { SubmissionStatus, type SubmissionGradingItem } from "../assignment.types";
 import GradeSubmissionSheet from "../components/GradeSubmissionSheet";
+import { teamApi } from "../../teams/team.api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ export type GradingListScreenProps = {
   onBack: () => void;
 };
 
-type FilterMode = "pending" | "all";
+type FilterMode = "pending" | "graded";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -41,9 +42,11 @@ function formatSubmittedAt(value?: string): string {
 
 function SubmissionRow({
   item,
+  studentName,
   onGrade,
 }: {
   item: SubmissionGradingItem;
+  studentName: string;
   onGrade: (item: SubmissionGradingItem) => void;
 }) {
   const isGraded = item.isGraded || item.status === SubmissionStatus.GRADED;
@@ -62,7 +65,7 @@ function SubmissionRow({
 
       {/* Info */}
       <View style={styles.rowBody}>
-        <Text style={styles.rowTitle}>Sinh viên #{item.studentAccountId}</Text>
+        <Text style={styles.rowTitle}>{studentName}</Text>
         <View style={styles.rowMetaRow}>
           <Text style={styles.rowMeta}>
             Nộp lúc {formatSubmittedAt(item.submittedAt)}
@@ -113,18 +116,51 @@ export default function GradingListScreen({
   const [error, setError] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>("pending");
   const [selectedItem, setSelectedItem] = useState<SubmissionGradingItem | null>(null);
+  const [studentNamesMap, setStudentNamesMap] = useState<Record<number, string>>({});
 
-  // ─── Fetch ────────────────────────────────────────────────────────────────
+  // ─── Fetch Student Names ──────────────────────────────────────────────────
+  useEffect(() => {
+    const fetchStudentNames = async () => {
+      try {
+        const detail = await assignmentApi.getAssignmentDetail(assignmentId);
+        if (detail && detail.teamIds && detail.teamIds.length > 0) {
+          const namesMap: Record<number, string> = {};
+          await Promise.all(
+            detail.teamIds.map(async (teamId) => {
+              try {
+                const members = await teamApi.getMembers(teamId);
+                if (Array.isArray(members)) {
+                  members.forEach((member) => {
+                    const fullName = `${member.lastName || ""} ${member.firstName || ""}`.trim();
+                    if (fullName) {
+                      namesMap[member.accountId] = fullName;
+                    }
+                  });
+                }
+              } catch (err) {
+                console.error(`[GradingListScreen] Error fetching members for team ${teamId}:`, err);
+              }
+            })
+          );
+          setStudentNamesMap(namesMap);
+        }
+      } catch (err) {
+        console.error("[GradingListScreen] Error fetching assignment details for student names:", err);
+      }
+    };
+
+    void fetchStudentNames();
+  }, [assignmentId]);
+
+  // ─── Fetch Submissions ────────────────────────────────────────────────────
 
   const fetchSubmissions = useCallback(
     async (silent = false) => {
       try {
         if (!silent) setLoading(true);
         setError(null);
-        const data =
-          filterMode === "pending"
-            ? await assignmentApi.getPendingSubmissions(assignmentId)
-            : await assignmentApi.getAllSubmissions(assignmentId);
+        // Fetch all submissions so we can calculate stats correctly and filter locally
+        const data = await assignmentApi.getAllSubmissions(assignmentId);
         setSubmissions(Array.isArray(data) ? data : []);
       } catch (err) {
         setError(
@@ -135,7 +171,7 @@ export default function GradingListScreen({
         setRefreshing(false);
       }
     },
-    [assignmentId, filterMode]
+    [assignmentId]
   );
 
   useEffect(() => {
@@ -151,10 +187,17 @@ export default function GradingListScreen({
 
   const stats = useMemo(() => {
     const total = submissions.length;
-    const graded = submissions.filter((s) => s.isGraded).length;
+    const graded = submissions.filter((s) => s.isGraded || s.status === SubmissionStatus.GRADED).length;
     const pending = total - graded;
     return { total, graded, pending };
   }, [submissions]);
+
+  const displayedSubmissions = useMemo(() => {
+    return submissions.filter((s) => {
+      const isGraded = s.isGraded || s.status === SubmissionStatus.GRADED;
+      return filterMode === "pending" ? !isGraded : isGraded;
+    });
+  }, [submissions, filterMode]);
 
   // ─── Grading callback ─────────────────────────────────────────────────────
 
@@ -239,7 +282,7 @@ export default function GradingListScreen({
 
       {/* Filter toggle */}
       <View style={styles.filterRow}>
-        {(["pending", "all"] as FilterMode[]).map((mode) => (
+        {(["pending", "graded"] as FilterMode[]).map((mode) => (
           <TouchableOpacity
             key={mode}
             style={[
@@ -255,7 +298,7 @@ export default function GradingListScreen({
                 filterMode === mode && styles.filterBtnTextActive,
               ]}
             >
-              {mode === "pending" ? "Chờ chấm" : "Tất cả"}
+              {mode === "pending" ? "Chưa chấm" : "Đã chấm"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -277,10 +320,14 @@ export default function GradingListScreen({
         </View>
       ) : (
         <FlatList
-          data={submissions}
+          data={displayedSubmissions}
           keyExtractor={(item) => item.submissionId.toString()}
           renderItem={({ item }) => (
-            <SubmissionRow item={item} onGrade={setSelectedItem} />
+            <SubmissionRow
+              item={item}
+              studentName={studentNamesMap[item.studentAccountId] || `Sinh viên #${item.studentAccountId}`}
+              onGrade={setSelectedItem}
+            />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -289,8 +336,8 @@ export default function GradingListScreen({
               <Ionicons name="document-outline" size={36} color="#94a3b8" />
               <Text style={styles.emptyTitle}>
                 {filterMode === "pending"
-                  ? "Không có bài chờ chấm"
-                  : "Chưa có bài nộp nào"}
+                  ? "Không có bài chưa chấm"
+                  : "Không có bài đã chấm nào"}
               </Text>
             </View>
           }
@@ -310,6 +357,7 @@ export default function GradingListScreen({
         <GradeSubmissionSheet
           visible={!!selectedItem}
           submission={selectedItem}
+          studentName={selectedItem ? (studentNamesMap[selectedItem.studentAccountId] || `Sinh viên #${selectedItem.studentAccountId}`) : undefined}
           maxScore={maxScore}
           onClose={() => setSelectedItem(null)}
           onSuccess={handleGradeSuccess}

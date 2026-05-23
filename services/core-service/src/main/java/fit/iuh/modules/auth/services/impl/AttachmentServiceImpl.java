@@ -50,12 +50,10 @@ public class AttachmentServiceImpl implements AttachmentService {
     public Attachment uploadToClass(MultipartFile file, String classId, String userEmail) {
         try {
             // 2. Tạo tên file và đường dẫn thư mục riêng cho từng lớp trên S3
-            String fileExtension = "";
-            if (file.getOriginalFilename() != null && file.getOriginalFilename().contains(".")) {
-                fileExtension = file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf("."));
-            }
-            // VD lưu vào: classes/DHKTPM18C/abc-xyz.pdf
-            String key = "classes/" + classId + "/" + UUID.randomUUID() + fileExtension;
+            String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
+            String sanitizedOriginalFilename = sanitizeFilename(originalFilename);
+            // VD lưu vào: classes/DHKTPM18C/uuid_abc-xyz.pdf
+            String key = "classes/" + classId + "/" + UUID.randomUUID() + "_" + sanitizedOriginalFilename;
 
             // 3. Upload file TẬN TAY lên AWS S3
             s3Client.putObject(PutObjectRequest.builder()
@@ -184,5 +182,21 @@ public class AttachmentServiceImpl implements AttachmentService {
         if (classId != null) {
             socketEventService.emitFileDeleted(classId, attachmentId);
         }
+    }
+
+    private String sanitizeFilename(String filename) {
+        if (filename == null || filename.trim().isEmpty()) {
+            return "file";
+        }
+        // Chuẩn hóa ký tự có dấu Tiếng Việt về dạng không dấu
+        String normalized = java.text.Normalizer.normalize(filename, java.text.Normalizer.Form.NFD);
+        String withoutAccents = normalized.replaceAll("\\p{M}", "");
+        // Thay thế khoảng trắng bằng dấu gạch ngang
+        String withHyphens = withoutAccents.replaceAll("\\s+", "-");
+        // Chỉ giữ lại chữ cái, chữ số, dấu chấm, dấu gạch dưới và dấu gạch ngang
+        String sanitized = withHyphens.replaceAll("[^a-zA-Z0-9._-]", "");
+        // Thu gọn nhiều dấu gạch ngang/gạch dưới liên tiếp
+        sanitized = sanitized.replaceAll("-+", "-").replaceAll("_+", "_");
+        return sanitized.isEmpty() ? "file" : sanitized;
     }
 }

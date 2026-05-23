@@ -1,139 +1,222 @@
-import React from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  Platform 
+import React, { useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 
-const FILES_DATA = [
-  { id: 'f1', name: 'Lecture Slides', info: 'Modified 2 hours ago', type: 'folder', bgColor: '#fff7ed', iconColor: '#f59e0b' },
-  { id: 'f2', name: 'Assignment Briefs', info: 'Yesterday at 3:15 PM', type: 'folder', bgColor: '#fff7ed', iconColor: '#f59e0b' },
-  { id: 'f3', name: 'Course_Syllabus_Fall2024.pdf', info: 'Aug 24, 2024', type: 'pdf', bgColor: '#fef2f2', iconColor: '#ef4444' },
-  { id: 'f4', name: 'Practice_Problems_Set1.docx', info: 'Aug 26, 2024', type: 'word', bgColor: '#eff6ff', iconColor: '#3b82f6' },
-  { id: 'f5', name: 'Student_Grades_Draft.xlsx', info: 'Just now', type: 'excel', bgColor: '#f0fdf4', iconColor: '#22c55e' },
-];
+// Nhớ kiểm tra đường dẫn import Hook cho đúng với cấu trúc dự án của bạn
+import { useFileRealtime, ClassFile } from '@/shared/hooks/useFileRealtime';
 
-export default function FilesTab() {
-  const renderFileItem = ({ item }: { item: typeof FILES_DATA[0] }) => (
-    <TouchableOpacity style={styles.fileItem} activeOpacity={0.6}>
-      <View style={[styles.iconBox, { backgroundColor: item.bgColor }]}>
-        {item.type === 'folder' && <Ionicons name="folder" size={24} color={item.iconColor} />}
-        {item.type === 'pdf' && <MaterialCommunityIcons name="file-pdf-box" size={28} color={item.iconColor} />}
-        {item.type === 'word' && <MaterialCommunityIcons name="file-word-box" size={28} color={item.iconColor} />}
-        {item.type === 'excel' && <MaterialCommunityIcons name="file-excel-box" size={28} color={item.iconColor} />}
-      </View>
+interface FilesTabProps {
+  classId: string;
+}
 
-      <View style={styles.fileInfo}>
-        <Text style={styles.fileName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.fileSubText}>{item.info}</Text>
-      </View>
+// Hàm lấy icon theo loại file
+const getFileIcon = (fileType: string): { icon: string; color: string } => {
+  const type = fileType?.toLowerCase() || '';
+  if (type.includes('pdf')) return { icon: 'file-pdf-box', color: '#ef4444' };
+  if (type.includes('doc') || type.includes('word')) return { icon: 'file-word-box', color: '#3b82f6' };
+  if (type.includes('xls') || type.includes('csv') || type.includes('excel')) return { icon: 'file-excel-box', color: '#22c55e' };
+  if (type.includes('ppt') || type.includes('powerpoint')) return { icon: 'file-powerpoint-box', color: '#f97316' };
+  if (type.includes('jpg') || type.includes('png') || type.includes('image')) return { icon: 'file-image-box', color: '#ec4899' };
+  if (type.includes('mp4') || type.includes('video')) return { icon: 'file-video-box', color: '#8b5cf6' };
+  if (type.includes('zip') || type.includes('rar')) return { icon: 'file-zip-box', color: '#6b7280' };
+  return { icon: 'file-document', color: '#64748b' };
+};
 
-      <TouchableOpacity style={styles.moreBtn}>
-        <Ionicons name="ellipsis-vertical" size={20} color="#94a3b8" />
+export default function FilesTab({ classId }: FilesTabProps) {
+  const { files, loading, isUploading, uploadFile, deleteFile } = useFileRealtime(classId);
+
+  // Sắp xếp file mới nhất lên đầu
+  const sortedFiles = useMemo(() => {
+    return [...files].sort((a, b) => {
+      const dateA = new Date(a.uploadedAt || 0).getTime();
+      const dateB = new Date(b.uploadedAt || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [files]);
+
+  // XỬ LÝ CHỌN FILE VÀ UPLOAD
+  const handlePickAndUploadFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        const uploadedFile = await uploadFile(file);
+
+        if (uploadedFile) {
+          Alert.alert('Thành công', 'Đã tải tài liệu lên lớp học!');
+        } else {
+          Alert.alert('Thông báo', 'Upload hoàn tất nhưng dữ liệu trả về bị thiếu thông tin.');
+        }
+      }
+    } catch (err) {
+      console.error("[FilesTab] ❌ Lỗi catch được ở UI:", err);
+      Alert.alert("Lỗi Upload", "Không thể kết nối hoặc Server từ chối file.");
+    }
+  };
+
+  // TẢI FILE XUỐNG MÁY (Đã tắt tính năng để chạy mượt trên Expo Go)
+  const handleFileDownload = async (file: ClassFile) => {
+    Alert.alert(
+      'Thông báo', 
+      'Chức năng tải xuống đang được tạm ẩn để chạy trên Expo Go. Tính năng này sẽ được mở lại khi build App chính thức.'
+    );
+  };
+
+  const renderFileItem = ({ item }: { item: ClassFile }) => {
+    // Đảm bảo lấy đúng trường dữ liệu theo tên mà Backend trả về
+    const fileType = item.type || item.name || '';
+    const { icon, color } = getFileIcon(fileType);
+    
+    // Nếu Backend trả về tên file là fileName thay vì name, ta sẽ hiển thị item.fileName
+    const displayName = item.name || (item as any).fileName || 'Tài liệu không tên';
+
+    const onLongPress = () => {
+      Alert.alert(
+        'Xác nhận',
+        'Bạn có chắc muốn xóa tài liệu này?',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          { text: 'Xóa', style: 'destructive', onPress: async () => {
+              try {
+                console.log('[FilesTab] Long press delete:', item.id);
+                const ok = await deleteFile(String(item.id));
+                if (ok) Alert.alert('Đã xóa', 'Tài liệu đã được xóa.');
+                else Alert.alert('Lỗi', 'Không thể xóa tài liệu.');
+              } catch (e) {
+                console.error('[FilesTab] delete error', e);
+                Alert.alert('Lỗi', 'Xảy ra lỗi khi xóa tài liệu.');
+              }
+            }
+          }
+        ]
+      );
+    };
+
+    return (
+      <TouchableOpacity style={styles.fileItemContainer} onLongPress={onLongPress} activeOpacity={0.8}>
+        <View style={styles.fileIconWrapper}>
+          <MaterialCommunityIcons name={icon as any} size={32} color={color} />
+        </View>
+
+        <View style={styles.fileDetailsWrapper}>
+          <Text style={styles.fileName} numberOfLines={2}>{displayName}</Text>
+          <View style={styles.fileMetadata}>
+            <Text style={styles.fileSize}>
+              {typeof item.size === 'number' ? (item.size / 1024).toFixed(1) + ' KB' : (item.size || 'Unknown size')}
+            </Text>
+            {item.uploadedAt && (
+              <>
+                <Text style={styles.fileSeparator}>•</Text>
+                <Text style={styles.fileDate}>{new Date(item.uploadedAt).toLocaleDateString()}</Text>
+              </>
+            )}
+          </View>
+          {item.uploadedBy && <Text style={styles.uploadedBy}>by {item.uploadedBy}</Text>}
+        </View>
+
+        <TouchableOpacity style={styles.downloadButton} onPress={() => handleFileDownload(item)}>
+          <MaterialCommunityIcons name="download" size={20} color="#1868f0" />
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyStateContainer}>
+      <MaterialCommunityIcons name="file-document-outline" size={64} color="#cbd5e1" />
+      <Text style={styles.emptyStateTitle}>Chưa có tài liệu nào</Text>
+      <Text style={styles.emptyStateMessage}>Tài liệu được tải lên lớp học sẽ xuất hiện ở đây.</Text>
+    </View>
   );
 
   return (
     <View style={styles.container}>
-      {/* 1. THANH ACTION BUTTONS */}
-      <View style={styles.actionRow}>
-        <View style={styles.leftActions}>
-          <TouchableOpacity style={styles.newBtn}>
-            <Ionicons name="add" size={20} color="white" />
-            <Text style={styles.newBtnText}>New</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.uploadBtn}>
-            <Ionicons name="cloud-upload-outline" size={18} color="#1e293b" />
-            <Text style={styles.uploadBtnText}>Upload</Text>
-          </TouchableOpacity>
-        </View>
+      {loading && files.length === 0 ? (
+        <ActivityIndicator style={{ marginTop: 20 }} size="large" color="#1868f0" />
+      ) : (
+        <FlatList
+          data={sortedFiles}
+          renderItem={renderFileItem}
+          keyExtractor={(item, index) => item.id ? item.id.toString() : index.toString()}
+          ListEmptyComponent={renderEmptyState}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={true}
+        />
+      )}
 
-        <View style={styles.rightActions}>
-          <TouchableOpacity style={styles.toolIcon}><Ionicons name="filter-outline" size={20} color="#64748b" /></TouchableOpacity>
-          <TouchableOpacity style={styles.toolIcon}><Ionicons name="list-outline" size={22} color="#64748b" /></TouchableOpacity>
-        </View>
-      </View>
-
-      {/* 2. DANH SÁCH FILE */}
-      <FlatList
-        data={FILES_DATA}
-        renderItem={renderFileItem}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
-
-      {/* --- 3. NÚT DẤU CỘNG (FAB) --- */}
+      {/* NÚT UPLOAD NỔI (FAB) GÓC DƯỚI */}
       <TouchableOpacity 
-        style={styles.fab} 
-        activeOpacity={0.8}
-        onPress={() => console.log("Mở menu thêm file/thư mục")}
+        style={styles.fabUpload} 
+        onPress={() => {
+            console.log('[FilesTab] Nút upload đã được nhấn!');
+            handlePickAndUploadFile();
+        }}
+        disabled={isUploading}
       >
-        <Ionicons name="add" size={35} color="white" />
+        {isUploading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Ionicons name="cloud-upload" size={24} color="#fff" />
+        )}
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  listContent: { flexGrow: 1, paddingBottom: 80, paddingTop: 10 },
+  fileItemContainer: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff',
+    marginHorizontal: 12, marginBottom: 10, paddingHorizontal: 12, paddingVertical: 12,
+    borderRadius: 10, borderWidth: 1, borderColor: '#f1f5f9'
   },
-  actionRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  fileIconWrapper: {
+    width: 48, height: 48, borderRadius: 8, backgroundColor: '#f1f5f9',
+    justifyContent: 'center', alignItems: 'center', marginRight: 12,
   },
-  leftActions: { flexDirection: 'row', gap: 8 },
-  rightActions: { flexDirection: 'row', alignItems: 'center', gap: 15 },
-  newBtn: {
-    backgroundColor: '#1868f0', flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, gap: 4,
+  fileDetailsWrapper: { flex: 1, justifyContent: 'center' },
+  fileName: { fontSize: 14, fontWeight: '600', color: '#1e293b', marginBottom: 4 },
+  fileMetadata: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
+  fileSize: { fontSize: 12, color: '#64748b' },
+  fileSeparator: { fontSize: 11, color: '#cbd5e1', marginHorizontal: 6 },
+  fileDate: { fontSize: 12, color: '#94a3b8' },
+  uploadedBy: { fontSize: 11, color: '#94a3b8' },
+  downloadButton: {
+    width: 40, height: 40, borderRadius: 8, backgroundColor: '#f0fdf4',
+    justifyContent: 'center', alignItems: 'center',
   },
-  newBtnText: { color: 'white', fontWeight: 'bold', fontSize: 14 },
-  uploadBtn: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8,
-    borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', gap: 6,
-  },
-  uploadBtnText: { color: '#1e293b', fontWeight: '600', fontSize: 14 },
-  toolIcon: { padding: 2 },
-  listContainer: {
-    paddingBottom: 100,
-  },
-  fileItem: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f8fafc',
-  },
-  iconBox: {
-    width: 48, height: 48, borderRadius: 12, justifyContent: 'center',
-    alignItems: 'center', marginRight: 16,
-  },
-  fileInfo: { flex: 1 },
-  fileName: { fontSize: 15, fontWeight: '600', color: '#1e293b', marginBottom: 2 },
-  fileSubText: { fontSize: 12, color: '#94a3b8' },
-  moreBtn: { padding: 5 },
-
-  // --- STYLE CHO NÚT DẤU CỘNG ---
-  fab: {
+  emptyStateContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, marginTop: 50 },
+  emptyStateTitle: { fontSize: 16, fontWeight: '600', color: '#1e293b', marginTop: 16, textAlign: 'center' },
+  emptyStateMessage: { fontSize: 13, color: '#64748b', marginTop: 8, textAlign: 'center' },
+  
+  fabUpload: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 64,
-    height: 64,
+    bottom: 20,
+    right: 20,
     backgroundColor: '#1868f0',
-    borderRadius: 32,
-    alignItems: 'center',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
-    // Đổ bóng cho iOS & Android
-    elevation: 8,
+    alignItems: 'center',
     shadowColor: '#1868f0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
+    shadowRadius: 8,
+    elevation: 5,
+  }
 });

@@ -45,6 +45,7 @@ export type AssignmentDetail = {
   teamIds: number[];
   questions: Question[];
   maxAttempts?: number | null; // For QUIZ - max attempts allowed
+  timeLimit?: number | null;   // For QUIZ - time limit in minutes
   materialUrls?: string[]; // Reference materials for assignment
   creatorId?: number; // Teacher who created the assignment
 };

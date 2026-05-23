@@ -12,7 +12,7 @@ import {
 import { useRouter } from "expo-router"; // 🚀 Dùng Expo Router
 import { createGroupConversation } from "../group.api";
 import { searchUsers } from "../../friends/friends.api"; // 🚀 Đổi sang searchUsers giống Web
-import { useSocket } from "../../../shared/hooks/useSocket";
+// import { useSocket } from "../../../shared/hooks/useSocket";
 
 // 🚀 Nhận identity từ Props (Lấy từ AuthContext của ông ra nhé)
 export default function CreateGroupScreen({ identity }: any) {
@@ -30,7 +30,7 @@ export default function CreateGroupScreen({ identity }: any) {
   const [isLoading, setIsLoading] = useState(false);
 
   // 🔌 Khởi tạo socket với identity thật
- const socket = useSocket(identity.id, identity.email);
+//  const socket = useSocket(identity.id, identity.email);
 
   useEffect(() => {
     if (identity) {

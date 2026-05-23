@@ -56,6 +56,11 @@ public class CreateAssignmentRequest {
     @Max(value = 100, message = "Max attempts cannot exceed 100")
     private Integer maxAttempts;
 
+    // NEW: timeLimit - time limit for QUIZ in minutes (null = unlimited)
+    @Min(value = 1, message = "Time limit must be at least 1 minute")
+    @Max(value = 480, message = "Time limit cannot exceed 480 minutes (8 hours)")
+    private Integer timeLimit;
+
     // NEW: questions - for QUIZ assignments (optional, can be created separately)
     private List<QuestionRequest> questions;
 

@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
+  Linking,
   Platform,
   ScrollView,
   StatusBar,
@@ -14,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { format, isPast, isValid } from "date-fns";
+import { formatDisplayFileName } from "../../../shared/utils/file";
 
 import { assignmentApi, type ViewSubmission } from "../assignment.api";
 import {
@@ -151,7 +154,7 @@ function StartQuizCard({
           <Text style={styles.quizCardTitle}>Bài kiểm tra trắc nghiệm</Text>
           {questionCount > 0 && (
             <Text style={styles.quizCardMeta}>
-              {questionCount} câu hỏi · Tối đa {detail.maxScore} điểm
+              {questionCount} câu hỏi · Tối đa {detail.maxScore} điểm{detail.timeLimit ? ` · ${detail.timeLimit} phút` : " · Không giới hạn"}
             </Text>
           )}
         </View>
@@ -317,6 +320,14 @@ export default function AssignmentDetailScreen({
               label={`${detail.questions.length} câu hỏi`}
             />
           )}
+          {detail.type === AssignmentType.QUIZ && (
+            <MetaChip
+              icon="stopwatch-outline"
+              label={detail.timeLimit ? `${detail.timeLimit} phút` : "Không giới hạn"}
+              color="#6366f1"
+              bgColor="#eef2ff"
+            />
+          )}
         </View>
 
         {/* Instructions */}
@@ -327,6 +338,39 @@ export default function AssignmentDetailScreen({
               <Text style={styles.instructionsTitle}>Hướng dẫn</Text>
             </View>
             <Text style={styles.instructionsText}>{detail.instructions}</Text>
+          </View>
+        )}
+
+        {/* Materials */}
+        {detail.materialUrls && detail.materialUrls.length > 0 && (
+          <View style={styles.materialsBox}>
+            <View style={styles.materialsHeader}>
+              <Ionicons name="attach-outline" size={14} color="#475569" />
+              <Text style={styles.materialsTitle}>Tài liệu tham khảo ({detail.materialUrls.length})</Text>
+            </View>
+            <View style={styles.materialsList}>
+              {detail.materialUrls.map((url, idx) => {
+                const cleanedName = formatDisplayFileName(url, `Tài liệu ${idx + 1}`);
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    style={styles.materialItem}
+                    onPress={() => {
+                      Linking.openURL(url).catch(() =>
+                        Alert.alert("Lỗi", "Không thể mở tài liệu.")
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="document-text-outline" size={16} color="#3b82f6" />
+                    <Text style={styles.materialText} numberOfLines={1}>
+                      {cleanedName}
+                    </Text>
+                    <Ionicons name="open-outline" size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         )}
       </View>
@@ -462,7 +506,7 @@ export default function AssignmentDetailScreen({
       : "Chi tiết bài tập";
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView style={styles.safeArea} edges={["bottom", "left", "right"]}>
       <StatusBar barStyle="dark-content" />
 
       {/* Screen header */}
@@ -489,7 +533,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
 
   // Screen header
@@ -627,6 +670,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#334155",
     lineHeight: 22,
+  },
+  materialsBox: {
+    marginTop: 12,
+    gap: 8,
+  },
+  materialsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+  },
+  materialsTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#475569",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  materialsList: {
+    gap: 8,
+    marginTop: 4,
+  },
+  materialItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    gap: 8,
+  },
+  materialText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#2563eb",
+    textDecorationLine: "underline",
   },
 
   // Section label

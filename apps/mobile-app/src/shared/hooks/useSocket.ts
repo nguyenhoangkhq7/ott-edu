@@ -1,247 +1,114 @@
-import { useEffect, useRef, useCallback } from "react";
-import { io, Socket } from "socket.io-client";
-import {
-  SOCKET_SERVER_URL,
-  SOCKET_IO_CONFIG,
-  SOCKET_EVENTS,
-} from "../constants/socket.config";
+import { useEffect, useRef, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+import Constants from 'expo-constants';
+
+// Global singleton to maintain single socket connection across app lifecycle
+let globalSocket: Socket | null = null;
 
 /**
- * 🔌 Socket Singleton Instance
- * Lưu giữ 1 kết nối duy nhất cho toàn bộ ứng dụng
- * Tiết kiệm pin và tránh lag
+ * Determines the Chat Service URL for socket connection
  */
-let socketInstance: Socket | null = null;
+function getChatServiceUrl(): string {
+  const ENV_CHAT_SERVICE_URL = process.env.EXPO_PUBLIC_CHAT_SERVICE_URL;
+  const debuggerHost = Constants.expoConfig?.hostUri;
+  const localHost = debuggerHost?.split(':')?.[0];
+
+  if (ENV_CHAT_SERVICE_URL) {
+    return ENV_CHAT_SERVICE_URL.replace(/\/$/, '');
+  }
+
+  if (localHost) {
+    return `http://${localHost}:3001`;
+  }
+
+  return 'http://localhost:3001';
+}
 
 /**
- * Hook để kết nối Socket.IO với header xác thực
- * ✅ Singleton pattern: Chỉ tạo 1 connection
- * ✅ Auto-reconnect khi mất mạng
- * ✅ Header: x-user-id, x-user-email
+ * useSocket Hook - Manages Socket.io connection for real-time updates
+ * Returns a singleton socket instance that persists across component mounts
  */
-export const useSocket = (userId: string | null, userEmail: string | null) => {
-  const socketRef = useRef<Socket | null>(null);
-  const isInitializingRef = useRef(false);
+export function useSocket(): Socket | null {
+  const [socket, setSocket] = useState<Socket | null>(globalSocket);
 
-  /**
-   * Khởi tạo hoặc lấy Socket instance hiện tại
-   */
-  const initializeSocket = useCallback(async () => {
-    // Nếu đã có instance và đã connect, trả về ngay
-    if (socketInstance && socketInstance.connected) {
-      socketRef.current = socketInstance;
-      return socketInstance;
-    }
-
-    // Nếu đang khởi tạo, đợi
-    if (isInitializingRef.current) {
-      return socketInstance;
-    }
-
-    // Bắt đầu khởi tạo
-    isInitializingRef.current = true;
-
-    try {
-      // Tạo Socket với auth headers
-      socketInstance = io(
-        SOCKET_SERVER_URL as string,
-        {
-          ...SOCKET_IO_CONFIG,
-          auth: {
-            "x-user-id": userId || "",
-            "x-user-email": userEmail || "",
-          },
-          extraHeaders: {
-            "x-user-id": userId || "",
-            "x-user-email": userEmail || "",
-          },
-        } as any,
-      ); // Thêm chữ 'as any' ở cuối để đè mọi cảnh báo thừa của Socket.io config
-
-      // Connection event handlers
-      socketInstance.on(SOCKET_EVENTS.CONNECT, () => {
-        console.log("✅ Socket connected:", socketInstance?.id);
-      });
-
-      socketInstance.on(SOCKET_EVENTS.DISCONNECT, (reason) => {
-        console.log("❌ Socket disconnected:", reason);
-      });
-
-      socketInstance.on(SOCKET_EVENTS.CONNECT_ERROR, (error) => {
-        console.error("🔴 Socket connection error:", error);
-      });
-
-      socketRef.current = socketInstance;
-      await new Promise<void>((resolve) => {
-        socketInstance?.once(SOCKET_EVENTS.CONNECT, () => {
-          resolve();
-        });
-        socketInstance?.connect();
-      });
-
-      return socketInstance;
-    } catch (error) {
-      console.error("❌ Failed to initialize socket:", error);
-      isInitializingRef.current = false;
-      throw error;
-    } finally {
-      isInitializingRef.current = false;
-    }
-  }, [userId, userEmail]);
-
-  /**
-   * Connect socket khi userId và userEmail thay đổi
-   */
   useEffect(() => {
-    if (!userId || !userEmail) {
-      return;
+    // Initialize socket only once
+    if (!globalSocket) {
+      const socketUrl = getChatServiceUrl();
+      
+      globalSocket = io(socketUrl, {
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+        transports: ['websocket', 'polling'],
+      });
+
+      globalSocket.on('connect', () => {
+        console.log('[Socket] Connected:', globalSocket?.id);
+      });
+
+      globalSocket.on('disconnect', (reason) => {
+        console.log('[Socket] Disconnected:', reason);
+      });
+
+      globalSocket.on('connect_error', (error) => {
+        console.error('[Socket] Connection error:', error);
+      });
     }
 
-    // Disconnect and recreate if credentials changed
-    if (socketInstance && socketInstance.connected) {
-      const currentAuth = socketInstance.auth as any;
-      if (
-        currentAuth?.["x-user-id"] !== userId ||
-        currentAuth?.["x-user-email"] !== userEmail
-      ) {
-        socketInstance.disconnect();
-        socketInstance = null;
-      }
-    }
+    // Defer state update to avoid synchronous setState warning
+    const timer = setTimeout(() => {
+      setSocket(globalSocket);
+    }, 0);
 
-    initializeSocket().catch(console.error);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return socket;
+}
+
+/**
+ * useSocketListener Hook - Registers event listener on socket
+ * Automatically handles cleanup and uses latest callback reference
+ */
+export function useSocketListener<T = unknown>(
+  socket: Socket | null,
+  eventName: string,
+  callback: (data: T) => void
+): void {
+  const savedCallback = useRef(callback);
+
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handler = (data: T) => savedCallback.current(data);
+    socket.on(eventName, handler);
 
     return () => {
-      // Optional: disconnect on unmount (comment out để keep connection)
-      // if (socketInstance) {
-      //   socketInstance.disconnect();
-      //   socketInstance = null;
-      // }
+      socket.off(eventName, handler);
     };
-  }, [userId, userEmail, initializeSocket]);
-
-  /**
-   * Hàm helper để emit event
-   */
-  const emit = useCallback(
-    (eventName: string, data?: any, callback?: (ack: any) => void) => {
-      if (socketInstance && socketInstance.connected) {
-        socketInstance.emit(eventName, data, callback);
-      } else {
-        console.warn("⚠️ Socket not connected, cannot emit:", eventName);
-      }
-    },
-    [],
-  );
-
-  /**
-   * Hàm helper để lắng nghe event
-   */
-  const on = useCallback(
-    (eventName: string, listener: (...args: any[]) => void) => {
-      if (!socketInstance) {
-        console.warn("⚠️ Socket not initialized yet");
-        return;
-      }
-      socketInstance.on(eventName, listener);
-
-      // Return cleanup function
-      return () => {
-        socketInstance?.off(eventName, listener);
-      };
-    },
-    [],
-  );
-
-  /**
-   * Hàm helper để lắng nghe event một lần
-   */
-  const once = useCallback(
-    (eventName: string, listener: (...args: any[]) => void) => {
-      if (!socketInstance) {
-        console.warn("⚠️ Socket not initialized yet");
-        return;
-      }
-      socketInstance.once(eventName, listener);
-    },
-    [],
-  );
-
-  /**
-   * Hàm helper để dừng lắng nghe event
-   */
-  const off = useCallback(
-    (eventName: string, listener?: (...args: any[]) => void) => {
-      if (!socketInstance) {
-        return;
-      }
-      socketInstance.off(eventName, listener);
-    },
-    [],
-  );
-
-  /**
-   * Join room cho group chat
-   */
-  const joinRoom = useCallback((roomId: string) => {
-    if (socketInstance && socketInstance.connected) {
-      socketInstance.emit(SOCKET_EVENTS.JOIN_ROOM, { roomId });
-      console.log("✅ Joined room:", roomId);
-    } else {
-      console.warn("⚠️ Cannot join room, socket not connected");
-    }
-  }, []);
-
-  /**
-   * Leave room khỏi group chat
-   */
-  const leaveRoom = useCallback((roomId: string) => {
-    if (socketInstance && socketInstance.connected) {
-      socketInstance.emit(SOCKET_EVENTS.LEAVE_ROOM, { roomId });
-      console.log("✅ Left room:", roomId);
-    }
-  }, []);
-
-  /**
-   * Get socket instance (nếu cần)
-   */
-  const getSocket = useCallback(() => {
-    return socketInstance;
-  }, []);
-
-  /**
-   * Check connection status
-   */
-  const isConnected = useCallback(() => {
-    return socketInstance?.connected ?? false;
-  }, []);
-
-  return {
-    socket: socketRef.current,
-    emit,
-    on,
-    once,
-    off,
-    joinRoom,
-    leaveRoom,
-    getSocket,
-    isConnected,
-  };
-};
+  }, [socket, eventName]);
+}
 
 /**
- * Export Singleton getter (trong trường hợp cần direct access)
+ * useSocketRoomJoin Hook - Joins/leaves socket room when component mounts/unmounts
+ * Useful for receiving room-specific real-time updates
  */
-export const getSocketInstance = (): Socket | null => {
-  return socketInstance;
-};
+export function useSocketRoomJoin(socket: Socket | null, roomId: string | null): void {
+  useEffect(() => {
+    if (!socket || !roomId) return;
 
-/**
- * Export Singleton reset (for logout)
- */
-export const resetSocket = () => {
-  if (socketInstance) {
-    socketInstance.disconnect();
-    socketInstance = null;
-  }
-};
+    socket.emit('join_room', { roomId });
+    console.log(`[Socket] Joined room: ${roomId}`);
+
+    return () => {
+      socket.emit('leave_room', { roomId });
+      console.log(`[Socket] Left room: ${roomId}`);
+    };
+  }, [socket, roomId]);
+}

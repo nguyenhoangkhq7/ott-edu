@@ -35,13 +35,6 @@ export default function GradingModal({
   const [feedback, setFeedback] = useState('');
   const [grading, setGrading] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchPendingSubmissions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, assignmentId]);
-
   const fetchPendingSubmissions = async () => {
     try {
       setLoading(true);
@@ -55,6 +48,14 @@ export default function GradingModal({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      void fetchPendingSubmissions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, assignmentId]);
+
 
   const handleSelectSubmission = (submission: Submission) => {
     setSelectedSubmission(submission);

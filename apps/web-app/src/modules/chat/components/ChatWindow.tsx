@@ -1071,6 +1071,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-white">
+      {/* eslint-disable-next-line react-hooks/refs */}
       {renderFullScreenCallOverlay()}
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
         <div className="flex items-center gap-3">

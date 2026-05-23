@@ -646,33 +646,6 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
     }
   },);
 
-  useSocketListener(socket, 'comment_updated', async (data: { postId?: string }) => {
-    console.log('[Socket] comment_updated event received:', data);
-    if (data.postId) {
-      await loadCommentsForPost(data.postId);
-    }
-  },);
-
-  useSocketListener(socket, 'reaction_updated', async (data: { targetId?: string }) => {
-    console.log('[Socket] reaction_updated event received:', data);
-    if (data.targetId) {
-      // Refresh reaction count by reloading posts or just the targeted post
-      await fetchPosts();
-    }
-  },);
-
-  const scrollToTop = () => feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setActiveMenuId(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
   const loadCommentsForPost = useCallback(async (postId: string) => {
     try {
       const comments = await httpService.get<ApiPost[]>(`/interact/comments/post/${postId}`);
@@ -712,6 +685,72 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
       setPosts(prevPosts => prevPosts.map(p => p.id === postId ? { ...p, replies: mappedComments, commentCount: mappedComments.length } : p));
     } catch (error) { console.error("Error loading comments:", error); }
   }, [userEmail]);
+  
+  useSocketListener(socket, 'comment_updated', async (data: { postId?: string }) => {
+    console.log('[Socket] comment_updated event received:', data);
+    if (data.postId) {
+      await loadCommentsForPost(data.postId);
+    }
+  },);
+
+  useSocketListener(socket, 'reaction_updated', async (data: { targetId?: string }) => {
+    console.log('[Socket] reaction_updated event received:', data);
+    if (data.targetId) {
+      // Refresh reaction count by reloading posts or just the targeted post
+      await fetchPosts();
+    }
+  },);
+
+  const scrollToTop = () => feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setActiveMenuId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+//   // ✨ SOCKET LISTENERS - Real-time Updates for Posts, Comments, Reactions
+//   useSocketListener(socket, 'post_updated', async (data: { action?: string; id?: string }) => {
+//     console.log('[Socket] post_updated event received:', data);
+//     if (data.action === 'created' || data.action === 'updated') {
+//       await fetchPosts();
+//     } else if (data.action === 'deleted') {
+//       setPosts(prev => prev.filter(p => p.id !== data.id));
+//     }
+//   },);
+
+//   useSocketListener(socket, 'comment_updated', async (data: { postId?: string }) => {
+//     console.log('[Socket] comment_updated event received:', data);
+//     if (data.postId) {
+//       await loadCommentsForPost(data.postId);
+//     }
+//   },);
+
+//   useSocketListener(socket, 'reaction_updated', async (data: { targetId?: string }) => {
+//     console.log('[Socket] reaction_updated event received:', data);
+//     if (data.targetId) {
+//       // Refresh reaction count by reloading posts or just the targeted post
+//       await fetchPosts();
+//     }
+//   },);
+
+//   const scrollToTop = () => feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
+
+//   useEffect(() => {
+//     function handleClickOutside(event: MouseEvent) {
+//       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+//         setActiveMenuId(null);
+//       }
+//     }
+//     document.addEventListener("mousedown", handleClickOutside);
+//     return () => document.removeEventListener("mousedown", handleClickOutside);
+//   }, []);
+
+
 
   const toggleExpandPost = async (postId: string) => {
     if (expandedPostIds.includes(postId)) {
