@@ -306,10 +306,8 @@ export const assignmentApi = {
     selectedOptionIds: number[]
   ): Promise<void> => {
     await assignmentClient.post<void>(
-      `${SUBMISSIONS}/${submissionId}/save-draft`,
-      {
-        questionAnswers: [{ questionId, selectedOptionIds }],
-      } as SaveDraftBody
+      `/quiz/submission/${submissionId}/answer`,
+      { questionId, selectedOptionIds }
     );
   },
 
@@ -356,6 +354,34 @@ export const assignmentApi = {
     payload: { fileUrl: string; confirm: boolean }
   ): Promise<void> => {
     await assignmentApi.submitAssignment(assignmentId, { fileUrl: payload.fileUrl });
+  },
+
+  /**
+   * POST /api/v1/quiz/submission/{submissionId}/submit
+   * Submit quiz for automatic grading.
+   * STUDENT only.
+   */
+  submitQuiz: async (
+    submissionId: number
+  ): Promise<{
+    submissionId: number;
+    score: number;
+    maxScore: number;
+    feedback: string;
+    totalQuestions: number;
+    answeredQuestions: number;
+    correctQuestions: number;
+  }> => {
+    const response = await assignmentClient.post<{
+      submissionId: number;
+      score: number;
+      maxScore: number;
+      feedback: string;
+      totalQuestions: number;
+      answeredQuestions: number;
+      correctQuestions: number;
+    }>(`/quiz/submission/${submissionId}/submit`, {});
+    return response.data;
   },
 
   /**

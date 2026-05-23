@@ -108,6 +108,7 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         Grade savedGrade = gradeRepository.save(grade);
         submission.setGrade(savedGrade);
+        submission.setStatus(SubmissionStatus.GRADED);
         submissionRepository.save(submission);
 
         return toGradeDetailsDto(savedGrade);

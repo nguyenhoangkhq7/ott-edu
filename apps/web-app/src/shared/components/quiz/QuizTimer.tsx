@@ -3,11 +3,29 @@
 import React from 'react';
 
 interface QuizTimerProps {
-  timeRemainingSeconds: number;
+  timeRemainingSeconds: number | null;
   onExpired?: () => void;
 }
 
 export const QuizTimer: React.FC<QuizTimerProps> = ({ timeRemainingSeconds }) => {
+  // When null, show unlimited indicator
+  if (timeRemainingSeconds === null) {
+    return (
+      <div className="rounded-2xl p-4 border-2 border-slate-200 bg-white transition-all duration-500">
+        <div className="flex items-center gap-2 mb-1">
+          <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-xs font-semibold tracking-widest uppercase text-slate-500">
+            Thời gian
+          </span>
+        </div>
+        <div className="text-base font-bold text-slate-500">Không giới hạn</div>
+      </div>
+    );
+  }
+
   const minutes = Math.floor(timeRemainingSeconds / 60);
   const seconds = timeRemainingSeconds % 60;
 

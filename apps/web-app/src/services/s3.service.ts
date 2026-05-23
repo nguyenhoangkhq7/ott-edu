@@ -1,47 +1,44 @@
 /**
- * S3 Upload Utility
- * 
- * Uses AWS S3 configuration from .env
- * For production, integrate with AWS SDK or backend upload endpoint
+ * S3 Upload Utility — REAL IMPLEMENTATION via Core Service
+ *
+ * Direct S3 upload from the browser can suffer from CORS issues.
+ * Instead, we proxy uploads through the core-service's attachments upload endpoint.
+ * This uploads the file to S3 server-side and returns the public S3 URL.
  */
 
-export const uploadFileToS3 = async (file: File): Promise<string> => {
-  const bucket = process.env.NEXT_PUBLIC_AWS_S3_BUCKET || 'product-images-hau';
-  const region = process.env.NEXT_PUBLIC_AWS_S3_REGION || 'ap-southeast-1';
-  const baseUrl = process.env.NEXT_PUBLIC_AWS_S3_PUBLIC_BASE_URL;
+import apiClient from '@/services/api/axios';
 
-  return new Promise((resolve) => {
-    // TODO: For production, implement actual S3 upload using:
-    // - AWS SDK v3 (@aws-sdk/client-s3)
-    // - Pre-signed URLs from backend
-    // - Or multipart upload endpoint
-    
-    // Mock delay simulating S3 upload
-    setTimeout(() => {
-      // Normalize filename: replace spaces with underscores and remove special characters
-      const originalFileName = file.name;
-      const normalizedFileName = originalFileName
-        .replace(/\s+/g, '_')
-        .replace(/[^\x00-\x7F]/g, ''); // Remove non-ASCII characters (Vietnamese etc)
-      
-      const timestamp = Date.now();
-      const key = `assignments/${timestamp}/${normalizedFileName}`;
-      
-      // If baseUrl is configured, use it; otherwise construct S3 URL
-      const s3Url = baseUrl 
-        ? `${baseUrl}/${key}`
-        : `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
-      
-      resolve(s3Url);
-    }, 1000);
-  });
+/**
+ * Upload a file to S3 by routing it through the core-service attachments endpoint.
+ * Returns the permanent file URL stored in S3.
+ */
+export const uploadFileToS3 = async (file: File): Promise<string> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // POST the file to core-service. Using 'assignments' as classId maps the files nicely.
+  const response = await apiClient.post<{ fileUrl: string }>(
+    '/attachments/class/assignments',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+
+  if (!response.data || !response.data.fileUrl) {
+    throw new Error('Không nhận được đường dẫn tập tin từ máy chủ.');
+  }
+
+  return response.data.fileUrl;
 };
 
 /**
  * Validate file for upload
  */
 export const validateFile = (file: File): { valid: boolean; error?: string } => {
-  const maxSize = 50 * 1024 * 1024; // 50MB
+  const maxSize = 50 * 1024 * 1024; // 50 MB
   const allowedTypes = [
     'application/pdf',
     'application/msword',
@@ -51,6 +48,7 @@ export const validateFile = (file: File): { valid: boolean; error?: string } => 
     'text/plain',
     'image/jpeg',
     'image/png',
+    'image/gif',
   ];
 
   if (file.size > maxSize) {

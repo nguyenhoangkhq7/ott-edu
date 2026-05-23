@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useFieldArray, Control, FieldErrors, useWatch } from 'react-hook-form';
 import { CreateAssignmentFormData } from '@/shared/types/assignment';
 import { uploadFileToS3, validateFile } from '@/services/s3.service';
+import { formatDisplayFileName } from '@/shared/utils/file';
 
 interface MaterialUploadZoneProps {
   control: Control<CreateAssignmentFormData>;
@@ -104,7 +105,7 @@ export default function MaterialUploadZone({
             {materialFields.map((field, index) => {
               // Get the actual URL value from watched materialUrls array
               const materialUrl = materialUrls?.[index] || '';
-              const fileName = materialUrl.split('/').pop() || 'File';
+              const fileName = formatDisplayFileName(materialUrl, 'File');
 
               return (
                 <div key={field.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">

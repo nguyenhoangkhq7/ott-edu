@@ -10,6 +10,7 @@ import ConfirmDeleteModal from './modals/ConfirmDeleteModal';
 import TeacherGradingDashboard from './components/TeacherGradingDashboard';
 import EssaySubmissionZone from './components/EssaySubmissionZone';
 import StudentSubmissionStatusTable from './components/StudentSubmissionStatusTable';
+import { formatDisplayFileName } from '@/shared/utils/file';
 
 interface AssignmentDetailProps {
   assignmentId: number;
@@ -200,6 +201,14 @@ export default function AssignmentDetail({
                 </svg>
                 Điểm: {assignment.maxScore}
               </span>
+              {assignment.type === AssignmentType.QUIZ && assignment.timeLimit && (
+                <span className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Thời gian làm bài: {assignment.timeLimit} phút
+                </span>
+              )}
               <span className={`px-3 py-1 rounded-full text-xs font-semibold ${assignment.type === AssignmentType.QUIZ
                 ? 'bg-purple-100 text-purple-700'
                 : 'bg-blue-100 text-blue-700'
@@ -225,7 +234,7 @@ export default function AssignmentDetail({
                 </svg>
               </button>
             )}
-            {onClose && (
+            {/* {onClose && (
               <button
                 onClick={onClose}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
@@ -234,7 +243,7 @@ export default function AssignmentDetail({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -265,7 +274,7 @@ export default function AssignmentDetail({
                   {assignment.materialUrls.map((url, idx) => (
                     <li key={idx}>
                       <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-900 hover:underline">
-                        {url.split('/').pop()}
+                        {formatDisplayFileName(url)}
                       </a>
                     </li>
                   ))}
@@ -306,7 +315,7 @@ export default function AssignmentDetail({
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    {url.split('/').pop()}
+                    {formatDisplayFileName(url)}
                   </a>
                 ))}
               </div>
@@ -391,8 +400,8 @@ export default function AssignmentDetail({
           {/* ESSAY Submission */}
           {assignment.type === AssignmentType.ESSAY && (
             <>
-              {/* Show submission status table if already submitted */}
-              {currentSubmission && currentSubmission.status === 'SUBMITTED' ? (
+              {/* Show submission status table if already submitted or graded */}
+              {currentSubmission && (currentSubmission.status === 'SUBMITTED' || currentSubmission.status === 'GRADED') ? (
                 <StudentSubmissionStatusTable
                   assignment={assignment}
                   submission={getSubmissionForDisplay()!}

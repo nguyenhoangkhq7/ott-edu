@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import EditTeamScreen from './EditTeamScreen';
 import { 
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity, 
-  FlatList, StatusBar 
+  View, Text, StyleSheet, TouchableOpacity, 
+  FlatList, StatusBar, Platform 
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 // IMPORT CÁC TAB
@@ -114,7 +115,11 @@ export default function TeamDetailScreen({ team, onBack }: TeamDetailScreenProps
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#ffffff',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, 
     paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9'
