@@ -10,6 +10,11 @@ import {
   EyeOff,
   Smile,
   Clock,
+  Phone,
+  PhoneOff,
+  Video,
+  VideoOff,
+  ChevronRight,
 } from "lucide-react";
 
 /** Giới hạn thời gian cho phép thu hồi với tất cả - 15 phút */
@@ -28,6 +33,8 @@ interface MessageBubbleProps {
   onOpenProfile?: (user: User) => void;
   /** @deprecated Dùng onRevokeForAll thay thế */
   onRevoke?: (messageId: string) => void;
+  onStartAudioCall?: () => void;
+  onStartVideoCall?: () => void;
 }
 
 const EMOJI_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "😡"];
@@ -148,6 +155,54 @@ const buildCallLabel = (meta: CallMessageMeta): string => {
   return callTypeLabel;
 };
 
+const getCallLogDetails = (
+  callMeta: CallMessageMeta,
+  isOwnMessage: boolean
+) => {
+  const isVideo = callMeta.callType === 'video';
+  const isMissed = ['declined', 'unavailable', 'failed', 'ringing', 'missed'].includes(callMeta.status || '') || 
+                   (!isOwnMessage && callMeta.status === 'ended' && !callMeta.durationSec);
+  
+  // Duration formatting
+  let durationStr = '';
+  if (callMeta.durationSec && callMeta.durationSec > 0) {
+    const mins = Math.floor(callMeta.durationSec / 60);
+    const secs = callMeta.durationSec % 60;
+    durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  }
+
+  let statusLabel = '';
+  let title = '';
+
+  if (isOwnMessage) {
+    title = isVideo ? 'Cuộc gọi video đi' : 'Cuộc gọi thoại đi';
+    if (callMeta.status === 'connected' || callMeta.status === 'ended') {
+      statusLabel = durationStr ? `Đã kết nối (${durationStr})` : 'Đã kết nối';
+    } else if (callMeta.status === 'declined') {
+      statusLabel = 'Bị từ chối';
+    } else if (callMeta.status === 'unavailable' || callMeta.status === 'no_answer') {
+      statusLabel = 'Không nhấc máy';
+    } else {
+      statusLabel = 'Cuộc gọi thất bại';
+    }
+  } else {
+    if (isMissed) {
+      title = isVideo ? 'Cuộc gọi video nhỡ' : 'Cuộc gọi nhỡ';
+      statusLabel = 'Nhấn để gọi lại';
+    } else {
+      title = isVideo ? 'Cuộc gọi video đến' : 'Cuộc gọi thoại đến';
+      statusLabel = durationStr ? `Đã nhận (${durationStr})` : 'Đã kết nối';
+    }
+  }
+
+  return {
+    title,
+    statusLabel,
+    isMissed,
+    isVideo,
+  };
+};
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isOwnMessage,
@@ -160,6 +215,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   onForward,
   onOpenProfile,
   onRevoke,
+  onStartAudioCall,
+  onStartVideoCall,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -276,19 +333,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   }
 
   const callMeta = parseCallMessage(message.content, sender);
-  if (callMeta) {
-    const callLabel = buildCallLabel(callMeta);
-    return (
-      <div className="mb-4 flex w-full justify-center">
-        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600 shadow-sm">
-          <span>📞</span>
-          <span className="font-medium">{callLabel}</span>
-        </div>
-      </div>
-    );
-  }
 
-  // ==================== TIN NHẮN BÌNH THƯỜNG ====================
+  // ==================== TIN NHẮN BÌNH THƯỜNG / CUỘC GỌI ====================
   return (
     <div
       className={`group mb-4 flex w-full ${isOwnMessage ? "justify-end" : "justify-start"}`}
@@ -336,68 +382,129 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        {/* Nội dung tin nhắn chính */}
-        <div
-          className={`w-full max-w-full rounded-2xl px-4 py-2 ${
-            isOwnMessage
-              ? "rounded-br-sm bg-blue-600 text-white"
-              : "rounded-bl-sm bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
-          }`}
-        >
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-
-          {/* Attachments */}
-          {message.attachments && message.attachments.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {message.attachments.map((attachment, idx) => (
-                <div key={idx}>
-                  {isImage(attachment.fileType) ? (
-                    <a
-                      href={attachment.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block"
+        {/* Nội dung tin nhắn chính hoặc thẻ cuộc gọi */}
+        {callMeta ? (
+          (() => {
+            const details = getCallLogDetails(callMeta, isOwnMessage);
+            return (
+              <div
+                onClick={() => {
+                  if (callMeta.callType === "video" && onStartVideoCall) {
+                    onStartVideoCall();
+                  } else if (onStartAudioCall) {
+                    onStartAudioCall();
+                  }
+                }}
+                className={`w-60 rounded-2xl p-3 border transition-all cursor-pointer select-none shadow-xs ${
+                  isOwnMessage
+                    ? "rounded-br-sm bg-blue-50/70 border-blue-200 hover:bg-blue-50"
+                    : "rounded-bl-sm bg-white border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                      details.isMissed
+                        ? "bg-rose-50 text-rose-600 ring-1 ring-rose-100"
+                        : details.isVideo
+                          ? "bg-blue-50 text-blue-600 ring-1 ring-blue-100"
+                          : "bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100"
+                    }`}
+                  >
+                    {details.isMissed ? (
+                      details.isVideo ? <VideoOff size={16} /> : <PhoneOff size={16} />
+                    ) : (
+                      details.isVideo ? <Video size={16} /> : <Phone size={16} />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`truncate text-[13px] font-bold leading-tight ${
+                        details.isMissed ? "text-rose-600" : "text-slate-800"
+                      }`}
                     >
-                      <Image
-                        src={attachment.url}
-                        alt={attachment.fileName}
-                        width={280}
-                        height={280}
-                        className="max-h-75 max-w-70 rounded-lg object-cover"
-                      />
-                    </a>
-                  ) : isVideo(attachment.fileType) ? (
-                    <video
-                      controls
-                      className="max-h-75 max-w-75 rounded-lg bg-black"
-                    >
-                      <source src={attachment.url} type={attachment.fileType} />
-                      Your browser does not support the video tag.
-                    </video>
-                  ) : (
-                    <a
-                      href={attachment.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1 text-sm text-slate-700 hover:underline"
-                    >
-                      <span>{getFileIcon(attachment.fileName)}</span>
-                      <span className="truncate">{attachment.fileName}</span>
-                    </a>
-                  )}
+                      {details.title}
+                    </p>
+                    <p className="truncate text-[11px] text-slate-500 mt-1">
+                      {details.statusLabel}
+                    </p>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+                
+                <div className={`my-2 h-[1px] ${isOwnMessage ? "bg-blue-100" : "bg-slate-100"}`} />
+                
+                <div className="flex items-center justify-center gap-0.5 pt-0.5 text-blue-600 hover:text-blue-700 transition-colors">
+                  <span className="text-xs font-semibold">
+                    {details.isMissed ? "Gọi lại ngay" : "Gọi lại"}
+                  </span>
+                  <ChevronRight size={13} strokeWidth={2.5} />
+                </div>
+              </div>
+            );
+          })()
+        ) : (
+          <div
+            className={`w-full max-w-full rounded-2xl px-4 py-2 ${
+              isOwnMessage
+                ? "rounded-br-sm bg-blue-600 text-white"
+                : "rounded-bl-sm bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+            }`}
+          >
+            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
 
-          {/* Link Preview */}
-          {message.linkPreview && (
-            <LinkPreviewCard
-              linkPreview={message.linkPreview}
-              isOwnMessage={isOwnMessage}
-            />
-          )}
-        </div>
+            {/* Attachments */}
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {message.attachments.map((attachment, idx) => (
+                  <div key={idx}>
+                    {isImage(attachment.fileType) ? (
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block"
+                      >
+                        <Image
+                          src={attachment.url}
+                          alt={attachment.fileName}
+                          width={280}
+                          height={280}
+                          className="max-h-75 max-w-70 rounded-lg object-cover"
+                        />
+                      </a>
+                    ) : isVideo(attachment.fileType) ? (
+                      <video
+                        controls
+                        className="max-h-75 max-w-75 rounded-lg bg-black"
+                      >
+                        <source src={attachment.url} type={attachment.fileType} />
+                        Your browser does not support the video tag.
+                      </video>
+                    ) : (
+                      <a
+                        href={attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1 text-sm text-slate-700 hover:underline"
+                      >
+                        <span>{getFileIcon(attachment.fileName)}</span>
+                        <span className="truncate">{attachment.fileName}</span>
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Link Preview */}
+            {message.linkPreview && (
+              <LinkPreviewCard
+                linkPreview={message.linkPreview}
+                isOwnMessage={isOwnMessage}
+              />
+            )}
+          </div>
+        )}
 
         {/* Thời gian + Reactions */}
         <div className="mt-1 flex items-center gap-2">

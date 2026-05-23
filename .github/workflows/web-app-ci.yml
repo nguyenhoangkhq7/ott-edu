@@ -4,6 +4,10 @@ on:
   push:
     paths:
       - "apps/web-app/**"
+  pull_request:
+    branches: ["main", "develop"]
+    paths:
+      - "apps/web-app/**"
 
 jobs:
   build-and-lint:

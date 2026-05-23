@@ -34,6 +34,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { Socket } from "socket.io-client";
+import type { MediaCallKind } from "../types";
 import { useMobileMediasoup, type RemoteParticipant } from "../useMobileMediasoup";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ interface GroupCallScreenProps {
   /** Map từ userId → tên hiển thị (optional, fallback là userId ngắn) */
   participantNames?: Record<string, string>;
   conversationType?: "private" | "class";
+  callType?: MediaCallKind;
   initiatorUserId?: string | null;
   /** Signal from parent to force leaving the call */
   leaveSignal?: number;
@@ -66,9 +68,11 @@ type RTCViewProps = {
 };
 
 function loadRTCView(): React.ComponentType<RTCViewProps> | null {
-  if (!ENABLE_WEBRTC) return null;
   try {
-    return require("react-native-webrtc").RTCView as React.ComponentType<RTCViewProps>;
+    const module = require("react-native-webrtc") as typeof import("react-native-webrtc");
+    if (ENABLE_WEBRTC) return module.RTCView as React.ComponentType<RTCViewProps>;
+    // Allow dev builds to proceed if native module exists, even when env flag is missing.
+    return module.RTCView as React.ComponentType<RTCViewProps>;
   } catch {
     return null;
   }
@@ -84,12 +88,14 @@ interface VideoTileProps {
   isMirror?: boolean;
   style?: object;
   isMuted?: boolean;
+  isAudioOnly?: boolean;
+  isCameraEnabled?: boolean;
 }
 
-function VideoTile({ streamURL, label, isMirror, style, isMuted }: VideoTileProps) {
+function VideoTile({ streamURL, label, isMirror, style, isMuted, isAudioOnly, isCameraEnabled = true }: VideoTileProps) {
   return (
     <View style={[styles.tile, style]}>
-      {streamURL && RTCView ? (
+      {streamURL && RTCView && !isAudioOnly && isCameraEnabled ? (
         <RTCView
           streamURL={streamURL}
           objectFit="cover"
@@ -191,6 +197,7 @@ export function GroupCallScreen({
   socket,
   participantNames = {},
   conversationType = "class",
+  callType = "video",
   initiatorUserId = null,
   leaveSignal = 0,
   onLeave,
@@ -215,6 +222,7 @@ export function GroupCallScreen({
     socket,
     currentUserId,
     conversationId,
+    callType,
     endOnPeerLeave: conversationType === "private",
     isCallInitiator: Boolean(initiatorUserId && initiatorUserId === currentUserId),
   });
@@ -249,7 +257,7 @@ export function GroupCallScreen({
 
   useEffect(() => {
     if (!hasJoined) return;
-    if (callStatus !== "idle") return;
+    if (callStatus !== "error") return;
     if (isLeavingRef.current) return;
     isLeavingRef.current = true;
     onLeave?.();
@@ -273,6 +281,7 @@ export function GroupCallScreen({
   );
 
   const isJoining = callStatus === "joining";
+  const isPrivateCall = conversationType === "private";
   const isOneToOne = remoteParticipants.length <= 1;
 
   return (
@@ -282,7 +291,11 @@ export function GroupCallScreen({
 
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>{isOneToOne ? "Cuộc gọi video" : "Cuộc gọi nhóm"}</Text>
+          <Text style={styles.headerTitle}>
+            {callType === "audio"
+              ? (isPrivateCall ? "Cuộc gọi thoại" : (isOneToOne ? "Cuộc gọi thoại" : "Cuộc gọi thoại nhóm"))
+              : (isPrivateCall ? "Cuộc gọi video" : (isOneToOne ? "Cuộc gọi video" : "Cuộc gọi nhóm"))}
+          </Text>
           <Text style={styles.headerSubTitle}>
             {remoteParticipants.length + 1} người tham gia
           </Text>
@@ -329,6 +342,7 @@ export function GroupCallScreen({
                   key={participant.userId}
                   streamURL={streamURL}
                   label={getDisplayName(participant.userId)}
+                  isCameraEnabled={participant.isCameraEnabled}
                   style={{
                     width: grid.tileWidth,
                     height: grid.tileHeight,
@@ -341,7 +355,7 @@ export function GroupCallScreen({
       </View>
 
       {/* ── Local PIP ── */}
-      {localStreamURL && (
+      {localStreamURL && callType !== "audio" && (
         <View style={styles.pip} pointerEvents="none">
           {RTCView ? (
             <RTCView
@@ -392,19 +406,23 @@ export function GroupCallScreen({
           isActive={isMicrophoneEnabled}
           disabled={!localStreamURL}
         />
-        <ControlButton
-          icon={isCameraEnabled ? "videocam" : "videocam-off"}
-          label={isCameraEnabled ? "Tắt Cam" : "Bật Cam"}
-          onPress={toggleCamera}
-          isActive={isCameraEnabled}
-          disabled={!localStreamURL}
-        />
-        <ControlButton
-          icon="camera-reverse"
-          label={cameraFacing === "front" ? "Đổi Cam" : "Cam trước"}
-          onPress={switchCamera}
-          disabled={!localStreamURL}
-        />
+        {callType !== "audio" && (
+          <>
+            <ControlButton
+              icon={isCameraEnabled ? "videocam" : "videocam-off"}
+              label={isCameraEnabled ? "Tắt Cam" : "Bật Cam"}
+              onPress={toggleCamera}
+              isActive={isCameraEnabled}
+              disabled={!localStreamURL}
+            />
+            <ControlButton
+              icon="camera-reverse"
+              label={cameraFacing === "front" ? "Đổi Cam" : "Cam trước"}
+              onPress={switchCamera}
+              disabled={!localStreamURL}
+            />
+          </>
+        )}
         <ControlButton
           icon="call"
           label="Kết thúc"
@@ -581,7 +599,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   tileVideo: {
-    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   tileVideoPlaceholder: {
     flex: 1,
@@ -642,8 +661,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   pipVideo: {
-    width: PIP_WIDTH,
-    height: PIP_HEIGHT,
+    width: "100%",
+    height: "100%",
   },
   pipPlaceholder: {
     flex: 1,

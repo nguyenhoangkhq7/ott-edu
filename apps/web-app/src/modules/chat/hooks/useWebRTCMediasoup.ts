@@ -118,8 +118,8 @@ function isLikelyMobileDeviceLabel(label?: string): boolean {
 
 function buildPreferredConstraints(
   options?: {
-  videoDeviceId?: string;
-  audioDeviceId?: string;
+    videoDeviceId?: string;
+    audioDeviceId?: string;
   },
   callType: MediaCallKind = "video",
 ): MediaStreamConstraints {
@@ -265,6 +265,7 @@ export default function useWebRTCMediasoup({
   const pendingProducersRef = useRef<Array<{ producerId: string; kind: "audio" | "video"; userId: string }>>([]);
   const currentConversationIdRef = useRef<string | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
   const requestedCallTypeRef = useRef<MediaCallKind>("video");
 
   const clearCallError = useCallback(() => {
@@ -310,6 +311,11 @@ export default function useWebRTCMediasoup({
     }
 
     const stream = await requestUserMediaWithDesktopPreference(callType);
+    if (callType === "audio") {
+      cameraStreamRef.current = null;
+    } else {
+      cameraStreamRef.current = stream;
+    }
     setLocalStream(stream);
     setIsMicrophoneEnabled(stream.getAudioTracks().some((track) => track.enabled));
     setIsCameraEnabled(stream.getVideoTracks().some((track) => track.enabled));
@@ -321,6 +327,7 @@ export default function useWebRTCMediasoup({
       setCallError(null);
       stopMediaStream(localStreamRef.current);
       localStreamRef.current = null;
+      cameraStreamRef.current = null;
       const stream = await ensureLocalStream(requestedCallTypeRef.current);
       setLocalStream(stream);
     } catch (error) {
@@ -373,10 +380,12 @@ export default function useWebRTCMediasoup({
         socket?.emit("closeProducer", { conversationId: currentConversationIdRef.current, producerId: existingScreenProducer.id });
         producersRef.current.delete("screen");
         // Restore camera preview if available
-        const previewStream = localStreamRef.current;
+        const previewStream = cameraStreamRef.current || localStreamRef.current;
         if (previewStream) {
           setLocalStream(previewStream);
+          localStreamRef.current = previewStream;
         }
+        setIsScreenSharing(false);
         return;
       }
 
@@ -394,9 +403,13 @@ export default function useWebRTCMediasoup({
 
       producersRef.current.set("screen", screenProducer);
 
+      if (localStreamRef.current && localStreamRef.current !== screenStream) {
+        cameraStreamRef.current = localStreamRef.current;
+      }
+
       // Replace local preview with screen preview
       const preview = new MediaStream();
-      const audioTrack = localStreamRef.current?.getAudioTracks()[0] || null;
+      const audioTrack = (cameraStreamRef.current || localStreamRef.current)?.getAudioTracks()[0] || null;
       if (audioTrack) preview.addTrack(audioTrack);
       preview.addTrack(screenTrack);
       setLocalStream(preview);
@@ -412,7 +425,7 @@ export default function useWebRTCMediasoup({
         producersRef.current.delete("screen");
         setIsScreenSharing(false);
         // restore camera
-        const previewStream = localStreamRef.current;
+        const previewStream = cameraStreamRef.current || localStreamRef.current;
         if (previewStream) setLocalStream(previewStream);
       };
     } catch (error) {
@@ -502,6 +515,23 @@ export default function useWebRTCMediasoup({
         const remainingTracks = existing
           .getTracks()
           .filter((track) => track.id !== consumer.track.id);
+
+        // Restore alternate active track (like video/camera) if screen sharing was closed
+        let alternateTrack: MediaStreamTrack | null = null;
+        consumersRef.current.forEach((c) => {
+          if (c.id !== consumerId && c.track.kind === consumer.track.kind) {
+            const m = consumerMetaRef.current.get(c.id);
+            if (m && m.userId === meta.userId) {
+              alternateTrack = c.track;
+            }
+          }
+        });
+
+        if (alternateTrack) {
+          if (!remainingTracks.some((t) => t.id === alternateTrack!.id)) {
+            remainingTracks.push(alternateTrack);
+          }
+        }
 
         if (remainingTracks.length === 0) {
           next.delete(meta.userId);
@@ -668,21 +698,21 @@ export default function useWebRTCMediasoup({
               callback: () => void,
               errback: (error: Error) => void,
             ) => {
-            socket.emit(
-              "connectTransport",
-              {
-                conversationId,
-                transportId: sendTransport.id,
-                dtlsParameters,
-              },
-              (connectResponse: { ok: boolean; error?: unknown }) => {
-                if (connectResponse.ok) {
-                  callback();
-                } else {
-                  errback(connectResponse.error as Error);
-                }
-              },
-            );
+              socket.emit(
+                "connectTransport",
+                {
+                  conversationId,
+                  transportId: sendTransport.id,
+                  dtlsParameters,
+                },
+                (connectResponse: { ok: boolean; error?: unknown }) => {
+                  if (connectResponse.ok) {
+                    callback();
+                  } else {
+                    errback(connectResponse.error as Error);
+                  }
+                },
+              );
             },
           );
 
@@ -697,23 +727,23 @@ export default function useWebRTCMediasoup({
               callback: ({ id }: { id: string }) => void,
               errback: (error: Error) => void,
             ) => {
-            socket.emit(
-              "produce",
-              {
-                conversationId,
-                transportId: sendTransport.id,
-                kind,
-                rtpParameters,
-                appData,
-              },
-              (produceResponse: { ok: boolean; data?: { producerId: string }; error?: unknown }) => {
+              socket.emit(
+                "produce",
+                {
+                  conversationId,
+                  transportId: sendTransport.id,
+                  kind,
+                  rtpParameters,
+                  appData,
+                },
+                (produceResponse: { ok: boolean; data?: { producerId: string }; error?: unknown }) => {
                   if (produceResponse.ok) {
                     callback({ id: produceResponse.data!.producerId });
                   } else {
                     errback(produceResponse.error as Error);
                   }
                 },
-            );
+              );
             },
           );
 
@@ -722,7 +752,7 @@ export default function useWebRTCMediasoup({
             "createWebRtcTransport",
             { conversationId, direction: "recv" },
             (recvResponse: { ok: boolean; data?: unknown; error?: unknown }) => {
-                if (!recvResponse.ok) {
+              if (!recvResponse.ok) {
                 reject(new Error((recvResponse.error as unknown as { message?: string })?.message || "Failed to create recv transport"));
                 return;
               }
@@ -737,21 +767,21 @@ export default function useWebRTCMediasoup({
                   callback: () => void,
                   errback: (error: Error) => void,
                 ) => {
-                socket.emit(
-                  "connectTransport",
-                  {
-                    conversationId,
-                    transportId: recvTransport.id,
-                    dtlsParameters,
-                  },
-                  (connectResponse: { ok: boolean; error?: unknown }) => {
-                    if (connectResponse.ok) {
-                      callback();
-                    } else {
-                      errback(connectResponse.error as Error);
-                    }
-                  },
-                );
+                  socket.emit(
+                    "connectTransport",
+                    {
+                      conversationId,
+                      transportId: recvTransport.id,
+                      dtlsParameters,
+                    },
+                    (connectResponse: { ok: boolean; error?: unknown }) => {
+                      if (connectResponse.ok) {
+                        callback();
+                      } else {
+                        errback(connectResponse.error as Error);
+                      }
+                    },
+                  );
                 },
               );
 
@@ -772,7 +802,15 @@ export default function useWebRTCMediasoup({
     pendingProducersRef.current = [];
 
     for (const producer of pending) {
-      await consumeProducer(producer.producerId, producer.kind, producer.userId);
+      if (requestedCallTypeRef.current === "audio" && producer.kind === "video") {
+        continue;
+      }
+
+      try {
+        await consumeProducer(producer.producerId, producer.kind, producer.userId);
+      } catch (error) {
+        console.warn("[useWebRTCMediasoup] Skipping pending producer:", producer.producerId, error);
+      }
     }
   }, [consumeProducer]);
 
@@ -822,6 +860,7 @@ export default function useWebRTCMediasoup({
       consumedProducerIdsRef.current.clear();
       deviceLoadPromiseRef.current = null;
       deviceRef.current = null;
+      cameraStreamRef.current = null;
     },
     [socket],
   );
@@ -853,11 +892,23 @@ export default function useWebRTCMediasoup({
         await flushPendingProducers();
 
         for (const existingProducer of joinResponse.existingProducers) {
-          await consumeProducer(
-            existingProducer.producerId,
-            existingProducer.kind,
-            existingProducer.userId,
-          );
+          if (effectiveCallType === "audio" && existingProducer.kind === "video") {
+            continue;
+          }
+
+          try {
+            await consumeProducer(
+              existingProducer.producerId,
+              existingProducer.kind,
+              existingProducer.userId,
+            );
+          } catch (error) {
+            console.warn(
+              "[useWebRTCMediasoup] Skipping existing producer:",
+              existingProducer.producerId,
+              error,
+            );
+          }
         }
 
         // Produce audio/video
@@ -918,7 +969,11 @@ export default function useWebRTCMediasoup({
 
   const declineIncomingCall = useCallback(() => {
     if (!incomingCall) return;
-    socket?.emit("leaveMediaRoom", incomingCall.conversationId);
+    if (incomingCall.isPrivate) {
+      socket?.emit("declineMediaCall", { conversationId: incomingCall.conversationId });
+    } else {
+      socket?.emit("leaveMediaRoom", incomingCall.conversationId);
+    }
     setIncomingCall(null);
     setCallStatus("idle");
   }, [incomingCall, socket]);
@@ -939,6 +994,10 @@ export default function useWebRTCMediasoup({
       if (!producerId || !userId || userId === currentUserId) return;
 
       if (consumedProducerIdsRef.current.has(producerId)) {
+        return;
+      }
+
+      if (requestedCallTypeRef.current === "audio" && kind === "video") {
         return;
       }
 
@@ -968,11 +1027,13 @@ export default function useWebRTCMediasoup({
       initiatorUserId,
       initiatedAt,
       callType,
+      isPrivate,
     }: {
       conversationId: string;
       initiatorUserId: string;
       initiatedAt: string;
       callType?: MediaCallKind;
+      isPrivate?: boolean;
     }) => {
       if (!conversationId || initiatorUserId === currentUserId) return;
 
@@ -984,6 +1045,7 @@ export default function useWebRTCMediasoup({
           toUserId: currentUserId,
           initiatedAt,
           callType: callType || "video",
+          isPrivate: Boolean(isPrivate),
         });
         setCallStatus("receiving");
       }

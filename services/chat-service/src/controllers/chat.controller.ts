@@ -63,7 +63,25 @@ export class ChatController {
         if (!mongoose.Types.ObjectId.isValid(conversationId)) {
           return res.status(400).json({ error: "conversationId is invalid" });
         }
+
+        const conversation = await Conversation.findOne(
+          {
+            _id: conversationId,
+            isArchived: { $ne: true },
+            participants: userObjectId,
+          },
+          { type: 1 },
+        ).lean();
+
+        if (!conversation) {
+          return res.status(403).json({ error: "Access denied" });
+        }
+
         query.conversationId = new mongoose.Types.ObjectId(conversationId);
+
+        if ((conversation as { type?: string }).type === "class") {
+          delete query.$or;
+        }
       }
 
       if (statusValues.length > 0) {

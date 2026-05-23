@@ -48,6 +48,26 @@ const getFileIcon = (fileName: string) => {
   return '📎';
 };
 
+const parseCallLog = (content: string): null | {
+  callType?: "audio" | "video";
+  status?: string;
+  durationSec?: number;
+  label?: string;
+} => {
+  if (!content.startsWith('[call_log]')) return null;
+  const raw = content.replace('[call_log]', '').trim();
+  try {
+    return JSON.parse(raw) as {
+      callType?: "audio" | "video";
+      status?: string;
+      durationSec?: number;
+      label?: string;
+    };
+  } catch {
+    return null;
+  }
+};
+
 interface MessageBubbleProps {
   message: Message;
   isSelf: boolean;
@@ -60,6 +80,8 @@ interface MessageBubbleProps {
   onForward?: (message: Message) => void;
   onOpenProfile?: (user: User) => void;
   showAvatar?: boolean;
+  onStartVoiceCall?: () => void;
+  onStartVideoCall?: () => void;
 }
 
 const LinkPreview = ({ preview }: { preview: LinkPreviewType }) => {
@@ -116,9 +138,85 @@ const LinkPreview = ({ preview }: { preview: LinkPreviewType }) => {
   );
 };
 
+const getCallLogDetails = (
+  callLog: {
+    callType?: "audio" | "video";
+    status?: string;
+    durationSec?: number;
+    label?: string;
+  },
+  isSelf: boolean
+) => {
+  const isVideo = callLog.callType === 'video';
+  const isMissed = ['declined', 'unavailable', 'failed', 'ringing'].includes(callLog.status || '') || 
+                   (!isSelf && callLog.status === 'ended' && !callLog.durationSec);
+  
+  // Icon name
+  const iconName = isVideo 
+    ? (isMissed ? 'videocam-off' : 'videocam') 
+    : (isMissed ? 'call-outline' : 'call');
+
+  // Status/Duration label
+  let durationStr = '';
+  if (callLog.durationSec && callLog.durationSec > 0) {
+    const mins = Math.floor(callLog.durationSec / 60);
+    const secs = callLog.durationSec % 60;
+    durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  }
+
+  let statusLabel = '';
+  let title = '';
+
+  if (isSelf) {
+    title = isVideo ? 'Cuộc gọi video đi' : 'Cuộc gọi thoại đi';
+    if (callLog.status === 'connected' || callLog.status === 'ended') {
+      statusLabel = durationStr ? `Đã kết nối (${durationStr})` : 'Đã kết nối';
+    } else if (callLog.status === 'declined') {
+      statusLabel = 'Bị từ chối';
+    } else if (callLog.status === 'unavailable' || callLog.status === 'no_answer') {
+      statusLabel = 'Không nhấc máy';
+    } else {
+      statusLabel = 'Cuộc gọi thất bại';
+    }
+  } else {
+    if (isMissed) {
+      title = isVideo ? 'Cuộc gọi video nhỡ' : 'Cuộc gọi nhỡ';
+      statusLabel = 'Nhấn để gọi lại';
+    } else {
+      title = isVideo ? 'Cuộc gọi video đến' : 'Cuộc gọi thoại đến';
+      statusLabel = durationStr ? `Đã nhận (${durationStr})` : 'Đã kết nối';
+    }
+  }
+
+  let iconBgColor = '#E8F5E9'; // Soft green
+  let iconColor = '#2E7D32'; // Deep green
+  let titleColor = '#1E293B'; // Dark slate
+
+  if (isMissed) {
+    iconBgColor = '#FFEBEE'; // Soft red
+    iconColor = '#C62828'; // Deep red
+    titleColor = '#C62828'; // Red title to emphasize missed call like Zalo
+  } else if (isVideo) {
+    iconBgColor = '#E3F2FD'; // Soft blue
+    iconColor = '#1565C0'; // Deep blue
+  }
+
+  return {
+    title,
+    statusLabel,
+    iconName,
+    iconBgColor,
+    iconColor,
+    titleColor,
+    isMissed,
+    isVideo,
+  };
+};
+
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message, isSelf, currentUserId, sender, onReply, onReact,
   onRevokeForAll, onRevokeForMe, onForward, onOpenProfile, showAvatar = true,
+  onStartVoiceCall, onStartVideoCall,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const isRevoked = message.isRevoked;
@@ -136,6 +234,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     message.reactions.forEach((r) => map.set(r.emoji, (map.get(r.emoji) || 0) + 1));
     return Array.from(map.entries()).map(([emoji, count]) => ({ emoji, count }));
   }, [message.reactions]);
+
+  const callLog = parseCallLog(message.content || '');
 
   if (isSelfRevoked) return null;
 
@@ -190,53 +290,103 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {/* Bubble Content */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => setShowMenu(true)}
-            style={[
+            onPress={callLog ? () => {
+              if (callLog.callType === 'video' && onStartVideoCall) {
+                onStartVideoCall();
+              } else if (onStartVoiceCall) {
+                onStartVoiceCall();
+              } else {
+                setShowMenu(true);
+              }
+            } : () => setShowMenu(true)}
+            onLongPress={callLog ? () => setShowMenu(true) : undefined}
+            style={callLog ? [
+              styles.callBubbleCard,
+              isSelf ? styles.callBubbleSelf : styles.callBubbleOther
+            ] : [
               styles.bubble,
               isSelf ? styles.bubbleSelf : styles.bubbleOther
             ]}
           >
-            {/* Text Message */}
-            {!!message.content && (
-              <Text style={[styles.messageText, isSelf ? styles.textSelf : styles.textOther]}>
-                {message.content}
-              </Text>
-            )}
-
-            {/* Link Preview */}
-            {message.linkPreview && <LinkPreview preview={message.linkPreview} />}
-
-            {/* Attachments (Images, Videos, Files) */}
-            {message.attachments?.map((file, i) => {
-              const isImg = file.fileType?.startsWith('image/');
-              const isVid = file.fileType?.startsWith('video/');
-
-              if (isImg) {
+            {callLog ? (
+              (() => {
+                const details = getCallLogDetails(callLog, isSelf);
                 return (
-                  <TouchableOpacity key={i} onPress={() => Linking.openURL(file.url)} style={styles.attachmentMargin}>
-                    <Image source={{ uri: file.url }} style={styles.imageAttachment as any} resizeMode="cover" />
-                  </TouchableOpacity>
+                  <View style={styles.callLogContainer}>
+                    <View style={styles.callLogHeaderRow}>
+                      <View style={[styles.callLogIconCircle, { backgroundColor: details.iconBgColor }]}>
+                        <Ionicons
+                          name={details.iconName as any}
+                          size={18}
+                          color={details.iconColor}
+                        />
+                      </View>
+                      <View style={styles.callLogMainContent}>
+                        <Text style={[styles.callLogTitleText, { color: details.titleColor }]}>
+                          {details.title}
+                        </Text>
+                        <Text style={styles.callLogSubtext} numberOfLines={1}>
+                          {details.statusLabel}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.callLogDividerLine} />
+                    
+                    <View style={styles.callLogFooterRow}>
+                      <Text style={styles.callLogActionLabel}>
+                        {details.isMissed ? 'Gọi lại ngay' : 'Gọi lại'}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={13} color="#2563EB" />
+                    </View>
+                  </View>
                 );
-              }
-
-              if (isVid) {
-                return <VideoMessageItem key={i} url={file.url} />;
-              }
-
-              return (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => Linking.openURL(file.url)}
-                  style={[styles.fileAttachment, isSelf ? styles.fileSelf : styles.fileOther]}
-                >
-                  <Text style={styles.fileIconText}>{getFileIcon(file.fileName)}</Text>
-                  <Text style={[styles.fileName, isSelf ? styles.fileNameSelf : styles.fileNameOther]} numberOfLines={1}>
-                    {file.fileName}
+              })()
+            ) : (
+              <>
+                {/* Text Message */}
+                {!!message.content && (
+                  <Text style={[styles.messageText, isSelf ? styles.textSelf : styles.textOther]}>
+                    {message.content}
                   </Text>
-                  <Ionicons name="download-outline" size={14} color={isSelf ? '#bfdbfe' : '#64748b'} />
-                </TouchableOpacity>
-              );
-            })}
+                )}
+
+                {/* Link Preview */}
+                {message.linkPreview && <LinkPreview preview={message.linkPreview} />}
+
+                {/* Attachments (Images, Videos, Files) */}
+                {message.attachments?.map((file, i) => {
+                  const isImg = file.fileType?.startsWith('image/');
+                  const isVid = file.fileType?.startsWith('video/');
+
+                  if (isImg) {
+                    return (
+                      <TouchableOpacity key={i} onPress={() => Linking.openURL(file.url)} style={styles.attachmentMargin}>
+                        <Image source={{ uri: file.url }} style={styles.imageAttachment as any} resizeMode="cover" />
+                      </TouchableOpacity>
+                    );
+                  }
+
+                  if (isVid) {
+                    return <VideoMessageItem key={i} url={file.url} />;
+                  }
+
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => Linking.openURL(file.url)}
+                      style={[styles.fileAttachment, isSelf ? styles.fileSelf : styles.fileOther]}
+                    >
+                      <Text style={styles.fileIconText}>{getFileIcon(file.fileName)}</Text>
+                      <Text style={[styles.fileName, isSelf ? styles.fileNameSelf : styles.fileNameOther]} numberOfLines={1}>
+                        {file.fileName}
+                      </Text>
+                      <Ionicons name="download-outline" size={14} color={isSelf ? '#bfdbfe' : '#64748b'} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            )}
           </TouchableOpacity>
 
           {/* Reactions */}
@@ -310,11 +460,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     setShowMenu(false);
                   }}
                 >
-                  <View style={[styles.menuIcon, { backgroundColor: canRevokeForAll ? '#fff1f2' : '#f8fafc' }]}>
-                    <Ionicons name="trash" size={16} color={canRevokeForAll ? '#ef4444' : '#94a3b8'} />
+                  <View style={[styles.menuIcon, { backgroundColor: '#fee2e2' }]}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#e11d48" />
                   </View>
                   <View>
-                    <Text style={[styles.menuText, canRevokeForAll ? { color: '#e11d48' } : { color: '#94a3b8' }]}>Thu hồi với mọi người</Text>
+                    <Text
+                      style={[
+                        styles.menuText,
+                        canRevokeForAll ? { color: '#e11d48' } : { color: '#94a3b8' },
+                      ]}
+                    >
+                      Thu hồi với mọi người
+                    </Text>
                     <Text style={styles.menuSubtext}>
                       {canRevokeForAll ? `Còn ${remainingMinutes} phút` : 'Đã quá 15 phút'}
                     </Text>
@@ -467,6 +625,73 @@ const styles = StyleSheet.create({
   fileName: { fontSize: 12, fontWeight: '500', flex: 1, marginRight: 6 },
   fileNameSelf: { color: '#EFF6FF' },
   fileNameOther: { color: '#334155' },
+  callBubbleCard: {
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    width: 220,
+    borderWidth: 1,
+  },
+  callBubbleSelf: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    borderBottomRightRadius: 4,
+  },
+  callBubbleOther: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+    borderBottomLeftRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  callLogContainer: {
+    width: '100%',
+  },
+  callLogHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  callLogIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  callLogMainContent: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  callLogTitleText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  callLogSubtext: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2.5,
+  },
+  callLogDividerLine: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 8,
+    opacity: 0.8,
+  },
+  callLogFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+  },
+  callLogActionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB',
+    marginRight: 3,
+  },
   // Link Preview
   linkPreviewContainer: {
     backgroundColor: '#F8FAFC',

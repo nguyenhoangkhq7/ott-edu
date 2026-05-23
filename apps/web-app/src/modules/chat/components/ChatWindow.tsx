@@ -395,6 +395,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     incomingCaller?.name || incomingCall?.fromUserId || "Nguoi dung";
   const incomingCallTypeLabel = incomingCall?.callType === "audio" ? "am thanh" : "video";
   const activeCallTypeLabel = activeCall?.callType === "audio" ? "am thanh" : "video";
+  const currentCallType: MediaCallKind = activeCall?.callType || incomingCall?.callType || "video";
+  const isAudioCall = currentCallType === "audio";
   const showFullScreenCall =
     callStatus !== "idle" ||
     Boolean(localStream) ||
@@ -416,6 +418,51 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         : remoteStreamsList.length <= 4
           ? "grid-cols-2"
           : "grid-cols-3";
+
+    const renderLocalPreview = () => {
+      if (isAudioCall) {
+        return (
+          <div className="absolute bottom-4 right-4 z-20 flex w-44 items-center gap-3 rounded-2xl border border-white/20 bg-black/80 px-3 py-3 shadow-2xl backdrop-blur-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white">
+              <Users size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-white">Ban</p>
+              <p className="text-[11px] text-white/60">Dang goi am thanh</p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          className="absolute bottom-4 right-4 z-20 overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl
+                        w-28 sm:w-36 md:w-44"
+        >
+          <video
+            ref={(el) => {
+              if (!el) return;
+              if (el.srcObject !== localStream) {
+                el.srcObject = localStream;
+              }
+              if (localStream) el.play().catch(() => { });
+            }}
+            autoPlay
+            muted
+            playsInline
+            className="aspect-video w-full object-cover"
+          />
+          {(!localStream || !isCameraEnabled) && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 text-[10px] text-slate-300">
+              {isCameraEnabled ? "Dang tai..." : "Camera tat"}
+            </div>
+          )}
+          <div className="absolute bottom-1 left-2 text-[10px] text-white/70">
+            Ban
+          </div>
+        </div>
+      );
+    };
 
     return (
       <div className="fixed inset-0 z-50 flex flex-col overflow-hidden text-white">
@@ -478,7 +525,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <div className="flex flex-1 items-center justify-center p-6">
               <div className="w-full max-w-sm rounded-3xl border border-emerald-400/30 bg-emerald-500/10 px-6 py-8 text-center backdrop-blur-sm">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/20 ring-4 ring-emerald-400/30">
-                  <Video size={28} className="text-emerald-300" />
+                  {incomingCall?.callType === "audio" ? (
+                    <Phone size={28} className="text-emerald-300" />
+                  ) : (
+                    <Video size={28} className="text-emerald-300" />
+                  )}
                 </div>
                 <p className="text-xs uppercase tracking-widest text-emerald-300">
                   Cuoc goi den
@@ -506,11 +557,43 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
               </div>
             </div>
+          ) : isAudioCall ? (
+            /* ── Audio Layout: compact avatar-based view ── */
+            <div className="relative min-h-0 flex-1 overflow-hidden">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4 text-center text-white/90">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15">
+                    <Users size={42} className="text-white/80" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold">
+                      {conversation?.name || callTitle}
+                    </p>
+                    <p className="text-sm text-white/60">Cuoc goi am thanh</p>
+                  </div>
+                </div>
+              </div>
+
+              {remoteStreamsList.length > 0 ? (
+                <div className="absolute inset-x-0 bottom-28 flex justify-center gap-3 px-4 flex-wrap">
+                  {remoteStreamsList.map(([userId]) => (
+                    <div
+                      key={userId}
+                      className="flex h-14 min-w-14 items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 text-xs text-white/90 backdrop-blur-sm"
+                    >
+                      {userId.slice(-6)}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {renderLocalPreview()}
+            </div>
           ) : isOneOnOne ? (
             /* ── 1-1 Layout: remote fills entire area, local is PiP ── */
             <div className="relative min-h-0 flex-1">
               {/* Remote — full bleed */}
-                {remoteStreamsList.length > 0 ? (
+              {remoteStreamsList.length > 0 ? (
                 (() => {
                   const [userId, stream] = remoteStreamsList[0]!;
 
@@ -533,7 +616,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   return (
                     <RemoteVideo
                       key={userId}
-                      stream={stream}
+                      ref={(el) => {
+                        if (!el) return;
+                        remoteVideoRefs.current.set(userId, el);
+                        if (el.srcObject !== stream) el.srcObject = stream;
+                        el.muted = true;
+                        const tryPlay = () => {
+                          if (!el) return;
+                          el.play()
+                            .then(() => {
+                              el.muted = false;
+                            })
+                            .catch(() => { });
+                        };
+                        el.play()
+                          .then(() => {
+                            el.muted = false;
+                          })
+                          .catch(() => {
+                            el.oncanplay = tryPlay;
+                          });
+                      }}
                       autoPlay
                       playsInline
                       className="absolute inset-0 h-full w-full object-cover"
@@ -552,27 +655,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 </div>
               )}
 
-              {/* Local PiP — bottom-right corner, responsive size */}
-              <div
-                className="absolute bottom-4 right-4 z-20 overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl
-                              w-28 sm:w-36 md:w-44"
-              >
-                <LocalVideo
-                  stream={localStream}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="aspect-video w-full object-cover"
-                />
-                {(!localStream || !isCameraEnabled) && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 text-[10px] text-slate-300">
-                    {isCameraEnabled ? "Dang tai..." : "Camera tat"}
-                  </div>
-                )}
-                <div className="absolute bottom-1 left-2 text-[10px] text-white/70">
-                  Ban
-                </div>
-              </div>
+              {renderLocalPreview()}
             </div>
           ) : (
             /* ── Group Layout: grid + local tile ── */
@@ -588,8 +671,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     className="relative overflow-hidden rounded-2xl bg-slate-800 ring-1 ring-white/10"
                     style={{ aspectRatio: "16/9" }}
                   >
-                    <RemoteVideo
-                      stream={stream}
+                    <video
+                      ref={(el) => {
+                        if (!el) return;
+                        remoteVideoRefs.current.set(userId, el);
+                        if (el.srcObject !== stream) el.srcObject = stream;
+                        el.muted = true;
+                        el.play()
+                          .then(() => {
+                            el.muted = false;
+                          })
+                          .catch(() => {
+                            el.oncanplay = () => {
+                              el.play()
+                                .then(() => {
+                                  el.muted = false;
+                                })
+                                .catch(() => { });
+                            };
+                          });
+                      }}
                       autoPlay
                       playsInline
                       className="h-full w-full object-cover"
@@ -605,14 +706,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   className="relative overflow-hidden rounded-2xl bg-slate-800 ring-1 ring-white/10"
                   style={{ aspectRatio: "16/9" }}
                 >
-                  <LocalVideo
-                    stream={localStream}
-                    autoPlay
-                    muted
-                    playsInline
-                    className="h-full w-full object-cover"
-                  />
-                  {(!localStream || !isCameraEnabled) && (
+                  {isAudioCall ? (
+                    <div className="flex h-full w-full items-center justify-center bg-slate-900 text-white/90">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
+                          <Users size={24} />
+                        </div>
+                        <p className="text-xs text-white/60">Ban</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <video
+                      ref={(el) => {
+                        if (!el) return;
+                        if (el.srcObject !== localStream)
+                          el.srcObject = localStream;
+                        if (localStream) el.play().catch(() => { });
+                      }}
+                      autoPlay
+                      muted
+                      playsInline
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                  {!isAudioCall && (!localStream || !isCameraEnabled) && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/70 text-xs text-slate-300">
                       {isCameraEnabled ? "Dang tai..." : "Camera tat"}
                     </div>
@@ -633,49 +750,50 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 type="button"
                 onClick={onToggleMicrophone}
                 disabled={!localStream}
-                className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  isMicrophoneEnabled
+                className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isMicrophoneEnabled
                     ? "border-white/25 bg-white/10 text-white hover:bg-white/20"
                     : "border-rose-400/60 bg-rose-500/30 text-rose-200"
-                }`}
+                  }`}
                 title={isMicrophoneEnabled ? "Tat micro" : "Bat micro"}
               >
                 {isMicrophoneEnabled ? <Mic size={18} /> : <MicOff size={18} />}
               </button>
 
-              {/* Camera */}
-              <button
-                type="button"
-                onClick={onToggleCamera}
-                disabled={!localStream}
-                className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  isCameraEnabled
-                    ? "border-white/25 bg-white/10 text-white hover:bg-white/20"
-                    : "border-rose-400/60 bg-rose-500/30 text-rose-200"
-                }`}
-                title={isCameraEnabled ? "Tat camera" : "Bat camera"}
-              >
-                {isCameraEnabled ? (
-                  <Camera size={18} />
-                ) : (
-                  <CameraOff size={18} />
-                )}
-              </button>
+              {!isAudioCall && (
+                <>
+                  {/* Camera */}
+                  <button
+                    type="button"
+                    onClick={onToggleCamera}
+                    disabled={!localStream}
+                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isCameraEnabled
+                        ? "border-white/25 bg-white/10 text-white hover:bg-white/20"
+                        : "border-rose-400/60 bg-rose-500/30 text-rose-200"
+                      }`}
+                    title={isCameraEnabled ? "Tat camera" : "Bat camera"}
+                  >
+                    {isCameraEnabled ? (
+                      <Camera size={18} />
+                    ) : (
+                      <CameraOff size={18} />
+                    )}
+                  </button>
 
-              {/* Screen share */}
-              <button
-                type="button"
-                onClick={onToggleScreenShare}
-                disabled={!localStream}
-                className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  isScreenSharing
-                    ? "border-sky-300/60 bg-sky-500/30 text-sky-200"
-                    : "border-white/25 bg-white/10 text-white hover:bg-white/20"
-                }`}
-                title={isScreenSharing ? "Dung chia se" : "Chia se man hinh"}
-              >
-                <Share2 size={18} />
-              </button>
+                  {/* Screen share */}
+                  <button
+                    type="button"
+                    onClick={onToggleScreenShare}
+                    disabled={!localStream}
+                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isScreenSharing
+                        ? "border-sky-300/60 bg-sky-500/30 text-sky-200"
+                        : "border-white/25 bg-white/10 text-white hover:bg-white/20"
+                      }`}
+                    title={isScreenSharing ? "Dung chia se" : "Chia se man hinh"}
+                  >
+                    <Share2 size={18} />
+                  </button>
+                </>
+              )}
 
               {/* End call */}
               {(activeCall || callStatus !== "idle") && (
@@ -775,19 +893,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <MicOff size={14} />
                   )}
                 </button>
-                <button
-                  type="button"
-                  onClick={onToggleCamera}
-                  disabled={!localStream}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
-                  title={isCameraEnabled ? "Tat camera" : "Bat camera"}
-                >
-                  {isCameraEnabled ? (
-                    <Camera size={14} />
-                  ) : (
-                    <CameraOff size={14} />
-                  )}
-                </button>
+                {!isAudioCall && (
+                  <button
+                    type="button"
+                    onClick={onToggleCamera}
+                    disabled={!localStream}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:border-sky-300 hover:text-sky-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={isCameraEnabled ? "Tat camera" : "Bat camera"}
+                  >
+                    {isCameraEnabled ? (
+                      <Camera size={14} />
+                    ) : (
+                      <CameraOff size={14} />
+                    )}
+                  </button>
+                )}
                 {(activeCall || callStatus !== "idle") && (
                   <button
                     type="button"
@@ -808,7 +928,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     if (!el) return;
                     if (el.srcObject !== remoteStream)
                       el.srcObject = remoteStream;
-                    if (remoteStream) el.play().catch(() => {});
+                    if (remoteStream) el.play().catch(() => { });
                   }}
                   autoPlay
                   playsInline
@@ -831,7 +951,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     if (!el) return;
                     if (el.srcObject !== localStream)
                       el.srcObject = localStream;
-                    if (localStream) el.play().catch(() => {});
+                    if (localStream) el.play().catch(() => { });
                   }}
                   autoPlay
                   muted
@@ -1053,13 +1173,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     }
                   }
                 }}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition mr-2 ${
-                  friendStatus === "friend"
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition mr-2 ${friendStatus === "friend"
                     ? "bg-emerald-50 text-emerald-600 cursor-default" // Bạn bè (Xanh ngọc)
                     : friendStatus === "pending"
                       ? "bg-slate-100 text-slate-500 cursor-not-allowed" // Đã gửi (Xám)
                       : "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white" // Chưa gửi (Xanh dương)
-                }`}
+                  }`}
                 title={
                   friendStatus === "friend"
                     ? "Hai bạn đã là bạn bè"
@@ -1132,11 +1251,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             <button
               type="button"
               onClick={() => setIsInfoSidebarOpen(!isInfoSidebarOpen)}
-              className={`rounded-full p-2 transition-colors ${
-                isInfoSidebarOpen
+              className={`rounded-full p-2 transition-colors ${isInfoSidebarOpen
                   ? "bg-blue-100 text-blue-500"
                   : "hover:bg-slate-100 hover:text-blue-500"
-              }`}
+                }`}
               title="Thông tin hội thoại"
             >
               <Info size={20} />

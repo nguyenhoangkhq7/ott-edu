@@ -18,6 +18,7 @@ import {
   ApiMessage,
   ApiUser,
   Attachment,
+  CallHistoryItem,
   Conversation,
   Message,
   User,
@@ -107,6 +108,50 @@ export async function sendMessage(
     isForwarded,
   });
   return mapApiMessageToMessage(data.data);
+}
+
+/**
+ * GET /api/calls/history
+ * Lấy lịch sử cuộc gọi gần nhất của user hiện tại.
+ */
+export async function fetchCallHistory(params?: {
+  conversationId?: string;
+  limit?: number;
+  page?: number;
+  status?: "ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed";
+}): Promise<{
+  items: CallHistoryItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}> {
+  const { data } = await chatApiClient.get<{
+    data: CallHistoryItem[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }>(
+    'calls/history',
+    {
+      params: {
+        conversationId: params?.conversationId,
+        limit: params?.limit,
+        page: params?.page,
+        status: params?.status,
+      },
+    },
+  );
+
+  return {
+    items: data.data,
+    pagination: data.pagination,
+  };
 }
 
 export async function fetchConversationRole(conversationId: string): Promise<{

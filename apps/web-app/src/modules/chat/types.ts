@@ -90,6 +90,7 @@ export interface IncomingVideoCall {
   toUserId: string;
   initiatedAt?: string;
   callType?: MediaCallKind;
+  isPrivate?: boolean;
 }
 
 export interface ActiveVideoCall {
