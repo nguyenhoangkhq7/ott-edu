@@ -84,6 +84,100 @@ interface ChatWindowProps {
   onConversationInfoRefreshTick?: number;
 }
 
+interface RemoteVideoProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
+  stream: MediaStream;
+}
+
+const RemoteVideo: React.FC<RemoteVideoProps> = ({ stream, ...props }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+
+    el.muted = true;
+    const tryPlay = () => {
+      if (!el) return;
+      el.play()
+        .then(() => {
+          el.muted = false;
+        })
+        .catch((err) => {
+          console.warn("[RemoteVideo] Play failed:", err);
+        });
+    };
+
+    if (el.readyState >= 2) {
+      tryPlay();
+    } else {
+      el.oncanplay = tryPlay;
+    }
+
+    return () => {
+      el.oncanplay = null;
+    };
+  }, [stream]);
+
+  return <video ref={videoRef} {...props} />;
+};
+
+interface RemoteAudioProps extends React.AudioHTMLAttributes<HTMLAudioElement> {
+  stream: MediaStream;
+}
+
+const RemoteAudio: React.FC<RemoteAudioProps> = ({ stream, ...props }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+
+    el.muted = true;
+    el.play()
+      .then(() => {
+        try {
+          el.muted = false;
+        } catch {
+          // ignore
+        }
+      })
+      .catch((err) => {
+        console.warn("[RemoteAudio] Play failed:", err);
+      });
+  }, [stream]);
+
+  return <audio ref={audioRef} {...props} />;
+};
+
+interface LocalVideoProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
+  stream: MediaStream | null;
+}
+
+const LocalVideo: React.FC<LocalVideoProps> = ({ stream, ...props }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    if (stream) {
+      el.play().catch(() => {});
+    }
+  }, [stream]);
+
+  return <video ref={videoRef} {...props} />;
+};
+
 export const ChatWindow: React.FC<ChatWindowProps> = ({
   conversation,
   messages,
@@ -155,7 +249,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     "none" | "pending" | "friend"
   >("none");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [isInfoSidebarOpen, setIsInfoSidebarOpen] = useState(false);
@@ -227,55 +320,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
     console.log("🎯 Trạng thái chốt hạ đưa lên nút:", finalStatus);
 
-    setFriendStatus(finalStatus);
+    queueMicrotask(() => {
+      setFriendStatus(finalStatus);
+    });
   }, [conversation, currentUser]);
 
   // Update local messages when messages prop changes
   useEffect(() => {
-    setLocalMessages(messages);
+    queueMicrotask(() => {
+      setLocalMessages(messages);
+    });
   }, [messages]);
 
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [localMessages]);
 
-  useEffect(() => {
-    const currentRefs = remoteVideoRefs.current;
-    remoteStreamsList.forEach(([userId, stream]) => {
-      const el = currentRefs.get(userId);
-      if (!el) return;
-
-      if (el.srcObject !== stream) {
-        el.srcObject = stream;
-      }
-
-      // Mute first so browser allows autoplay (autoplay policy blocks unmuted video)
-      // then unmute immediately after playback starts
-      el.muted = true;
-      const tryPlay = () => {
-        el.play()
-          .then(() => {
-            el.muted = false;
-          })
-          .catch((err) => {
-            console.warn("[ChatWindow] Remote play failed:", err);
-          });
-      };
-
-      if (el.readyState >= 2) {
-        tryPlay();
-      } else {
-        el.oncanplay = tryPlay;
-      }
-    });
-
-    return () => {
-      currentRefs.forEach((el) => {
-        el.oncanplay = null;
-      });
-    };
-  }, [remoteStreamsList]);
 
   // Setup socket listeners
   useEffect(() => {
@@ -546,25 +603,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   // If stream has no video but has audio (audio-only call), render an <audio>
                   if (!hasVideo && hasAudio) {
                     return (
-                      <audio
+                      <RemoteAudio
                         key={userId}
-                        ref={(el) => {
-                          if (!el) return;
-                          if (el.srcObject !== stream) el.srcObject = stream;
-                          // Start muted to satisfy autoplay policies, then unmute after play
-                          el.muted = true;
-                          el.play()
-                            .then(() => {
-                              try {
-                                el.muted = false;
-                              } catch (e) {
-                                // ignore
-                              }
-                            })
-                            .catch((err) => {
-                              console.warn("[ChatWindow] Remote audio play failed:", err);
-                            });
-                        }}
+                        stream={stream}
                         autoPlay
                         controls={false}
                         className="absolute inset-0 h-full w-full object-cover"
@@ -573,29 +614,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   }
 
                   return (
-                    <video
+                    <RemoteVideo
                       key={userId}
-                      ref={(el) => {
-                        if (!el) return;
-                        remoteVideoRefs.current.set(userId, el);
-                        if (el.srcObject !== stream) el.srcObject = stream;
-                        el.muted = true;
-                        const tryPlay = () => {
-                          if (!el) return;
-                          el.play()
-                            .then(() => {
-                              el.muted = false;
-                            })
-                            .catch(() => { });
-                        };
-                        el.play()
-                          .then(() => {
-                            el.muted = false;
-                          })
-                          .catch(() => {
-                            el.oncanplay = tryPlay;
-                          });
-                      }}
+                      stream={stream}
                       autoPlay
                       playsInline
                       className="absolute inset-0 h-full w-full object-cover"
@@ -630,26 +651,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     className="relative overflow-hidden rounded-2xl bg-slate-800 ring-1 ring-white/10"
                     style={{ aspectRatio: "16/9" }}
                   >
-                    <video
-                      ref={(el) => {
-                        if (!el) return;
-                        remoteVideoRefs.current.set(userId, el);
-                        if (el.srcObject !== stream) el.srcObject = stream;
-                        el.muted = true;
-                        el.play()
-                          .then(() => {
-                            el.muted = false;
-                          })
-                          .catch(() => {
-                            el.oncanplay = () => {
-                              el.play()
-                                .then(() => {
-                                  el.muted = false;
-                                })
-                                .catch(() => { });
-                            };
-                          });
-                      }}
+                    <RemoteVideo
+                      key={userId}
+                      stream={stream}
                       autoPlay
                       playsInline
                       className="h-full w-full object-cover"

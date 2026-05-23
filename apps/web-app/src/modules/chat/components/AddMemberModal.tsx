@@ -25,9 +25,11 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({
   // Reset state mỗi khi mở lại modal cho sạch sẽ
   useEffect(() => {
     if (isOpen) {
-      setSearchQuery("");
-      setUsers([]);
-      setAddedEmails([]);
+      queueMicrotask(() => {
+        setSearchQuery("");
+        setUsers([]);
+        setAddedEmails([]);
+      });
     }
   }, [isOpen]);
 

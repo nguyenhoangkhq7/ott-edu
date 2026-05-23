@@ -106,7 +106,9 @@ export const useAssignments = (teamId: number, role: 'STUDENT' | 'TEACHER') => {
   }, []);
 
   useEffect(() => {
-    fetchAssignments();
+    queueMicrotask(() => {
+      fetchAssignments();
+    });
   }, [fetchAssignments, refetchTrigger]);
 
   const refetch = useCallback(() => {

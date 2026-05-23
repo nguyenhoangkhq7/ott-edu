@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { submissionApi } from '@/services/api/assignment.service';
 
 interface GradingModalProps {
@@ -35,7 +35,7 @@ export default function GradingModal({
   const [feedback, setFeedback] = useState('');
   const [grading, setGrading] = useState(false);
 
-  const fetchPendingSubmissions = async () => {
+  const fetchPendingSubmissions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -47,7 +47,16 @@ export default function GradingModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      queueMicrotask(() => {
+        void fetchPendingSubmissions();
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, assignmentId, fetchPendingSubmissions]);
 
   useEffect(() => {
     if (isOpen) {

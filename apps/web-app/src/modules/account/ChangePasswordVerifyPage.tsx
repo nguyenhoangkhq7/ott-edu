@@ -20,8 +20,10 @@ export default function ChangePasswordVerifyPage() {
       return;
     }
 
-    setMaskedEmail(state.maskedEmail);
-    inputRefs.current[0]?.focus();
+    queueMicrotask(() => {
+      setMaskedEmail(state.maskedEmail);
+      inputRefs.current[0]?.focus();
+    });
   }, [router]);
 
   const handleChange = (index: number, value: string) => {

@@ -269,7 +269,9 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       : io(socketOptions);
 
     socketRef.current = nextSocket;
-    setSocket(nextSocket);
+    queueMicrotask(() => {
+      setSocket(nextSocket);
+    });
 
     const handleUserStatusChanged = (data: {
       userId: string;
@@ -570,9 +572,11 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       privateConversation &&
       activeConversationId !== privateConversation.id
     ) {
-      setCurrentMode("private");
-      setDraftReceiver(null);
-      setActiveConversationId(privateConversation.id);
+      queueMicrotask(() => {
+        setCurrentMode("private");
+        setDraftReceiver(null);
+        setActiveConversationId(privateConversation.id);
+      });
     }
   }, [activeConversationId, conversations, incomingCall]);
 
@@ -872,9 +876,11 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     );
 
     if (!activeConversationId || !activeConversation) {
-      setCallHistory([]);
-      setCallHistoryPage(1);
-      setCallHistoryTotalPages(1);
+      queueMicrotask(() => {
+        setCallHistory([]);
+        setCallHistoryPage(1);
+        setCallHistoryTotalPages(1);
+      });
       return;
     }
 

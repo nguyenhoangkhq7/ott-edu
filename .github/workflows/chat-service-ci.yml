@@ -31,4 +31,4 @@ jobs:
         run: npm run lint --if-present
 
       - name: Run Build Check
-        run: npm run build
+        cd services/chat-service && npm run build

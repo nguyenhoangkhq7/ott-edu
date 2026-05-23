@@ -54,7 +54,9 @@ export default function AssignmentsTab({
 
   // Fetch assignments when component mounts or refreshTrigger changes
   useEffect(() => {
-    void loadAssignments();
+    queueMicrotask(() => {
+      void loadAssignments();
+    });
   }, [loadAssignments, refreshTrigger]);
 
   // Filter assignments by tab and type

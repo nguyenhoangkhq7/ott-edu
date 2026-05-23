@@ -20,9 +20,11 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({ isOpen, onCl
 
   useEffect(() => {
     if (!isOpen) {
-      setGroupName("");
-      setSearchQuery("");
-      setSelectedIds([]); // Reset lại id
+      queueMicrotask(() => {
+        setGroupName("");
+        setSearchQuery("");
+        setSelectedIds([]); // Reset lại id
+      });
       return;
     }
     

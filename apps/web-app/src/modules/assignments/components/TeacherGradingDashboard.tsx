@@ -193,21 +193,25 @@ export default function TeacherGradingDashboard({
   }, [assignmentId]);
 
   useEffect(() => {
-    void loadAllSubmissions();
+  void loadAllSubmissions();
   }, [loadAllSubmissions]);
 
   const pendingSubmissions = allSubmissions.filter((s) => s.status !== 'GRADED');
   const gradedSubmissions = allSubmissions.filter((s) => s.status === 'GRADED');
-  const displayedSubmissions = activeTab === 'PENDING' ? pendingSubmissions : gradedSubmissions;
+  const displayedSubmissions =
+    activeTab === 'PENDING'
+      ? pendingSubmissions
+      : gradedSubmissions;
 
   const handleSelectSubmission = (submission: PendingSubmission) => {
     console.log('[GradingDashboard] Selected submission:', submission);
+
     setSelectedSubmission(submission);
     setScore('');
     setFeedback('');
     setSuccess(null);
     setError(null);
-  };
+};
 
   const handleTabChange = (tab: GradingTab) => {
     setActiveTab(tab);

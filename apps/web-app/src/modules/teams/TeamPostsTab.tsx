@@ -583,6 +583,7 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
   const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
   const teamId = routeTeamId?.toString() ?? contextClassId ?? null;
 
+  
   // ✨ SOCKET.IO SETUP - Real-time Posts Updates
   const socket = useSocket();
   useSocketRoomJoin(socket, teamId);
@@ -646,111 +647,107 @@ export default function TeamPostsTab({ teamId: routeTeamId }: TeamPostsTabProps)
     }
   },);
 
-  const loadCommentsForPost = useCallback(async (postId: string) => {
-    try {
-      const comments = await httpService.get<ApiPost[]>(`/interact/comments/post/${postId}`);
-      const currentUser = userEmail || Cookies.get('userEmail') || "";
+const loadCommentsForPost = useCallback(async (postId: string) => {
+  try {
+    const comments = await httpService.get<ApiPost[]>(
+      `/interact/comments/post/${postId}`
+    );
 
-      const mappedComments = comments.map((c: ApiPost) => {
-        const isMyComment = 
-            String(c.authorId).toLowerCase() === currentUser.toLowerCase() || 
-            String(c.authorName).toLowerCase() === currentUser.toLowerCase();
+    const currentUser = userEmail || Cookies.get('userEmail') || "";
 
-        const name = c.authorName || c.user?.name || c.author?.name || c.author?.fullName || c.authorId;
-        const avatar = c.authorAvatar || c.user?.avatar || c.user?.avatarUrl || c.author?.avatar || c.author?.avatarUrl || null;
-        const userReact = c.userReaction || c.myReaction || c.reactionType || null;
+    const mappedComments = comments.map((c: ApiPost) => {
+      const isMyComment =
+        String(c.authorId).toLowerCase() === currentUser.toLowerCase() ||
+        String(c.authorName).toLowerCase() === currentUser.toLowerCase();
 
-        return {
-          id: c.id,
-          senderName: name, 
-          senderAvatar: avatar,
-          senderInitials: getInitials(name || ""),
-          isMe: isMyComment,
-          text: c.content,
-          time: formatTime(c.createdAt),
-          rawDate: new Date(c.createdAt || Date.now()).getTime(),
-          attachments: c.attachments?.map((att: ApiAttachment) => ({
+      const name =
+        c.authorName ||
+        c.user?.name ||
+        c.author?.name ||
+        c.author?.fullName ||
+        c.authorId;
+
+      const avatar =
+        c.authorAvatar ||
+        c.user?.avatar ||
+        c.user?.avatarUrl ||
+        c.author?.avatar ||
+        c.author?.avatarUrl ||
+        null;
+
+      const userReact =
+        c.userReaction || c.myReaction || c.reactionType || null;
+
+      return {
+        id: c.id,
+        senderName: name,
+        senderAvatar: avatar,
+        senderInitials: getInitials(name || ""),
+        isMe: isMyComment,
+        text: c.content,
+        time: formatTime(c.createdAt),
+        rawDate: new Date(c.createdAt || Date.now()).getTime(),
+        attachments:
+          c.attachments?.map((att: ApiAttachment) => ({
             id: att.id,
             name: att.fileName,
             size: formatBytes(att.size),
             type: att.fileType || 'application/octet-stream',
             url: att.fileUrl
           })) || [],
-          reactionCount: c.reactionCount || 0,
-          replyToCommentId: c.replyToCommentId || null, 
-          userReaction: userReact
-        };
-      });
-      
-      setPosts(prevPosts => prevPosts.map(p => p.id === postId ? { ...p, replies: mappedComments, commentCount: mappedComments.length } : p));
-    } catch (error) { console.error("Error loading comments:", error); }
-  }, [userEmail]);
-  
-  useSocketListener(socket, 'comment_updated', async (data: { postId?: string }) => {
-    console.log('[Socket] comment_updated event received:', data);
-    if (data.postId) {
-      await loadCommentsForPost(data.postId);
+        reactionCount: c.reactionCount || 0,
+        replyToCommentId: c.replyToCommentId || null,
+        userReaction: userReact
+      };
+    });
+
+    setPosts(prevPosts =>
+      prevPosts.map(p =>
+        p.id === postId
+          ? {
+              ...p,
+              replies: mappedComments,
+              commentCount: mappedComments.length
+            }
+          : p
+      )
+    );
+  } catch (error) {
+    console.error("Error loading comments:", error);
+  }
+}, [userEmail]);
+
+useSocketListener(socket, 'comment_updated', async (data: { postId?: string }) => {
+  console.log('[Socket] comment_updated event received:', data);
+
+  if (data.postId) {
+    await loadCommentsForPost(data.postId);
+  }
+},);
+
+useSocketListener(socket, 'reaction_updated', async (data: { targetId?: string }) => {
+  console.log('[Socket] reaction_updated event received:', data);
+
+  if (data.targetId) {
+    await fetchPosts();
+  }
+},);
+
+const scrollToTop = () =>
+  feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
+
+useEffect(() => {
+  function handleClickOutside(event: MouseEvent) {
+    if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      setActiveMenuId(null);
     }
-  },);
+  }
 
-  useSocketListener(socket, 'reaction_updated', async (data: { targetId?: string }) => {
-    console.log('[Socket] reaction_updated event received:', data);
-    if (data.targetId) {
-      // Refresh reaction count by reloading posts or just the targeted post
-      await fetchPosts();
-    }
-  },);
+  document.addEventListener("mousedown", handleClickOutside);
 
-  const scrollToTop = () => feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setActiveMenuId(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-//   // ✨ SOCKET LISTENERS - Real-time Updates for Posts, Comments, Reactions
-//   useSocketListener(socket, 'post_updated', async (data: { action?: string; id?: string }) => {
-//     console.log('[Socket] post_updated event received:', data);
-//     if (data.action === 'created' || data.action === 'updated') {
-//       await fetchPosts();
-//     } else if (data.action === 'deleted') {
-//       setPosts(prev => prev.filter(p => p.id !== data.id));
-//     }
-//   },);
-
-//   useSocketListener(socket, 'comment_updated', async (data: { postId?: string }) => {
-//     console.log('[Socket] comment_updated event received:', data);
-//     if (data.postId) {
-//       await loadCommentsForPost(data.postId);
-//     }
-//   },);
-
-//   useSocketListener(socket, 'reaction_updated', async (data: { targetId?: string }) => {
-//     console.log('[Socket] reaction_updated event received:', data);
-//     if (data.targetId) {
-//       // Refresh reaction count by reloading posts or just the targeted post
-//       await fetchPosts();
-//     }
-//   },);
-
-//   const scrollToTop = () => feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
-
-//   useEffect(() => {
-//     function handleClickOutside(event: MouseEvent) {
-//       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-//         setActiveMenuId(null);
-//       }
-//     }
-//     document.addEventListener("mousedown", handleClickOutside);
-//     return () => document.removeEventListener("mousedown", handleClickOutside);
-//   }, []);
-
-
+  return () =>
+    document.removeEventListener("mousedown", handleClickOutside);
+}, []);
 
   const toggleExpandPost = async (postId: string) => {
     if (expandedPostIds.includes(postId)) {

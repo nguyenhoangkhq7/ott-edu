@@ -26,7 +26,11 @@ export const FriendRequestsModal: React.FC<FriendRequestsModalProps> = ({ isOpen
   }, []);
 
   useEffect(() => {
-    if (isOpen) void loadRequests();
+    if (isOpen) {
+      queueMicrotask(() => {
+        void loadRequests();
+      });
+    }
   }, [isOpen, loadRequests]);
 
   const handleAction = async (id: string, action: 'accept' | 'reject') => {

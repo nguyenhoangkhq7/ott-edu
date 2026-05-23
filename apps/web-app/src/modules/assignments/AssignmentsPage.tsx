@@ -65,7 +65,9 @@ export default function AssignmentsPage({
 
   useEffect(() => {
     if (!isLoaded || isAuthInitializing || !isAuthenticated || teamId == null) return;
-    fetchAssignments();
+    queueMicrotask(() => {
+      fetchAssignments();
+    });
   }, [fetchAssignments, isAuthInitializing, isAuthenticated, isLoaded, teamId]);
 
   if (!isLoaded || isAuthInitializing) {

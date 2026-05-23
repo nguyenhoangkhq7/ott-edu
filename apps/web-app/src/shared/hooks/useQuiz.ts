@@ -27,7 +27,9 @@ export const useAssignments = (teamId: number | null) => {
 
   useEffect(() => {
     if (teamId) {
-      fetchAssignments();
+      queueMicrotask(() => {
+        fetchAssignments();
+      });
     }
   }, [teamId, fetchAssignments]);
 
@@ -55,7 +57,9 @@ export const useAssignmentDetail = (assignmentId: number | null) => {
 
   useEffect(() => {
     if (assignmentId) {
-      fetchAssignment();
+      queueMicrotask(() => {
+        fetchAssignment();
+      });
     }
   }, [fetchAssignment, assignmentId]);
 

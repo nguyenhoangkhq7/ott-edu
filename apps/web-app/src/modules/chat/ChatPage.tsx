@@ -23,7 +23,9 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!identity) {
-      setChatUser(null);
+      queueMicrotask(() => {
+        setChatUser(null);
+      });
       return;
     }
 
@@ -33,19 +35,27 @@ export default function ChatPage() {
     delete chatApiClient.defaults.headers.common["x-user-avatar"];
 
     const resolveChatUser = async () => {
-      setIsResolvingUser(true);
-      setError(null);
+      queueMicrotask(() => {
+        setIsResolvingUser(true);
+        setError(null);
+      });
       try {
         const me = await fetchCurrentChatUser(identity);
-        setChatUser(me);
+        queueMicrotask(() => {
+          setChatUser(me);
+        });
       } catch (resolveError) {
-        setError(
-          resolveError instanceof Error
-            ? resolveError.message
-            : "Không thể đồng bộ người dùng chat.",
-        );
+        queueMicrotask(() => {
+          setError(
+            resolveError instanceof Error
+              ? resolveError.message
+              : "Không thể đồng bộ người dùng chat.",
+          );
+        });
       } finally {
-        setIsResolvingUser(false);
+        queueMicrotask(() => {
+          setIsResolvingUser(false);
+        });
       }
     };
 

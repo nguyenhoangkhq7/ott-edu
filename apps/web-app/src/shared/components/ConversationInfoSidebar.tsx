@@ -215,11 +215,13 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   useEffect(() => {
     if (conversationInfo?.type) {
       const isPrivate = conversationInfo.type === "private";
-      setOpenAccordions((prev) => ({
-        ...prev,
-        members: !isPrivate,
-        groups: isPrivate,
-      }));
+      queueMicrotask(() => {
+        setOpenAccordions((prev) => ({
+          ...prev,
+          members: !isPrivate,
+          groups: isPrivate,
+        }));
+      });
     }
   }, [conversationInfo?.type]);
 

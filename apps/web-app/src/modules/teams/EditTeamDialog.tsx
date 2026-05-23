@@ -27,13 +27,15 @@ export default function EditTeamDialog({
 
   useEffect(() => {
     if (team) {
-      setFormData({
-        name: team.name || '',
-        description: team.description || '',
-        joinCode: team.joinCode || '',
-        departmentId: team.departmentId || 1,
+      queueMicrotask(() => {
+        setFormData({
+          name: team.name || '',
+          description: team.description || '',
+          joinCode: team.joinCode || '',
+          departmentId: team.departmentId || 1,
+        });
+        setError(null);
       });
-      setError(null);
     }
   }, [team, isOpen]);
 

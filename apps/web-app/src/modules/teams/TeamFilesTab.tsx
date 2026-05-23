@@ -151,7 +151,9 @@ export default function TeamFilesTab({ teamId: routeTeamId }: TeamFilesTabProps)
 
   useEffect(() => {
     const resolvedTeamId = routeTeamId?.toString() ?? contextClassId ?? null;
-    setClassId(resolvedTeamId);
+    queueMicrotask(() => {
+      setClassId(resolvedTeamId);
+    });
   }, [contextClassId, routeTeamId]);
 
   useEffect(() => {
@@ -200,7 +202,9 @@ export default function TeamFilesTab({ teamId: routeTeamId }: TeamFilesTabProps)
   }, [classId, userEmail, isLoaded]);
 
   useEffect(() => { 
-    fetchFiles(); 
+    queueMicrotask(() => {
+      void fetchFiles(); 
+    });
   }, [fetchFiles]);
 
   // ✨ SOCKET LISTENER - Real-time Updates for Files
