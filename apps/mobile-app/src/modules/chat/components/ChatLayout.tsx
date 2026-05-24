@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, Modal } from 'react-native';
+import { View, StyleSheet, Modal, DeviceEventEmitter } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { Sidebar } from './Sidebar';
 import { ChatWindow } from './ChatWindow';
@@ -349,6 +349,44 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
 
       socket.on('callEnded', handleCallEnded);
       socket.on('videoCallEnded', handleCallEnded);
+      // 1. Khi có người gửi lời mời kết bạn MỚI (Khớp với backend: "friend_status_updated")
+      socket.on('friend_status_updated', (data) => { 
+        console.log("🔥 [Socket] Trạng thái bạn bè thay đổi (có thể là kết bạn mới)!", data);
+        DeviceEventEmitter.emit('SYNC_FRIENDS_DATA'); 
+      });
+
+      // 2. Khi người ta ĐỒNG Ý kết bạn (Khớp với backend: "friend_request_accepted")
+      socket.on('friend_request_accepted', (data) => {
+        console.log("🔥 [Socket] Có người đồng ý kết bạn nè!", data);
+        DeviceEventEmitter.emit('SYNC_FRIENDS_DATA'); 
+        loadConversations();
+      });
+      
+      // 3. Khi người ta TỪ CHỐI kết bạn (Khớp với backend: "friend_request_rejected")
+      socket.on('friend_request_rejected', (data) => {
+        console.log("🔥 [Socket] Nó từ chối kết bạn rồi!", data);
+        DeviceEventEmitter.emit('SYNC_FRIENDS_DATA'); 
+      });
+
+      // 4. Nghe sự kiện: Ai đó vừa tạo nhóm mới và có tên mình trong đó
+      socket.on('new_group_created', (data) => {
+        console.log("🔥 [Socket] Vừa được kéo vào nhóm mới tạo nè!", data);
+        // Load lại Sidebar để nhóm mới hiện ra ngay lập tức
+        loadConversations(); 
+      });
+
+      // 5. Nghe sự kiện: Mình vừa bị Admin add vào một nhóm đã có sẵn
+      socket.on('added_to_group', (data) => {
+        console.log("🔥 [Socket] Vừa bị nhét vào nhóm cũ!", data);
+        loadConversations(); 
+      });
+
+      // 6. Nghe sự kiện: Nhóm mình đang tham gia vừa có thành viên mới chui vào
+      socket.on('group_updated', (data) => {
+        console.log("🔥 [Socket] Nhóm có người mới vào / người cũ ra!", data);
+        // Load lại để cập nhật số lượng thành viên (hoặc tên nhóm)
+        loadConversations(); 
+      });
     };
 
     setupSocket();

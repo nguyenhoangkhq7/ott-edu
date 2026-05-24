@@ -1,140 +1,58 @@
-import axios from "axios";
-// 🚨 Hậu kiểm tra lại đường dẫn import này cho đúng với cấu trúc thư mục thực tế nhé
-import { CHAT_API_URL } from "../chat/chat.config"; 
+import { Socket } from "socket.io-client";
 import { ChatAuthIdentity } from "../chat/types";
+import * as FriendApi from "./friends.api"; // Đảm bảo import đúng đường dẫn tới file API ông vừa gửi
 
-// 1. KHỞI TẠO CLIENT GIỐNG HỆT CHAT CLIENT
-const friendClient = axios.create({
-  baseURL: CHAT_API_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-  timeout: 15000,
-});
-
-// 2. HÀM XỬ LÝ LỖI DÙNG CHUNG
-function toErrorMessage(error: unknown): string {
-  if (typeof error === "object" && error !== null && "response" in error) {
-    const maybeData = (error as { response?: { data?: { error?: string; message?: string } | string } }).response?.data;
-
-    if (typeof maybeData === "string" && maybeData.length > 0) {
-      return maybeData;
-    }
-
-    if (typeof maybeData === "object" && maybeData !== null) {
-      if (typeof maybeData.error === "string" && maybeData.error.length > 0) {
-        return maybeData.error;
-      }
-      if (typeof maybeData.message === "string" && maybeData.message.length > 0) {
-        return maybeData.message;
-      }
-    }
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "Không thể kết nối đến Chat Service.";
+// 1. ĐỊNH NGHĨA INTERFACE CHO FRIEND SERVICE
+export interface FriendService {
+  searchUsers: (keyword?: string) => Promise<any[]>;
+  getPendingFriendRequests: () => Promise<any[]>;
+  sendFriendRequest: (targetId: string) => Promise<any>;
+  acceptFriendRequest: (requesterId: string) => Promise<any>;
+  rejectFriendRequest: (requesterId: string) => Promise<void>;
 }
 
-// 3. HÀM TẠO HEADER ĐỊNH DANH (Thay cho Bearer token)
-function createIdentityHeaders(identity: ChatAuthIdentity): Record<string, string> {
-  return {
-    "x-user-email": identity.email,
-    "x-user-code": identity.code || "",
-  };
-}
-
-// ==========================================
-// CÁC API CALL CHÍNH CHO BẠN BÈ VÀ LỜI MỜI
-// ==========================================
-
-/**
- * 🔍 Lấy danh sách user (để Tạo nhóm / Thêm thành viên)
- */
-export async function searchUsers(
-  identity: ChatAuthIdentity,
-  keyword: string = ""
-): Promise<any[]> {
-  try {
-    const response = await friendClient.get(`/users/search?keyword=${keyword}`, {
-      headers: createIdentityHeaders(identity),
-    });
-    return response.data.data || [];
-  } catch (error) {
-    throw new Error(toErrorMessage(error));
-  }
-}
-
-/**
- * 📋 Lấy danh sách lời mời kết bạn (pending)
- */
-export async function getPendingFriendRequests(
+// 2. TẠO FACTORY FUNCTION ĐỂ KHỞI TẠO SERVICE CÓ CHỨA SOCKET
+export function getFriendService(
+  socket: Socket | null,
   identity: ChatAuthIdentity
-): Promise<any[]> {
-  try {
-    const response = await friendClient.get("/friend-requests", {
-      headers: createIdentityHeaders(identity),
-    });
-    return response.data.data || [];
-  } catch (error) {
-    throw new Error(toErrorMessage(error));
-  }
-}
+): FriendService {
+  return {
+    // Tìm kiếm user
+    searchUsers: async (keyword: string = "") => {
+      return await FriendApi.searchUsers(identity, keyword);
+    },
 
-/**
- * 📤 Gửi lời mời kết bạn
- */
-export async function sendFriendRequest(
-  identity: ChatAuthIdentity,
-  targetId: string
-): Promise<any> {
-  try {
-    const response = await friendClient.post(
-      "/friend-requests/send",
-      { targetId },
-      { headers: createIdentityHeaders(identity) }
-    );
-    return response.data.data;
-  } catch (error) {
-    throw new Error(toErrorMessage(error));
-  }
-}
+    // Lấy danh sách đang chờ kết bạn
+    getPendingFriendRequests: async () => {
+      return await FriendApi.fetchFriendRequests(identity);
+    },
 
-/**
- * ✅ Chấp nhận lời mời kết bạn
- */
-export async function acceptFriendRequest(
-  identity: ChatAuthIdentity,
-  requesterId: string
-): Promise<any> {
-  try {
-    const response = await friendClient.post(
-      "/friend-requests/accept",
-      { requesterId },
-      { headers: createIdentityHeaders(identity) }
-    );
-    return response.data.data;
-  } catch (error) {
-    throw new Error(toErrorMessage(error));
-  }
-}
+    // Gửi lời mời kết bạn
+    sendFriendRequest: async (targetId: string) => {
+      const result = await FriendApi.sendFriendRequest(identity, targetId);
+      
+      // ⚡ REALTIME: Bắn event qua socket (nếu server của ông yêu cầu client phải tự emit)
+      // Nếu Backend của ông tự động bắn event khi API thành công thì BỎ QUA dòng này
+      if (socket) {
+         socket.emit("send_friend_request", { targetId, sender: identity });
+      }
+      return result;
+    },
 
-/**
- * ❌ Từ chối lời mời kết bạn
- */
-export async function rejectFriendRequest(
-  identity: ChatAuthIdentity,
-  requesterId: string
-): Promise<void> {
-  try {
-    await friendClient.post(
-      "/friend-requests/reject",
-      { requesterId },
-      { headers: createIdentityHeaders(identity) }
-    );
-  } catch (error) {
-    throw new Error(toErrorMessage(error));
-  }
+    // Chấp nhận kết bạn
+    acceptFriendRequest: async (requesterId: string) => {
+      const result = await FriendApi.acceptFriendRequest(identity, requesterId);
+      
+      // ⚡ REALTIME: Báo cho người kia biết mình đã đồng ý
+      if (socket) {
+         socket.emit("accept_friend_request", { requesterId, acceptor: identity });
+      }
+      return result;
+    },
+
+    // Từ chối kết bạn
+    rejectFriendRequest: async (requesterId: string) => {
+      return await FriendApi.rejectFriendRequest(identity, requesterId);
+    },
+  };
 }
