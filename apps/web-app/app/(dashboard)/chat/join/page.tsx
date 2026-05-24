@@ -40,7 +40,7 @@ export default function JoinGroupPage() {
         } else {
           setSuccess("Đã gửi yêu cầu tham gia nhóm chat thành công. Vui lòng chờ quản trị viên duyệt!");
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Join group chat error:", err);
         let errMsg = err instanceof Error ? err.message : "Đã xảy ra lỗi khi tham gia nhóm chat.";
         // Nếu message là raw HTML (từ Express 404), thay bằng message thân thiện

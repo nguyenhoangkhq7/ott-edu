@@ -17,11 +17,6 @@ import type {
 import {
   MOCK_DASHBOARD_STATS,
   MOCK_RECENT_ACTIVITIES,
-  MOCK_USERS,
-  MOCK_MESSAGE_STATS,
-  MOCK_USER_GROWTH,
-  MOCK_TOP_ACTIVE_USERS,
-  MOCK_USER_SUMMARY,
 } from '@/modules/admin/constants';
 import { httpService, chatHttpService } from './http.service';
 
