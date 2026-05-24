@@ -572,3 +572,19 @@ export const searchUsersApi = async (keyword: string = "") => {
 
   return { data: userList }; 
 };
+
+export async function joinGroupApi(
+  conversationId: string,
+): Promise<{
+  conversation: Conversation;
+  mode: "added" | "requested";
+}> {
+  const data = await chatHttpService.post<{
+    data: { conversation: ApiConversation; mode: "added" | "requested" };
+  }>(`/conversations/${conversationId}/join`, {});
+
+  return {
+    conversation: mapApiConversationToConversation(data.data.conversation, ""),
+    mode: data.data.mode,
+  };
+}

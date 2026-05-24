@@ -702,6 +702,30 @@ export class ChatController {
     }
   }
 
+  // API: POST /api/conversations/:conversationId/join
+  static async joinGroup(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
+      const result = await ChatService.joinGroup(userId, conversationId);
+      return res.status(200).json({ data: result });
+    } catch (error: any) {
+      console.error("[ChatController] joinGroup error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
   // ===================== PHẦN KẾT BẠN (SCRUM-164) =====================
 
   // API: GET /api/users/search?keyword=...

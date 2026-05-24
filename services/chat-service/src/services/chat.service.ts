@@ -965,6 +965,107 @@ export class ChatService {
     return conversation;
   }
 
+  static async joinGroup(userId: string, conversationId: string) {
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      const error = new Error("Conversation not found");
+      (error as any).statusCode = 404;
+      throw error;
+    }
+
+    if (conversation.type !== "class") {
+      const error = new Error("Only group conversations support this action");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    const isMember = conversation.participants.some((participantId) =>
+      this.participantIdEquals(participantId, userId),
+    );
+
+    if (isMember) {
+      return {
+        conversation,
+        mode: "added",
+      };
+    }
+
+    const joinPolicy = this.getJoinPolicy(conversation as ConversationWithRole);
+
+    if (joinPolicy === "open") {
+      const existingMemberIds = conversation.participants.map((p: any) =>
+        p.toString(),
+      );
+
+      conversation.participants = [
+        ...conversation.participants,
+        new mongoose.Types.ObjectId(userId),
+      ] as any;
+      await conversation.save();
+
+      // Emit socket event to the joined user
+      socketManager.emitToUserTarget(userId, "added_to_group", {
+        conversationId: conversation._id,
+      });
+
+      // Emit to existing members
+      for (const existingMemberId of existingMemberIds) {
+        socketManager.emitToUserTarget(existingMemberId, "group_updated", {
+          conversationId: conversation._id,
+        });
+      }
+
+      return {
+        conversation,
+        mode: "added",
+      };
+    } else {
+      // Policy is approval
+      const isAlreadyRequested = (conversation.pendingMemberRequests || []).some(
+        (request: any) => this.participantIdEquals(request.targetUserId, userId),
+      );
+
+      if (isAlreadyRequested) {
+        return {
+          conversation,
+          mode: "requested",
+        };
+      }
+
+      const user = await User.findById(userId).lean();
+      if (!user) {
+        const error = new Error("User not found");
+        (error as any).statusCode = 404;
+        throw error;
+      }
+
+      const displayName = await this.resolveRequesterDisplayName(userId);
+      const email = user.email || "";
+
+      const request = {
+        _id: this.buildPendingRequestId(),
+        targetUserId: new mongoose.Types.ObjectId(userId),
+        targetEmail: email,
+        targetName: displayName,
+        requestedById: new mongoose.Types.ObjectId(userId),
+        requestedByName: displayName,
+        createdAt: new Date(),
+      };
+
+      conversation.pendingMemberRequests = [
+        ...(conversation.pendingMemberRequests || []),
+        request,
+      ] as any;
+      await conversation.save();
+
+      return {
+        conversation,
+        mode: "requested",
+        request,
+      };
+    }
+  }
+
   static async dissolveGroup(requesterId: string, conversationId: string) {
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {

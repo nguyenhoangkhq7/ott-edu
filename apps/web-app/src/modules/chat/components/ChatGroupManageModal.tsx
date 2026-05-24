@@ -79,6 +79,20 @@ export function ChatGroupManageModal({
   const [selectedDeputyId, setSelectedDeputyId] = useState<string>(conversation.deputyId || "");
   const [inviteEmail, setInviteEmail] = useState("");
   const [selectedJoinPolicy, setSelectedJoinPolicy] = useState<"open" | "approval">(joinPolicy);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const shareLink = typeof window !== "undefined"
+    ? `${window.location.origin}/chat/join?id=${conversation.id}`
+    : `/chat/join?id=${conversation.id}`;
+
+  const handleCopyShareLink = () => {
+    navigator.clipboard.writeText(shareLink).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    }).catch(err => {
+      console.error('Lỗi khi sao chép liên kết:', err);
+    });
+  };
 
   const handleRemoveMember = async (memberId: string, memberName: string) => {
     if (isSubmitting) return;
@@ -346,6 +360,29 @@ export function ChatGroupManageModal({
               </div>
             </div>
           )}
+          {/* Liên kết nhóm */}
+          <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
+                <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+                <span>Liên kết tham gia nhóm:</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyShareLink}
+                className="text-xs text-sky-600 hover:text-sky-700 hover:underline font-medium"
+              >
+                {linkCopied ? "Đã sao chép!" : "Sao chép"}
+              </button>
+            </div>
+            <div className="mt-2 rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-500 truncate font-mono select-all">
+              {shareLink}
+            </div>
+          </div>
+
           <div className="mb-4 rounded-2xl bg-slate-50 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
               <LockKeyhole size={16} />

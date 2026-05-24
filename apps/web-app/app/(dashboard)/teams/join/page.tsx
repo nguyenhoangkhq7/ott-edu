@@ -1,22 +1,67 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { teamApi } from "@/services/api/teamApi";
 
 export default function JoinTeamPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const codeParam = searchParams.get("code");
+  const hasAutoJoined = useRef(false);
+
   const [joinCode, setJoinCode] = useState("");
   const [searchValue, setSearchValue] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (codeParam && !hasAutoJoined.current) {
+      hasAutoJoined.current = true;
+      setJoinCode(codeParam);
+
+      const autoJoin = async () => {
+        setIsLoading(true);
+        setError(null);
+        setSuccess(null);
+        try {
+          await teamApi.joinWithCode(codeParam.trim());
+          setSuccess("Tham gia lớp học thành công! Đang chuyển hướng...");
+          setTimeout(() => {
+            router.push("/teams");
+          }, 1500);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Mã tham gia không hợp lệ hoặc lỗi kết nối.");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      autoJoin();
+    }
+  }, [codeParam, router]);
 
   const handleBackToTeams = () => {
     router.push("/teams");
   };
 
-  const handleAddTeamWithCode = () => {
+  const handleAddTeamWithCode = async () => {
     if (joinCode.trim()) {
-      console.log("Adding team with code:", joinCode);
-      // TODO: Implement join team with code logic
-      router.push("/teams");
+      setIsLoading(true);
+      setError(null);
+      setSuccess(null);
+      try {
+        await teamApi.joinWithCode(joinCode.trim());
+        setSuccess("Tham gia lớp học thành công! Đang chuyển hướng...");
+        setTimeout(() => {
+          router.push("/teams");
+        }, 1500);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Mã tham gia không hợp lệ hoặc lỗi kết nối.");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -108,22 +153,38 @@ export default function JoinTeamPage() {
               Join a team with a code
             </h4>
 
+            {/* Alerts */}
+            {error && (
+              <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600 text-center">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="mb-4 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-600 text-center">
+                {success}
+              </div>
+            )}
+
             {/* Input */}
             <input
               type="text"
               value={joinCode}
+              disabled={isLoading}
               onChange={(e) => setJoinCode(e.target.value)}
               placeholder="Enter join code."
-              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4 text-center placeholder:text-slate-400"
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-4 text-center placeholder:text-slate-400 disabled:bg-slate-100"
             />
 
             {/* Add team button */}
             <button
               onClick={handleAddTeamWithCode}
-              disabled={!joinCode.trim()}
-              className="w-full py-2 px-4 border border-slate-300 rounded-md text-sm text-slate-700 hover:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors"
+              disabled={!joinCode.trim() || isLoading}
+              className="w-full py-2 px-4 border border-slate-300 rounded-md text-sm text-slate-700 hover:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
             >
-              Add team
+              {isLoading && (
+                <span className="inline-block w-4 h-4 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></span>
+              )}
+              {isLoading ? "Joining..." : "Add team"}
             </button>
           </div>
 

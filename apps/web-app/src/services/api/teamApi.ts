@@ -8,6 +8,8 @@ export interface Team {
   departmentId: number;
   createdAt?: string;
   isActive?: boolean;
+  active?: boolean;
+  members?: TeamMember[];
 }
 
 export interface TeamRequest {
@@ -96,5 +98,10 @@ export const teamApi = {
   // Cập nhật trạng thái lớp học (khóa/mở khóa)
   updateStatus: async (teamId: number, isActive: boolean): Promise<Team> => {
     return httpService.patch<Team>(`${BASE_PATH}/${teamId}/status`, { isActive });
+  },
+
+  // Tham gia lớp học bằng mã code
+  joinWithCode: async (joinCode: string): Promise<Team> => {
+    return httpService.post<Team>(`${BASE_PATH}/join/${joinCode}`);
   },
 };

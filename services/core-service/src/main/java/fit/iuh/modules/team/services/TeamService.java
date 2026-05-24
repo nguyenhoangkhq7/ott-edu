@@ -25,6 +25,8 @@ public interface TeamService {
 
     TeamResponse getTeamByJoinCode(String joinCode);
 
+    TeamResponse joinTeamByCode(String joinCode, String requesterEmail);
+
     List<TeamMemberResponse> getTeamMembers(Long teamId, String requesterEmail);
 
     TeamMemberResponse addTeamMember(Long teamId, AddTeamMemberRequest request, String requesterEmail);

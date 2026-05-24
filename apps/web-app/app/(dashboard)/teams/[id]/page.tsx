@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -12,16 +12,32 @@ import LockTeamDialog from '@/modules/teams/LockTeamDialog';
 import EditTeamDialog from '@/modules/teams/EditTeamDialog';
 import AssignmentsTab from '@/modules/assignments/AssignmentsTab';
 import { teamApi, Team } from '@/services/api/teamApi';
+import { useAuth } from '@/shared/providers/AuthProvider';
 
 export default function TeamDetailPage() {
+  const { user } = useAuth();
   const params = useParams();
   const teamId = parseInt(params.id as string) || 0;
   const [activeTab, setActiveTab] = useState('posts');
   const [isLockDialogOpen, setIsLockDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [lockSuccessMessage, setLockSuccessMessage] = useState<string | null>(null);
   const [editSuccessMessage, setEditSuccessMessage] = useState<string | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyShareLink = () => {
+    if (!team?.joinCode) return;
+    const shareLink = `${window.location.origin}/teams/join?code=${team.joinCode}`;
+    navigator.clipboard.writeText(shareLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(err => {
+      console.error('Lỗi khi sao chép liên kết:', err);
+    });
+  };
 
   useEffect(() => {
     const fetchTeam = async () => {
@@ -37,6 +53,31 @@ export default function TeamDetailPage() {
       fetchTeam();
     }
   }, [teamId]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    if (isDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isDropdownOpen]);
+
+  // 1. Kiểm tra vai trò giáo viên (ROLE_TEACHER)
+  const isTeacher = user?.roles?.includes('ROLE_TEACHER') ?? false;
+
+  // 2. Kiểm tra vai trò Leader trong danh sách thành viên lớp học
+  const isClassLeader = team?.members?.some(
+    (m) => m.accountId == user?.accountId && m.role === "LEADER"
+  ) ?? false;
+
+  // Quyền chỉnh sửa/khóa = Giáo viên HOẶC Leader của lớp
+  const hasEditPermission = isTeacher || isClassLeader;
 
   return (
     <div className="flex h-[calc(100vh-60px)] w-full bg-white text-slate-800">
@@ -137,29 +178,86 @@ export default function TeamDetailPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">{team?.name || 'Đang tải...'}</h1>
-                <p className="text-sm text-slate-500 mt-0.5">{team?.description || 'Mã lớp: ' + team?.joinCode}</p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500 mt-0.5">
+                  {team?.description && <span className="max-w-md truncate">{team.description}</span>}
+                  {team?.description && <span className="text-slate-300">•</span>}
+                  <span>Mã lớp: <strong className="text-slate-700 font-semibold select-all">{team?.joinCode}</strong></span>
+                  <span className="text-slate-300">•</span>
+                  <button
+                    onClick={handleCopyShareLink}
+                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 hover:underline font-medium transition-all"
+                    title="Sao chép liên kết tham gia lớp học"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                    {copied ? "Đã sao chép liên kết!" : "Sao chép liên kết"}
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setIsEditDialogOpen(true)}
-                className="px-4 py-2 flex items-center gap-2 text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg font-medium transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Sửa
-              </button>
-              <button
-                onClick={() => setIsLockDialogOpen(true)}
-                className="px-4 py-2 flex items-center gap-2 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg font-medium transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                Khóa lớp
-              </button>
-            </div>
+            {hasEditPermission && (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  aria-label="Open options"
+                  className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition"
+                >
+                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
+                    <circle cx="12" cy="5" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="12" cy="19" r="2" />
+                  </svg>
+                </button>
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black/5 z-50 animate-in fade-in slide-in-from-top-1 duration-100">
+                    <button
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        setIsEditDialogOpen(true);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Chỉnh sửa lớp
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        setIsLockDialogOpen(true);
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                        (team?.isActive === false || team?.active === false)
+                          ? "text-emerald-700 hover:bg-emerald-50/50"
+                          : "text-rose-700 hover:bg-rose-50/50"
+                      }`}
+                    >
+                      {(team?.isActive === false || team?.active === false) ? (
+                        <>
+                          <svg viewBox="0 0 24 24" className="h-4 w-4 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                          </svg>
+                          Mở khóa lớp
+                        </>
+                      ) : (
+                        <>
+                          <svg viewBox="0 0 24 24" className="h-4 w-4 text-rose-500" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                          </svg>
+                          Khóa lớp
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {lockSuccessMessage && (
@@ -210,12 +308,20 @@ export default function TeamDetailPage() {
         isOpen={isLockDialogOpen}
         teamId={teamId}
         teamName={team?.name || 'Lớp học'}
+        isLocked={team?.isActive === false || team?.active === false}
         onClose={() => setIsLockDialogOpen(false)}
         onSuccess={() => {
-          setLockSuccessMessage('Lớp học đã khóa thành công!');
+          const isCurrentlyLocked = team?.isActive === false || team?.active === false;
+          setLockSuccessMessage(
+            isCurrentlyLocked ? 'Lớp học đã mở khóa thành công!' : 'Lớp học đã khóa thành công!'
+          );
           setTimeout(() => setLockSuccessMessage(null), 3000);
           if (team) {
-            setTeam({ ...team, isActive: false });
+            setTeam({
+              ...team,
+              isActive: isCurrentlyLocked,
+              active: isCurrentlyLocked
+            });
           }
         }}
       />

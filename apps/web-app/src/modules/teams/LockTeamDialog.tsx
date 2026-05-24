@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState } from 'react';
-import { teamApi } from '@/services/api/teamApi';
+import React, { useState } from "react";
+import { teamApi } from "@/services/api/teamApi";
 
 interface LockTeamDialogProps {
   isOpen: boolean;
   teamId: number;
   teamName: string;
+  isLocked?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -15,22 +16,28 @@ export default function LockTeamDialog({
   isOpen,
   teamId,
   teamName,
+  isLocked = false,
   onClose,
   onSuccess,
 }: LockTeamDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLock = async () => {
+  const handleToggleStatus = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      await teamApi.updateStatus(teamId, false);
+      // Nếu đang khóa (isLocked === true) thì mở khóa (isActive = true), ngược lại thì khóa (isActive = false)
+      await teamApi.updateStatus(teamId, isLocked ? true : false);
       onSuccess();
       onClose();
     } catch (err) {
-      setError('Không thể khóa lớp học. Vui lòng thử lại.');
-      console.error('Error locking team:', err);
+      setError(
+        isLocked
+          ? "Không thể mở khóa lớp học. Vui lòng thử lại."
+          : "Không thể khóa lớp học. Vui lòng thử lại."
+      );
+      console.error("Error updating team status:", err);
     } finally {
       setIsLoading(false);
     }
@@ -43,19 +50,34 @@ export default function LockTeamDialog({
       <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                isLocked ? "bg-emerald-100" : "bg-red-100"
+              }`}
+            >
+              {isLocked ? (
+                <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              )}
             </div>
-            <h2 className="text-lg font-bold text-slate-900">Khóa lớp học</h2>
+            <h2 className="text-lg font-bold text-slate-900">
+              {isLocked ? "Mở khóa lớp học" : "Khóa lớp học"}
+            </h2>
           </div>
 
           <p className="text-slate-700 mb-2">
-            Bạn có chắc chắn muốn khóa lớp học <span className="font-semibold">&quot;{teamName}&quot;</span>?
+            Bạn có chắc chắn muốn {isLocked ? "mở khóa" : "khóa"} lớp học <span className="font-semibold">&quot;{teamName}&quot;</span>?
           </p>
           <p className="text-sm text-slate-500 mb-6">
-            Các thành viên sẽ không thể truy cập lớp học này. Bạn có thể mở khóa bất kỳ lúc nào.
+            {isLocked
+              ? "Các thành viên sẽ có thể truy cập lại lớp học này bình thường."
+              : "Các thành viên sẽ không thể truy cập lớp học này. Bạn có thể mở khóa bất kỳ lúc nào."}
           </p>
 
           {error && (
@@ -73,12 +95,14 @@ export default function LockTeamDialog({
               Hủy
             </button>
             <button
-              onClick={handleLock}
+              onClick={handleToggleStatus}
               disabled={isLoading}
-              className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+              className={`px-4 py-2 text-white rounded font-medium transition-colors disabled:opacity-50 flex items-center gap-2 ${
+                isLocked ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
+              }`}
             >
               {isLoading && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
-              {isLoading ? 'Đang khóa...' : 'Khóa lớp học'}
+              {isLoading ? (isLocked ? "Đang mở..." : "Đang khóa...") : (isLocked ? "Mở khóa lớp học" : "Khóa lớp học")}
             </button>
           </div>
         </div>
