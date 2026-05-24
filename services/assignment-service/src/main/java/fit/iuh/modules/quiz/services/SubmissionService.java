@@ -49,6 +49,16 @@ public interface SubmissionService {
      */
     GradeDetailsDto gradeSubmission(Long submissionId, GradeSubmissionRequest request, Long graderId);
 
+    /**
+     * Get details of a submission for teacher grading/review (TEACHER only)
+     * Teacher must be the creator of the assignment.
+     * 
+     * @param submissionId The submission ID
+     * @param creatorId    The teacher's account ID (for authorization check)
+     * @return The submission details including questions, student answers, and grade
+     */
+    ViewSubmissionDto getSubmissionDetailForTeacher(Long submissionId, Long creatorId);
+
     // ============== STUDENT Operations ==============
 
     /**

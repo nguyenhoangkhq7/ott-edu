@@ -114,6 +114,19 @@ public class SubmissionServiceImpl implements SubmissionService {
         return toGradeDetailsDto(savedGrade);
     }
 
+    @Override
+    public ViewSubmissionDto getSubmissionDetailForTeacher(Long submissionId, Long creatorId) {
+        Submission submission = submissionRepository.findById(submissionId)
+                .orElseThrow(() -> ResourceNotFoundException.submissionNotFound(submissionId));
+
+        // Verify teacher is the creator of the assignment
+        if (submission.getAssignment().getCreatorId() == null || !submission.getAssignment().getCreatorId().equals(creatorId)) {
+            throw AccessDeniedException.notAssignmentCreator(creatorId, submission.getAssignment().getId());
+        }
+
+        return toViewSubmissionDto(submission);
+    }
+
     // ============== STUDENT Operations ==============
 
     @Override

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getCurrentUser, type AuthUser } from "@/services/auth/auth.service";
-import { User, Mail, Phone, Lock, Sparkles, Edit3 } from "lucide-react";
+import { Mail, Lock, Sparkles, Edit3 } from "lucide-react";
 import Toggle from "@/shared/components/ui/Toggle";
 
 export default function AccountPage() {

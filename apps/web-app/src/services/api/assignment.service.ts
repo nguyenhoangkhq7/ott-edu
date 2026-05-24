@@ -182,6 +182,16 @@ export const submissionApi = {
   },
 
   /**
+   * Get detailed student submission for teacher (TEACHER only)
+   */
+  getSubmissionDetailForTeacher: async (submissionId: number): Promise<unknown> => {
+    const response = await axiosV1.get(
+      `/api/v1/submissions/${submissionId}/detail`
+    );
+    return response.data;
+  },
+
+  /**
    * Get grade and feedback for a submission (STUDENT view)
    */
   getGrade: async (submissionId: number): Promise<unknown> => {

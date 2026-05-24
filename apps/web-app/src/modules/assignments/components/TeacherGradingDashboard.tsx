@@ -4,6 +4,29 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { submissionApi, assignmentApi } from '@/services/api/assignment.service';
 import { teamApi } from '@/services/api/teamApi';
 import { formatDisplayFileName } from '@/shared/utils/file';
+import { AssignmentDetail } from '@/shared/types/quiz';
+
+interface StudentAnswer {
+  questionId: number;
+  selectedOptionIds: number[];
+  earnedPoints: number;
+}
+
+interface SubmissionGrade {
+  feedback?: string;
+  score?: number;
+  gradedAt?: string;
+}
+
+interface SubmissionDetail {
+  submissionId: number;
+  studentAccountId: number;
+  assignmentId: number;
+  status: string;
+  submittedAt: string;
+  grade?: SubmissionGrade | null;
+  studentAnswers?: StudentAnswer[];
+}
 
 interface TeacherGradingDashboardProps {
   assignmentId: number;
@@ -118,11 +141,15 @@ export default function TeacherGradingDashboard({
   const [score, setScore] = useState<number | string>('');
   const [feedback, setFeedback] = useState('');
   const [studentNamesMap, setStudentNamesMap] = useState<Record<number, string>>({});
+  const [assignment, setAssignment] = useState<AssignmentDetail | null>(null);
+  const [submissionDetail, setSubmissionDetail] = useState<SubmissionDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
-    const fetchStudentNames = async () => {
+    const fetchAssignmentDetail = async () => {
       try {
         const detail = await assignmentApi.getDetail(assignmentId);
+        setAssignment(detail);
         if (detail && detail.teamIds && detail.teamIds.length > 0) {
           const namesMap: Record<number, string> = {};
 
@@ -147,11 +174,11 @@ export default function TeacherGradingDashboard({
           setStudentNamesMap(namesMap);
         }
       } catch (err) {
-        console.error('[GradingDashboard] Error fetching assignment details for student names:', err);
+        console.error('[GradingDashboard] Error fetching assignment details:', err);
       }
     };
 
-    void fetchStudentNames();
+    void fetchAssignmentDetail();
   }, [assignmentId]);
 
   const loadAllSubmissions = useCallback(async () => {
@@ -203,19 +230,38 @@ export default function TeacherGradingDashboard({
       ? pendingSubmissions
       : gradedSubmissions;
 
-  const handleSelectSubmission = (submission: PendingSubmission) => {
+  const handleSelectSubmission = async (submission: PendingSubmission) => {
     console.log('[GradingDashboard] Selected submission:', submission);
 
     setSelectedSubmission(submission);
-    setScore('');
+    setScore(submission.currentScore !== undefined && submission.currentScore !== null ? submission.currentScore : '');
     setFeedback('');
     setSuccess(null);
     setError(null);
-};
+    setSubmissionDetail(null);
+
+    try {
+      setLoadingDetail(true);
+      const detail = await submissionApi.getSubmissionDetailForTeacher(submission.submissionId) as unknown as SubmissionDetail;
+      setSubmissionDetail(detail);
+      if (detail && detail.grade) {
+        setFeedback(detail.grade.feedback || '');
+      }
+    } catch (err: unknown) {
+      console.error('[GradingDashboard] Error fetching submission details:', err);
+      if (assignment?.type === 'QUIZ') {
+        const error = err as { response?: { data?: { message?: string } } };
+        setError(error.response?.data?.message || 'Không thể tải chi tiết bài làm trắc nghiệm');
+      }
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   const handleTabChange = (tab: GradingTab) => {
     setActiveTab(tab);
     setSelectedSubmission(null);
+    setSubmissionDetail(null);
     setScore('');
     setFeedback('');
     setSuccess(null);
@@ -454,31 +500,115 @@ export default function TeacherGradingDashboard({
                     </p>
                   )}
 
-                  {/* FIX Issue 2: Force-download button instead of href link */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-600">Tập tin:</span>
-                    {resolveFileUrl(selectedSubmission) ? (
-                      <button
-                        onClick={() => handleDownloadFile(selectedSubmission)}
-                        disabled={downloading}
-                        className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Tải xuống tập tin bài nộp"
-                      >
-                        {downloading ? (
-                          <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                        )}
-                        {downloading ? 'Đang tải...' : getFileName(resolveFileUrl(selectedSubmission))}
-                      </button>
-                    ) : (
-                      <span className="text-slate-500">Không có tập tin</span>
-                    )}
-                  </div>
+                  {/* Show File URL only for ESSAY, for QUIZ show quiz details */}
+                  {assignment?.type === 'ESSAY' ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600">Tập tin:</span>
+                      {resolveFileUrl(selectedSubmission) ? (
+                        <button
+                          onClick={() => handleDownloadFile(selectedSubmission)}
+                          disabled={downloading}
+                          className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Tải xuống tập tin bài nộp"
+                        >
+                          {downloading ? (
+                            <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          )}
+                          {downloading ? 'Đang tải...' : getFileName(resolveFileUrl(selectedSubmission))}
+                        </button>
+                      ) : (
+                        <span className="text-slate-500">Không có tập tin</span>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
+
+              {/* Quiz Details for Teacher */}
+              {assignment?.type === 'QUIZ' && (
+                <div className="space-y-6 border-t border-slate-100 pt-6">
+                  <h4 className="font-semibold text-slate-800 text-base">Chi tiết bài làm trắc nghiệm</h4>
+                  {loadingDetail ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-6 h-6 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin mr-2" />
+                      <span className="text-sm text-slate-600">Đang tải chi tiết...</span>
+                    </div>
+                  ) : submissionDetail && submissionDetail.studentAnswers ? (
+                    <div className="space-y-6">
+                      {assignment.questions?.map((question, qIdx) => {
+                        // Find the student's answer for this question
+                        const studentAnswer = submissionDetail.studentAnswers?.find(
+                          (sa) => sa.questionId === question.id
+                        );
+                        const selectedOptionIds = studentAnswer?.selectedOptionIds || [];
+                        const earnedPoints = studentAnswer?.earnedPoints ?? 0;
+                        const isCorrect = earnedPoints > 0;
+
+                        return (
+                          <div key={question.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-xs font-semibold text-indigo-600">Câu {qIdx + 1}</span>
+                                  <span className="text-xs text-slate-400">•</span>
+                                  <span className="text-xs text-slate-500">{question.points} điểm</span>
+                                  <span className="text-xs text-slate-400">•</span>
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                    isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {isCorrect ? `Đúng (+${earnedPoints} đ)` : 'Sai (0 đ)'}
+                                  </span>
+                                </div>
+                                <h5 className="font-medium text-slate-900 leading-relaxed text-sm">
+                                  {question.content}
+                                </h5>
+                              </div>
+                            </div>
+
+                            {/* Options */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                              {question.options?.map((option, oIdx) => {
+                                const isSelected = selectedOptionIds.includes(option.id);
+                                const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+                                return (
+                                  <div
+                                    key={option.id}
+                                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                                      isSelected
+                                        ? isCorrect
+                                          ? 'border-green-300 bg-green-50 text-green-800 font-medium'
+                                          : 'border-red-300 bg-red-50 text-red-800 font-medium'
+                                        : 'border-slate-100 bg-white text-slate-600'
+                                    }`}
+                                  >
+                                    <div className={`w-5 h-5 rounded flex items-center justify-center font-bold text-xs shrink-0 ${
+                                      isSelected
+                                        ? isCorrect
+                                          ? 'bg-green-600 text-white'
+                                          : 'bg-red-600 text-white'
+                                        : 'bg-slate-100 text-slate-500'
+                                    }`}>
+                                      {letters[oIdx]}
+                                    </div>
+                                    <span className="truncate">{option.content}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">Không tìm thấy chi tiết bài làm.</p>
+                  )}
+                </div>
+              )}
 
               {/* Score + Feedback (only for pending) */}
               {activeTab === 'PENDING' && (
@@ -548,11 +678,19 @@ export default function TeacherGradingDashboard({
               )}
 
               {activeTab === 'GRADED' && (
-                <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-sm">
-                  <p className="font-semibold text-green-800 mb-1">Bài đã được chấm điểm</p>
-                  <p className="text-slate-600">
-                    Xem lại thông tin bài nộp ở trên. Để chỉnh sửa điểm, vui lòng liên hệ quản trị viên.
-                  </p>
+                <div className="space-y-4">
+                  {submissionDetail?.grade?.feedback && (
+                    <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
+                      <p className="font-semibold text-slate-700 text-sm mb-1">Nhận xét của giáo viên:</p>
+                      <p className="text-slate-600 text-sm whitespace-pre-wrap">{submissionDetail.grade.feedback}</p>
+                    </div>
+                  )}
+                  <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-sm">
+                    <p className="font-semibold text-green-800 mb-1">Bài đã được chấm điểm</p>
+                    <p className="text-slate-600">
+                      Xem lại thông tin bài nộp ở trên. Để chỉnh sửa điểm, vui lòng liên hệ quản trị viên.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>

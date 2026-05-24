@@ -267,20 +267,13 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
       }
       
       console.log("[fetchMediaItems] Extracted items:", items);
-      
-      // Populate actual sender names from conversation participants
-      const withNames = conversationInfo?.participants 
-        ? populateSenderNames(items, conversationInfo.participants)
-        : items;
-      console.log("[fetchMediaItems] Final items with names:", withNames);
-      
-      setMediaItems(withNames);
+      setMediaItems(items);
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
       console.debug("[ConversationInfoSidebar] fetchMediaItems skipped (API unavailable):", error.message);
       setMediaItems([]);
     }
-  }, [conversationId, conversationInfo]);
+  }, [conversationId]);
 
   const fetchFileItems = useCallback(async () => {
     try {
@@ -304,20 +297,13 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
       }
       
       console.log("[fetchFileItems] Extracted items:", items);
-      
-      // Populate actual sender names from conversation participants
-      const withNames = conversationInfo?.participants 
-        ? populateSenderNames(items, conversationInfo.participants)
-        : items;
-      console.log("[fetchFileItems] Final items with names:", withNames);
-      
-      setFileItems(withNames);
+      setFileItems(items);
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
       console.debug("[ConversationInfoSidebar] fetchFileItems skipped (API unavailable):", error.message);
       setFileItems([]);
     }
-  }, [conversationId, conversationInfo]);
+  }, [conversationId]);
 
   const fetchLinkItems = useCallback(async () => {
     try {
@@ -341,20 +327,31 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
       }
       
       console.log("[fetchLinkItems] Extracted items:", items);
-      
-      // Populate actual sender names from conversation participants
-      const withNames = conversationInfo?.participants 
-        ? populateSenderNames(items, conversationInfo.participants)
-        : items;
-      console.log("[fetchLinkItems] Final items with names:", withNames);
-      
-      setLinkItems(withNames);
+      setLinkItems(items);
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
       console.debug("[ConversationInfoSidebar] fetchLinkItems skipped (API unavailable):", error.message);
       setLinkItems([]);
     }
-  }, [conversationId, conversationInfo]);
+  }, [conversationId]);
+
+  const mappedMediaItems = React.useMemo(() => {
+    return conversationInfo?.participants
+      ? populateSenderNames(mediaItems, conversationInfo.participants)
+      : mediaItems;
+  }, [mediaItems, conversationInfo?.participants]);
+
+  const mappedFileItems = React.useMemo(() => {
+    return conversationInfo?.participants
+      ? populateSenderNames(fileItems, conversationInfo.participants)
+      : fileItems;
+  }, [fileItems, conversationInfo?.participants]);
+
+  const mappedLinkItems = React.useMemo(() => {
+    return conversationInfo?.participants
+      ? populateSenderNames(linkItems, conversationInfo.participants)
+      : linkItems;
+  }, [linkItems, conversationInfo?.participants]);
 
   // const fetchCommonGroups = useCallback(async () => {
   //   try {
@@ -751,11 +748,11 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             icon={<ImageIcon size={14} />}
             isOpen={openAccordions.media}
             onToggle={() => toggleAccordion("media")}
-            count={mediaItems.length}
+            count={mappedMediaItems.length}
           >
-            {mediaItems.length > 0 ? (
+            {mappedMediaItems.length > 0 ? (
               <div className="grid grid-cols-3 gap-2">
-                {mediaItems
+                {mappedMediaItems
                   .slice(0, 9)
                   .filter((item) => item.url && item.url.trim() !== "")
                   .map((item) => (
@@ -790,11 +787,11 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             icon={<File size={14} />}
             isOpen={openAccordions.files}
             onToggle={() => toggleAccordion("files")}
-            count={fileItems.length}
+            count={mappedFileItems.length}
           >
-            {fileItems.length > 0 ? (
+            {mappedFileItems.length > 0 ? (
               <div className="space-y-2 max-h-40 overflow-y-auto">
-                {fileItems.map((item) => (
+                {mappedFileItems.map((item) => (
                   <a
                     key={item.messageId}
                     href={item.url}
@@ -831,11 +828,11 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             icon={<LinkIcon size={14} />}
             isOpen={openAccordions.links}
             onToggle={() => toggleAccordion("links")}
-            count={linkItems.length}
+            count={mappedLinkItems.length}
           >
-            {linkItems.length > 0 ? (
+            {mappedLinkItems.length > 0 ? (
               <div className="space-y-2 max-h-40 overflow-y-auto">
-                {linkItems.map((item) => (
+                {mappedLinkItems.map((item) => (
                   <a
                     key={item.messageId}
                     href={item.url}

@@ -288,7 +288,7 @@ export default function AssignmentDetail({
       )}
 
       {/* TEACHER Grading Dashboard */}
-      {isTeacher && assignment.type === AssignmentType.ESSAY && (
+      {isTeacher && (
         <TeacherGradingDashboard
           assignmentId={assignmentId}
           maxScore={assignment.maxScore || 0}

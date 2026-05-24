@@ -136,6 +136,30 @@ public class SubmissionController {
                 return new ResponseEntity<>(grade, HttpStatus.OK);
         }
 
+        /**
+         * GET /api/v1/submissions/{submissionId}/detail
+         * Get detailed submission view (TEACHER only, assignment creator check)
+         */
+        @PreAuthorize("hasRole('TEACHER')")
+        @GetMapping("/{submissionId}/detail")
+        @Operation(summary = "Get submission details for teacher", description = "Retrieve detailed information of a student's submission including questions, chosen options and points. "
+                        + "Only the assignment creator can access this.")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "200", description = "Submission details retrieved successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ViewSubmissionDto.class))),
+                        @ApiResponse(responseCode = "401", description = "Unauthorized"),
+                        @ApiResponse(responseCode = "403", description = "Forbidden - not the assignment creator"),
+                        @ApiResponse(responseCode = "404", description = "Submission not found")
+        })
+        public ResponseEntity<ViewSubmissionDto> getSubmissionDetailForTeacher(
+                        @Parameter(description = "Submission ID") @PathVariable Long submissionId,
+                        Authentication authentication) {
+
+                Long creatorId = AuthUtil.extractUserId(authentication);
+                ViewSubmissionDto submission = submissionService.getSubmissionDetailForTeacher(submissionId, creatorId);
+
+                return new ResponseEntity<>(submission, HttpStatus.OK);
+        }
+
         // ============== STUDENT Endpoints ==============
 
         /**
