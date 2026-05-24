@@ -1,6 +1,8 @@
 import axios from "axios";
-import { CHAT_API_URL } from "../chat/chat.config"; // 🚨 Check lại đường dẫn config của Hậu
+import { CHAT_API_URL } from "../chat/chat.config"; // 🚨 Check lại đường dẫn config
 import { ChatAuthIdentity } from "../chat/types";
+// 👇 1. IMPORT HÀM LẤY TOKEN (Hậu check lại đường dẫn này cho khớp project nha)
+import { getAccessToken } from "../../modules/api/token-store"; 
 
 // 1. Khởi tạo client dùng chung cấu hình với Chat Service
 const friendClient = axios.create({
@@ -11,7 +13,23 @@ const friendClient = axios.create({
   timeout: 15000,
 });
 
-// 2. Hàm xử lý lỗi "chuẩn" của hệ thống
+// 👇 2. BỘ LỌC TỰ ĐỘNG GẮN TOKEN ĐỂ VƯỢT ẢI 401 UNAUTHORIZED
+friendClient.interceptors.request.use(
+  async (config) => {
+    try {
+      const token = await getAccessToken(); // Lấy token từ bộ nhớ
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error("Lỗi lấy token cho friendClient:", error);
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// 3. Hàm xử lý lỗi "chuẩn" của hệ thống
 function toErrorMessage(error: unknown): string {
   if (typeof error === "object" && error !== null && "response" in error) {
     const maybeData = (error as { response?: { data?: { error?: string; message?: string } | string } }).response?.data;
@@ -33,7 +51,7 @@ function toErrorMessage(error: unknown): string {
   return "Không thể kết nối đến Chat Service.";
 }
 
-// 3. Hàm tạo Header định danh (x-user-email)
+// 4. Hàm tạo Header định danh (x-user-email)
 function createIdentityHeaders(identity: ChatAuthIdentity): Record<string, string> {
   return {
     "x-user-email": identity.email,

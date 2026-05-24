@@ -4,7 +4,7 @@ import {
   GroupChatService,
   getGroupChatService,
 } from "../../modules/chat/group.service";
-
+import { FriendService, getFriendService } from "../../modules/friends/friends.service";
 /**
  * 🪝 Hook for Group Chat Service
  * Usage in components:
@@ -33,10 +33,10 @@ export const useGroupChatService = (socket: Socket | null) => {
  * await friendService.sendFriendRequest(userId);
  */
 export const useFriendService = (socket: Socket | null) => {
-  const serviceRef = useRef<GroupChatService | null>(null);
+  const serviceRef = useRef<FriendService | null>(null);
   useEffect(() => {
     if (socket) {
-      serviceRef.current = getGroupChatService(socket, null as any);
+      serviceRef.current = getFriendService(socket, null as any);
     }
     return () => {
       // Keep service for reuse (don't destroy on unmount)
