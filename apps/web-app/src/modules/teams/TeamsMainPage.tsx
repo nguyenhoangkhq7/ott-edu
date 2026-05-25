@@ -329,11 +329,11 @@ export default function TeamsMainPage() {
                             <TeamCard
                               item={item}
                               showMenu={true}
-                              onAddMember={userIsLeader ? () => {
+                              onAddMember={() => {
                                 setSelectedTeamId(teamId);
                                 setSelectedTeamName(item.name);
                                 setShowAddMemberModal(true);
-                              } : undefined}
+                              }}
                               onLockToggle={userIsLeader ? () => {
                                 setLockingTeamId(teamId);
                                 setLockingTeamName(item.name);
@@ -351,11 +351,11 @@ export default function TeamsMainPage() {
                             <TeamCard
                               item={item}
                               showMenu={true}
-                              onAddMember={userIsLeader ? () => {
+                              onAddMember={() => {
                                 setSelectedTeamId(teamId);
                                 setSelectedTeamName(item.name);
                                 setShowAddMemberModal(true);
-                              } : undefined}
+                              }}
                               onLockToggle={userIsLeader ? () => {
                                 setLockingTeamId(teamId);
                                 setLockingTeamName(item.name);

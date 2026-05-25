@@ -197,26 +197,61 @@ public class TeamServiceImpl implements TeamService {
     @Override
     @Transactional
     public TeamMemberResponse addTeamMember(Long teamId, AddTeamMemberRequest request, String requesterEmail) {
-        requireLeaderMembership(teamId, requesterEmail);
+        Account requesterAccount = getAccountByEmail(requesterEmail);
+        TeamMember requesterMember = requireTeamMembership(teamId, requesterAccount.getId());
+        boolean isLeader = requesterMember.getRole() == TeamMemberRole.LEADER;
+
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
 
-        Account account = resolveAccountForMemberRequest(request);
+        Account targetAccount = resolveAccountForMemberRequest(request);
 
-        if (teamMemberRepository.findByTeamIdAndAccountId(teamId, account.getId()).isPresent()) {
-            throw new RuntimeException("Account already exists in team: " + teamId);
+        if (teamMemberRepository.findByTeamIdAndAccountId(teamId, targetAccount.getId()).isPresent()) {
+            throw new RuntimeException("Tài khoản đã là thành viên của lớp: " + teamId);
         }
 
+        // Nếu người mời không phải Leader, không được phân quyền LEADER cho người khác
+        TeamMemberRole requestedRole = TeamMemberRole.valueOf(request.getRole());
+        if (!isLeader && requestedRole == TeamMemberRole.LEADER) {
+            throw new AccessDeniedException("Chỉ trưởng lớp mới có thể phân quyền Trưởng lớp.");
+        }
+
+        // Logic duyệt: Nếu lớp cần duyệt VÀ người mời không phải là LEADER
+        if (team.isApprovalRequired() && !isLeader) {
+            java.util.Optional<TeamJoinRequest> existingRequest = teamJoinRequestRepository.findByTeamIdAndAccountId(teamId, targetAccount.getId());
+            if (existingRequest.isPresent() && existingRequest.get().getStatus() == TeamJoinRequest.JoinRequestStatus.PENDING) {
+                return TeamMemberResponse.builder().id(-1L).email(targetAccount.getEmail()).build();
+            }
+            if (existingRequest.isPresent() && existingRequest.get().getStatus() == TeamJoinRequest.JoinRequestStatus.REJECTED) {
+                TeamJoinRequest req = existingRequest.get();
+                req.setStatus(TeamJoinRequest.JoinRequestStatus.PENDING);
+                req.setRequestedAt(java.time.LocalDateTime.now());
+                teamJoinRequestRepository.save(req);
+                return TeamMemberResponse.builder().id(-1L).email(targetAccount.getEmail()).build();
+            }
+            if (!existingRequest.isPresent()) {
+                TeamJoinRequest req = TeamJoinRequest.builder()
+                        .team(team)
+                        .account(targetAccount)
+                        .status(TeamJoinRequest.JoinRequestStatus.PENDING)
+                        .requestedAt(java.time.LocalDateTime.now())
+                        .build();
+                teamJoinRequestRepository.save(req);
+                return TeamMemberResponse.builder().id(-1L).email(targetAccount.getEmail()).build();
+            }
+        }
+
+        // Nếu người mời là Leader hoặc lớp không cần duyệt -> Thêm thẳng vào
         TeamMember newMember = TeamMember.builder()
-                .account(account)
+                .account(targetAccount)
                 .team(team)
-                .role(TeamMemberRole.valueOf(request.getRole()))
+                .role(requestedRole)
                 .joinedAt(java.time.LocalDateTime.now())
                 .build();
 
         newMember = teamMemberRepository.save(newMember);
 
-        Profile profile = profileRepository.findById(account.getId()).orElse(null);
+        Profile profile = profileRepository.findById(targetAccount.getId()).orElse(null);
         String firstName = profile != null ? profile.getFirstName() : "";
         String lastName = profile != null ? profile.getLastName() : "";
 

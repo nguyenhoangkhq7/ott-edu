@@ -22,7 +22,7 @@ export default function AddTeamMemberModal({
   const [role, setRole] = useState<"MEMBER" | "LEADER">("MEMBER");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,8 +41,13 @@ export default function AddTeamMemberModal({
         role,
       });
 
-      setSuccess(true);
-      console.log("Thêm thành viên thành công:", response);
+      if (response && response.id === -1) {
+        setSuccess("Đã gửi lời mời, vui lòng chờ Trưởng lớp duyệt.");
+      } else {
+        setSuccess("✓ Thêm thành viên thành công!");
+      }
+      
+      console.log("Thêm thành viên:", response);
       
       // Reset form
       setEmail("");
@@ -51,7 +56,7 @@ export default function AddTeamMemberModal({
       // Sau 1.5s đóng modal
       setTimeout(() => {
         onClose();
-        setSuccess(false);
+        setSuccess(null);
         onSuccess?.();
       }, 1500);
     } catch (err) {
@@ -86,7 +91,7 @@ export default function AddTeamMemberModal({
 
         {success ? (
           <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-            <p className="text-green-700">✓ Thêm thành viên thành công!</p>
+            <p className="text-green-700">{success}</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
