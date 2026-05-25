@@ -139,6 +139,22 @@ public class TeamController {
                         response));
     }
 
+    @PostMapping("/join/{joinCode}")
+    public ResponseEntity<ApiSuccessResponse<TeamResponse>> joinTeamByCode(
+            Authentication authentication,
+            @PathVariable String joinCode) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy thông tin người dùng đăng nhập.");
+        }
+
+        TeamResponse response = teamService.joinTeamByCode(joinCode, authentication.getName());
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Tham gia lớp học thành công.",
+                        response));
+    }
+
     @GetMapping("/{teamId}/members")
     public ResponseEntity<ApiSuccessResponse<java.util.List<TeamMemberResponse>>> getTeamMembers(
             Authentication authentication,

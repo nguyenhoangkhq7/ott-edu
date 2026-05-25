@@ -30,21 +30,31 @@ function toAxiosConfig(options?: HttpRequestOptions): AxiosRequestConfig {
 
 function mapApiError(error: unknown): Error {
   if (error instanceof AxiosError) {
-    const message =
-      typeof error.response?.data === "string"
-        ? error.response.data
-        : (error.response?.data as ApiErrorPayload | undefined)?.message ||
-          (error.response?.data as ApiErrorPayload | undefined)?.detail ||
-          (error.response?.data as ApiErrorPayload | undefined)?.error;
+    const rawData = error.response?.data;
+    let message: string | undefined;
 
-    return new Error(message || "Khong the xu ly yeu cau luc nay.");
+    if (typeof rawData === "string") {
+      // Nếu server trả về HTML (Express 404/500), không hiển thị raw HTML
+      if (rawData.trim().startsWith("<")) {
+        message = undefined;
+      } else {
+        message = rawData;
+      }
+    } else {
+      message =
+        (rawData as ApiErrorPayload | undefined)?.message ||
+        (rawData as ApiErrorPayload | undefined)?.detail ||
+        (rawData as ApiErrorPayload | undefined)?.error;
+    }
+
+    return new Error(message || "Không thể xử lý yêu cầu lúc này.");
   }
 
   if (error instanceof Error) {
     return error;
   }
 
-  return new Error("Khong the xu ly yeu cau luc nay.");
+  return new Error("Không thể xử lý yêu cầu lúc này.");
 }
 
 class HttpService {

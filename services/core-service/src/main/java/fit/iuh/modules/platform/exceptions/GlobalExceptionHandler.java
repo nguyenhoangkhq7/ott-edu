@@ -79,6 +79,7 @@ public class GlobalExceptionHandler {
             RuntimeException ex,
             HttpServletRequest request
     ) {
+        ex.printStackTrace();
         return buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), request, null);
     }
 
@@ -87,6 +88,7 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request
     ) {
+        ex.printStackTrace();
         return buildError(HttpStatus.INTERNAL_SERVER_ERROR, "Hệ thống đang bận, vui lòng thử lại sau.", request, null);
     }
 

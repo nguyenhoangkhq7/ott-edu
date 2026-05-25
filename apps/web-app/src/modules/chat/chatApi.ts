@@ -585,3 +585,19 @@ export async function updateConversationSettings(
   );
   return mapApiConversationToConversation(data.data, "");
 }
+
+export async function joinGroupApi(
+  conversationId: string,
+): Promise<{
+  conversation: Conversation;
+  mode: "added" | "requested";
+}> {
+  const data = await chatHttpService.post<{
+    data: { conversation: ApiConversation; mode: "added" | "requested" };
+  }>(`/conversations/${conversationId}/join`, {});
+
+  return {
+    conversation: mapApiConversationToConversation(data.data.conversation, ""),
+    mode: data.data.mode,
+  };
+}

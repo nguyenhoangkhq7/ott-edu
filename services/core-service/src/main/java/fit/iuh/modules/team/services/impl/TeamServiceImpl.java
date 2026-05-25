@@ -273,6 +273,38 @@ public class TeamServiceImpl implements TeamService {
         return teamMapper.toResponse(syncedTeam);
     }
 
+    @Override
+    @Transactional
+    public TeamResponse joinTeamByCode(String joinCode, String requesterEmail) {
+        Team team = teamRepository.findByJoinCode(joinCode)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy lớp học với mã: " + joinCode));
+
+        if (!team.isActive()) {
+            throw new RuntimeException("Lớp học này hiện đang bị khóa.");
+        }
+
+        Account account = getAccountByEmail(requesterEmail);
+        java.util.Optional<TeamMember> existingMember = teamMemberRepository.findByTeamIdAndAccountId(team.getId(), account.getId());
+        if (existingMember.isPresent()) {
+            throw new RuntimeException("Bạn đã là thành viên của lớp học này rồi.");
+        }
+
+        TeamMember newMember = TeamMember.builder()
+                .account(account)
+                .team(team)
+                .role(TeamMemberRole.MEMBER)
+                .joinedAt(java.time.LocalDateTime.now())
+                .build();
+        teamMemberRepository.save(newMember);
+
+        chatConversationSyncService.syncClassConversation(
+                team,
+                !team.isActive(),
+                teamMemberRepository.findAllByTeamId(team.getId()));
+
+        return teamMapper.toResponse(team);
+    }
+
     private Account getAccountByEmail(String email) {
         if (email == null || email.isBlank()) {
             throw new AccessDeniedException("Bạn không có quyền truy cập tài nguyên này.");

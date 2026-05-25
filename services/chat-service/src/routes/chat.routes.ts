@@ -72,6 +72,9 @@ router.post("/conversations/:conversationId/dissolve", ChatController.dissolveGr
 // Rời khỏi nhóm, owner có thể chuyển quyền cho member khác trước khi rời
 router.post("/conversations/:conversationId/leave", ChatController.leaveGroup);
 
+// Tự động tham gia nhóm chat qua liên kết
+router.post("/conversations/:conversationId/join", ChatController.joinGroup);
+
 // Đồng bộ conversation của class từ core-service
 router.post("/conversations/class", ChatController.syncClassConversation);
 
