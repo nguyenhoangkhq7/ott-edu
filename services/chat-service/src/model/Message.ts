@@ -22,6 +22,8 @@ export interface LinkPreview {
 export interface IMessage extends Document {
   conversationId: mongoose.Types.ObjectId;
   senderId: mongoose.Types.ObjectId;
+  /** 'text' = tin nhắn thường | 'system' = thông báo hệ thống (không có senderId thực) */
+  type?: 'text' | 'system';
   content: string;
   attachments?: Attachment[];
   linkPreview?: LinkPreview; // Thêm field link preview
@@ -90,7 +92,13 @@ const messageSchema: Schema = new Schema(
     senderId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false, // system messages không cần senderId
+    },
+    /** 'text' = tin nhắn thường | 'system' = thông báo hệ thống */
+    type: {
+      type: String,
+      enum: ['text', 'system'],
+      default: 'text',
     },
     content: {
       type: String,
@@ -98,6 +106,8 @@ const messageSchema: Schema = new Schema(
       default: "",
       validate: {
         validator: function (this: IMessage, value: string) {
+          // System messages chỉ cần content, bỏ qua validate attachment
+          if (this.type === 'system') return typeof value === "string" && value.trim().length > 0;
           const hasContent = typeof value === "string" && value.trim().length > 0;
           const hasAttachments =
             Array.isArray(this.attachments) && this.attachments.length > 0;

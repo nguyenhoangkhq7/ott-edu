@@ -47,6 +47,7 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     revokedFor: apiMsg._hiddenForMe ? ["__self__"] : (apiMsg.revokedFor || []),
     isForwarded: apiMsg.isForwarded || false,
     reactions: apiMsg.reactions || [],
+    type: apiMsg.type || "text",
   };
 }
 
@@ -86,6 +87,7 @@ export function mapApiConversationToConversation(
     canManageGroup:
       apiConv.canManageGroup ??
       (apiConv.myRole === "owner" || apiConv.myRole === "deputy"),
+    onlyAdminCanMessage: apiConv.onlyAdminCanMessage || false,
     otherParticipant: type === "private" 
       ? participants.find((p) => p.id !== currentUserId) 
       : null,
@@ -572,6 +574,17 @@ export const searchUsersApi = async (keyword: string = "") => {
 
   return { data: userList }; 
 };
+
+export async function updateConversationSettings(
+  conversationId: string,
+  settings: { onlyAdminCanMessage: boolean }
+): Promise<Conversation> {
+  const data = await chatHttpService.patch<{ data: ApiConversation }>(
+    `/conversations/${conversationId}/settings`,
+    settings
+  );
+  return mapApiConversationToConversation(data.data, "");
+}
 
 export async function joinGroupApi(
   conversationId: string,

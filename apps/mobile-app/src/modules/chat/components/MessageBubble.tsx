@@ -239,6 +239,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   if (isSelfRevoked) return null;
 
+  if (message.type === 'system') {
+    return (
+      <View style={styles.systemContainer}>
+        <View style={styles.systemBubble}>
+          <Text style={styles.systemText}>{message.content}</Text>
+        </View>
+      </View>
+    );
+  }
+
   if (isRevoked) {
     return (
       <View style={[styles.container, isSelf ? styles.containerSelf : styles.containerOther]}>
@@ -785,4 +795,24 @@ const styles = StyleSheet.create({
   },
   menuText: { fontSize: 16, fontWeight: '500', color: '#1E293B' },
   menuSubtext: { fontSize: 10, color: '#94A3B8' },
+  systemContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 8,
+    width: '100%',
+    paddingHorizontal: 16,
+  },
+  systemBubble: {
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    maxWidth: '85%',
+  },
+  systemText: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
 });

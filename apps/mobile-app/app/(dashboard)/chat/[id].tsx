@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { io, type Socket } from "socket.io-client";
@@ -20,6 +20,7 @@ export default function ChatRoomRoute() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
 
   // 🛡️ Lấy Identity xịn (ID MongoDB 24 ký tự) tránh lỗi 400/500
   const identity = useMemo(() => {
@@ -31,6 +32,43 @@ export default function ChatRoomRoute() {
     };
   }, [user]);
 
+  // 📥 Load dữ liệu thông tin phòng và lịch sử tin nhắn cũ
+  const loadChatData = useCallback(async (silent = false) => {
+    if (!identity || !conversationId) return;
+
+    if (!silent) setIsLoading(true);
+    try {
+      const allConversations = await fetchConversations(identity.id, identity as any);
+      
+      const currentConv = allConversations.find(
+        c => c.id === conversationId || (c as any)._id === conversationId
+      );
+      
+      if (currentConv) {
+        setConversation(currentConv as any);
+        
+        if (!silent) {
+          const msgHistory = await fetchMessages(conversationId, identity as any);
+          if (msgHistory) {
+            setMessages(msgHistory);
+          }
+        }
+      } else {
+        console.warn("⚠️ Không tìm thấy phòng chat trùng khớp trong danh sách.");
+      }
+    } catch (error) {
+      console.error("❌ Lỗi load dữ liệu phòng chat:", error);
+      if (!silent) Alert.alert("Lỗi", "Không thể tải nội dung cuộc trò chuyện");
+    } finally {
+      if (!silent) setIsLoading(false);
+    }
+  }, [identity, conversationId]);
+
+  const loadChatDataRef = useRef(loadChatData);
+  useEffect(() => {
+    loadChatDataRef.current = loadChatData;
+  }, [loadChatData]);
+
   // 🔌 Khởi tạo Socket và xử lý Realtime
   useEffect(() => {
     if (!identity?.id || identity.id.length !== 24 || !conversationId) return;
@@ -41,6 +79,8 @@ export default function ChatRoomRoute() {
       query: { userId: identity.id },
       transports: ["websocket"],
     });
+
+    const typingTimeoutsRef = {} as Record<string, any>;
 
     // 🚀 BÙA REALTIME 1: Báo với Backend là tôi tham gia vào phòng chat này
     nextSocket.on("connect", () => {
@@ -63,11 +103,91 @@ export default function ChatRoomRoute() {
       }
     });
 
+    // 🚀 BÙA REALTIME 3: Lắng nghe cập nhật cài đặt nhóm (chặn/mở chat)
+    nextSocket.on("conversation_settings_updated", (data: { conversationId: string; onlyAdminCanMessage: boolean }) => {
+      console.log("🔔 Nhận cập nhật settings Realtime:", data);
+      if (data.conversationId === conversationId) {
+        setConversation((prev) => {
+          if (!prev) return null;
+          return { ...prev, onlyAdminCanMessage: data.onlyAdminCanMessage };
+        });
+      }
+    });
+
+    // 🚀 BÙA REALTIME 4: Lắng nghe trạng thái soạn tin nhắn
+    const handleTypingStart = (data: { conversationId: string; userId: string; userName: string }) => {
+      if (data.conversationId === conversationId && data.userId !== identity.id) {
+        setTypingUsers((prev) => ({
+          ...prev,
+          [data.userId]: data.userName || "Người dùng",
+        }));
+
+        if (typingTimeoutsRef[data.userId]) {
+          clearTimeout(typingTimeoutsRef[data.userId]);
+        }
+
+        // Tự động ẩn typing sau 4 giây không hoạt động
+        typingTimeoutsRef[data.userId] = setTimeout(() => {
+          setTypingUsers((prev) => {
+            if (!prev[data.userId]) return prev;
+            const next = { ...prev };
+            delete next[data.userId];
+            return next;
+          });
+          delete typingTimeoutsRef[data.userId];
+        }, 4000);
+      }
+    };
+
+    const handleTypingStop = (data: { conversationId: string; userId: string }) => {
+      if (data.conversationId === conversationId) {
+        if (typingTimeoutsRef[data.userId]) {
+          clearTimeout(typingTimeoutsRef[data.userId]);
+          delete typingTimeoutsRef[data.userId];
+        }
+        setTypingUsers((prev) => {
+          if (!prev[data.userId]) return prev;
+          const next = { ...prev };
+          delete next[data.userId];
+          return next;
+        });
+      }
+    };
+
+    nextSocket.on("userTyping", handleTypingStart);
+    nextSocket.on("typing", handleTypingStart);
+    nextSocket.on("user_typing", handleTypingStart);
+    nextSocket.on("user-typing", handleTypingStart);
+
+    nextSocket.on("userStoppedTyping", handleTypingStop);
+    nextSocket.on("userStopTyping", handleTypingStop);
+    nextSocket.on("stopTyping", handleTypingStop);
+    nextSocket.on("user_stop_typing", handleTypingStop);
+    nextSocket.on("user-stop-typing", handleTypingStop);
+
+    // 🚀 BÙA REALTIME 5: Lắng nghe cập nhật nhóm (thay đổi vai trò, thành viên)
+    nextSocket.on("group_updated", () => {
+      console.log("🔔 [Socket] Nhóm được cập nhật (thay đổi thành viên/vai trò)!");
+      void loadChatDataRef.current(true); // reload im lặng để lấy role mới
+    });
+
     setSocket(nextSocket);
 
     // Dọn dẹp luồng khi thoát khỏi phòng chat
     return () => {
       console.log(`🧹 Leaving room: ${conversationId} and disconnecting socket...`);
+      Object.values(typingTimeoutsRef).forEach(clearTimeout);
+      nextSocket.off("conversation_settings_updated");
+      nextSocket.off("group_updated");
+      nextSocket.off("userTyping");
+      nextSocket.off("typing");
+      nextSocket.off("user_typing");
+      nextSocket.off("user-typing");
+      nextSocket.off("userStoppedTyping");
+      nextSocket.off("userStopTyping");
+      nextSocket.off("stopTyping");
+      nextSocket.off("user_stop_typing");
+      nextSocket.off("user-stop-typing");
       nextSocket.emit("leaveRoom", conversationId); // Báo Backend cho rời phòng
       nextSocket.disconnect();
       setSocket(null);
@@ -76,40 +196,8 @@ export default function ChatRoomRoute() {
 
   // 📥 Load dữ liệu thông tin phòng và lịch sử tin nhắn cũ
   useEffect(() => {
-    if (!identity || !conversationId) return;
-
-    const loadChatData = async () => {
-      setIsLoading(true);
-      try {
-        // 1. Lấy danh sách hội thoại để tìm thông tin cấu hình phòng
-        const allConversations = await fetchConversations(identity.id, identity as any);
-        
-        // Chốt chặn thông minh: Tìm kiếm quét cả trường id lẫn _id MongoDB phòng hờ lệch kiểu dữ liệu
-        const currentConv = allConversations.find(
-          c => c.id === conversationId || (c as any)._id === conversationId
-        );
-        
-        if (currentConv) {
-          setConversation(currentConv as any);
-          
-          // 2. Kích hoạt tính năng tải lịch sử tin nhắn cũ từ database
-          const msgHistory = await fetchMessages(conversationId, identity as any);
-          if (msgHistory) {
-            setMessages(msgHistory);
-          }
-        } else {
-          console.warn("⚠️ Không tìm thấy phòng chat trùng khớp trong danh sách.");
-        }
-      } catch (error) {
-        console.error("❌ Lỗi load dữ liệu phòng chat:", error);
-        Alert.alert("Lỗi", "Không thể tải nội dung cuộc trò chuyện");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     void loadChatData();
-  }, [identity, conversationId]);
+  }, [loadChatData]);
 
   // 📤 Xử lý bắn tin nhắn đi lên Node.js Backend
   const handleSendMessage = async (content: string, attachments?: any[], replyToId?: string) => {
@@ -135,6 +223,24 @@ export default function ChatRoomRoute() {
       setIsSending(false);
     }
   };
+
+  // ✍️ Phát tín hiệu đang soạn tin nhắn lên Socket
+  const handleTyping = useCallback((isTyping: boolean) => {
+    if (!socket || !identity?.id || !conversationId) return;
+    if (isTyping) {
+      socket.emit("userTyping", {
+        conversationId,
+        userId: identity.id,
+        userName: (user as any)?.fullName || (user as any)?.name || "Người dùng",
+      });
+    } else {
+      socket.emit("userStoppedTyping", {
+        conversationId,
+        userId: identity.id,
+      });
+    }
+  }, [socket, identity?.id, conversationId, user]);
+
   if (!user || !identity) return null;
 
   return (
@@ -154,6 +260,8 @@ export default function ChatRoomRoute() {
         onOpenGroupManage={() => {
            // router.push(`/chat/manage/${conversationId}`);
         }}
+        typingUsers={typingUsers}
+        onTyping={handleTyping}
       />
     </View>
   );

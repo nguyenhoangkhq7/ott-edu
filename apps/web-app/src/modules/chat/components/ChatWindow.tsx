@@ -975,6 +975,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const getSender = (senderId: string) =>
     conversation.participants.find((p) => p.id === senderId);
 
+  const isOwner = conversation.ownerId === currentUser?.id || conversation.myRole === "owner";
+  const isDeputy = conversation.deputyId === currentUser?.id || conversation.myRole === "deputy";
+  const isAdmin = isOwner || isDeputy;
+  const isReadOnly = conversation.type === "class" && !!conversation.onlyAdminCanMessage && !isAdmin;
+
   const handleSendMessage = async (
     text: string,
     attachments?: Attachment[],
@@ -1300,6 +1305,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onCancelReply={() => setReplyingTo(null)}
             socket={socket}
             conversationId={conversation?.id}
+            isReadOnly={isReadOnly}
           />
         </div>
 
@@ -1313,6 +1319,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onOpenGroupManage={onOpenGroupManage}
               conversationType={conversation.type}
               refreshSignal={onConversationInfoRefreshTick}
+              currentUserId={currentUser?.id}
             />
           </div>
         )}

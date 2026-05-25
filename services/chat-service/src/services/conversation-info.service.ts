@@ -48,6 +48,7 @@ export interface ConversationInfoDTO {
     email: string;
   }>;
   totalMembers: number;
+  onlyAdminCanMessage?: boolean;
 }
 
 export class ConversationInfoService {
@@ -89,6 +90,7 @@ export class ConversationInfoService {
           email: p.email,
         })),
         totalMembers: conversation.participants.length,
+        onlyAdminCanMessage: !!(conversation as any).onlyAdminCanMessage,
       };
     } catch (error: any) {
       console.error("[ConversationInfoService] getConversationInfo error:", error);

@@ -387,6 +387,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         // Load lại để cập nhật số lượng thành viên (hoặc tên nhóm)
         loadConversations(); 
       });
+
+      // 7. Nghe sự kiện: Cập nhật cấu hình trò chuyện (realtime chặn nhắn tin)
+      socket.on('conversation_settings_updated', (data: { conversationId: string; onlyAdminCanMessage: boolean }) => {
+        console.log("🔥 [Socket] Nhận cập nhật settings Realtime:", data);
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === data.conversationId
+              ? { ...c, onlyAdminCanMessage: data.onlyAdminCanMessage }
+              : c
+          )
+        );
+      });
     };
 
     setupSocket();
@@ -398,6 +410,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         socket.off("new_group_created");
         socket.off("added_to_group");
         socket.off("group_updated");
+        socket.off("conversation_settings_updated");
         socket.off("friend_status_updated");
         socket.off("friend_request_rejected");
         socket.off("friend_request_accepted");

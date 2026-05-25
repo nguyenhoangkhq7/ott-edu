@@ -227,6 +227,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return null;
   }
 
+  // Render system messages
+  if (message.type === "system") {
+    return (
+      <div className="flex w-full justify-center my-3 select-none">
+        <div className="rounded-full bg-slate-100/70 border border-slate-200/50 px-4 py-1 text-center text-xs text-slate-500 font-medium max-w-[80%] shadow-2xs">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
   // Render avatar người gửi (không own message)
   const renderSenderAvatar = () => {
     if (!sender?.avatarUrl) return null;

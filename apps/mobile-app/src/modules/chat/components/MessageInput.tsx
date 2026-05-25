@@ -16,10 +16,11 @@ interface MessageInputProps {
   onCancelReply: () => void;
   disabled?: boolean;
   onTyping?: (isTyping: boolean) => void;
+  isReadOnly?: boolean;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
-  onSend, replyingTo, onCancelReply, disabled, onTyping,
+  onSend, replyingTo, onCancelReply, disabled, onTyping, isReadOnly,
 }) => {
   const [text, setText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -94,6 +95,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       setIsUploading(false);
     }
   };
+
+  if (isReadOnly) {
+    return (
+      <View style={styles.readOnlyContainer}>
+        <Ionicons name="lock-closed-outline" size={16} color="#64748B" style={{ marginRight: 6 }} />
+        <Text style={styles.readOnlyText}>
+          Chỉ Trưởng nhóm và Phó nhóm mới có quyền gửi tin nhắn trong nhóm này.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -335,4 +347,20 @@ const styles = StyleSheet.create({
   },
   sendBtnActive: { backgroundColor: '#2563EB' },
   sendBtnDisabled: { backgroundColor: '#F1F5F9' },
+  readOnlyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  readOnlyText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
 });

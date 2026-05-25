@@ -532,6 +532,16 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       });
     });
 
+    nextSocket.on("conversation_settings_updated", (data: { conversationId: string; onlyAdminCanMessage: boolean }) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === data.conversationId
+            ? { ...c, onlyAdminCanMessage: data.onlyAdminCanMessage }
+            : c
+        )
+      );
+    });
+
     return () => {
       // Gỡ đúng listener để tránh duplicate khi React StrictMode double-mount
       nextSocket.off("newMessage", handleNewMessage);
@@ -548,6 +558,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       nextSocket.off("friend_request_accepted");
       nextSocket.off("group_updated");
       nextSocket.off("friend_request_rejected");
+      nextSocket.off("conversation_settings_updated");
 
       nextSocket.disconnect();
       socketRef.current = null;

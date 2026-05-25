@@ -25,6 +25,8 @@ export interface IConversation extends Document {
   avatarUrl?: string;
   metadata?: any;
   isArchived?: boolean;
+  /** Khi true, chỉ ownerId và deputyId được gửi tin nhắn */
+  onlyAdminCanMessage?: boolean;
 }
 
 const conversationSchema: Schema = new Schema(
@@ -101,6 +103,11 @@ const conversationSchema: Schema = new Schema(
       type: Schema.Types.Mixed,
     },
     isArchived: {
+      type: Boolean,
+      default: false,
+    },
+    /** Khi true: chỉ owner và deputy được gửi tin nhắn */
+    onlyAdminCanMessage: {
       type: Boolean,
       default: false,
     },

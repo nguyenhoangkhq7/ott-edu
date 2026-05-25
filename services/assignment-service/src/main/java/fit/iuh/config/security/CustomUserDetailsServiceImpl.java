@@ -1,7 +1,5 @@
 package fit.iuh.config.security;
 
-import fit.iuh.models.Account;
-import fit.iuh.models.AccountStatus;
 import fit.iuh.config.security.repositories.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,10 +17,10 @@ public class CustomUserDetailsServiceImpl implements CustomUserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Account account = accountRepository.findByEmail(username)
+        LocalAccount account = accountRepository.findByEmail(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy người dùng: " + username));
 
-        boolean enabled = account.getStatus() != AccountStatus.APPEAR_OFFLINE;
+        boolean enabled = account.getStatus() != LocalAccountStatus.APPEAR_OFFLINE;
 
         return new UserPrincipal(
                 account.getId(),

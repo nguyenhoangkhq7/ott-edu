@@ -28,6 +28,9 @@ router.post("/conversations/:conversationId/deputy", ChatController.setGroupDepu
 // Đổi chế độ công khai / riêng tư của nhóm
 router.post("/conversations/:conversationId/join-policy", ChatController.updateJoinPolicy);
 
+// Cập nhật cài đặt nhóm (chỉ admin được gửi tin nhắn)
+router.patch("/conversations/:conversationId/settings", ChatController.updateConversationSettings);
+
 // Mời thành viên hoặc tạo yêu cầu chờ duyệt
 router.post("/conversations/:conversationId/members", ChatController.requestOrAddGroupMember);
 

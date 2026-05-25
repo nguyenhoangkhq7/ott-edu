@@ -68,6 +68,7 @@ export interface Message {
   revokedFor: string[];
   isForwarded?: boolean;
   reactions: Reaction[];
+  type?: 'text' | 'system';
 }
 
 export interface Conversation {
@@ -79,8 +80,10 @@ export interface Conversation {
   unreadCount: number;
   avatarUrl: string | null;
   ownerId?: string | null;
+  deputyId?: string | null;
   myRole?: "owner" | "member" | null;
   canManageGroup?: boolean;
+  onlyAdminCanMessage?: boolean;
 }
 
 export interface ChatUser {
@@ -151,16 +154,19 @@ export interface ApiMessage {
   _hiddenForMe?: boolean;
   isForwarded?: boolean;
   reactions: ApiReaction[];
+  type?: 'text' | 'system';
 }
 
 export interface ApiConversation {
   _id: string;
   type: ChatConversationType;
   name?: string;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
   ownerId?: string | null;
+  deputyId?: string | null;
   myRole?: "owner" | "member" | null;
   canManageGroup?: boolean;
+  onlyAdminCanMessage?: boolean;
   metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;

@@ -53,7 +53,7 @@ export class ChatController {
 
       const userObjectId = new mongoose.Types.ObjectId(userId);
       const query: {
-        $or: Array<{ callerId: mongoose.Types.ObjectId } | { calleeId: mongoose.Types.ObjectId }>;
+        $or?: Array<{ callerId: mongoose.Types.ObjectId } | { calleeId: mongoose.Types.ObjectId }>;
         conversationId?: mongoose.Types.ObjectId;
         status?: { $in: Array<"ringing" | "connected" | "ended" | "declined" | "unavailable" | "failed"> };
       } = {
@@ -488,6 +488,36 @@ export class ChatController {
       return res.status(200).json({ data: conversation });
     } catch (error: any) {
       console.error("[ChatController] updateJoinPolicy error:", error);
+      return res.status(error.statusCode || 500).json({
+        error: error.message || "Internal server error",
+      });
+    }
+  }
+
+  // API: PATCH /api/conversations/:conversationId/settings
+  static async updateConversationSettings(req: Request, res: Response) {
+    try {
+      const requesterId = (req as any).user?._id;
+      const conversationId = typeof req.params.conversationId === "string" ? req.params.conversationId : "";
+      const { onlyAdminCanMessage } = req.body || {};
+
+      if (!requesterId) {
+        return res.status(401).json({ error: "Unauthorized access" });
+      }
+
+      if (!conversationId) {
+        return res.status(400).json({ error: "conversationId is required" });
+      }
+
+      const result = await ChatService.updateConversationSettings(
+        requesterId,
+        conversationId,
+        { onlyAdminCanMessage },
+      );
+
+      return res.status(200).json({ data: result.conversation });
+    } catch (error: any) {
+      console.error("[ChatController] updateConversationSettings error:", error);
       return res.status(error.statusCode || 500).json({
         error: error.message || "Internal server error",
       });

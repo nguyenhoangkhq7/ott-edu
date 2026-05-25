@@ -52,6 +52,7 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     revokedFor: apiMsg._hiddenForMe ? ['__self__'] : (apiMsg.revokedFor || []),
     isForwarded: apiMsg.isForwarded || false,
     reactions: apiMsg.reactions || [],
+    type: apiMsg.type || 'text',
   };
 }
 
@@ -76,8 +77,10 @@ export function mapApiConversationToConversation(
     unreadCount: 0,
     avatarUrl: apiConv.avatarUrl || (type === 'class' ? `https://i.pravatar.cc/150?img=30` : null),
     ownerId: apiConv.ownerId || null,
+    deputyId: apiConv.deputyId || null,
     myRole: apiConv.myRole || null,
     canManageGroup: apiConv.canManageGroup ?? apiConv.myRole === 'owner',
+    onlyAdminCanMessage: apiConv.onlyAdminCanMessage || false,
   };
 }
 
@@ -234,4 +237,16 @@ export async function fetchFileItems(conversationId: string, limit = 50): Promis
 export async function fetchLinkItems(conversationId: string, limit = 50): Promise<ApiMessage[]> {
   const { data } = await chatApiClient.get<{ data: ApiMessage[] }>(`chat/info/${conversationId}/links`, { params: { limit } });
   return data.data;
+}
+
+// Cập nhật cài đặt cuộc trò chuyện (chỉ admin được gửi tin nhắn)
+export async function updateConversationSettings(
+  conversationId: string,
+  settings: { onlyAdminCanMessage: boolean }
+): Promise<Conversation> {
+  const { data } = await chatApiClient.patch<{ data: ApiConversation }>(
+    `conversations/${conversationId}/settings`,
+    settings
+  );
+  return mapApiConversationToConversation(data.data, '');
 }

@@ -51,6 +51,7 @@ export interface Message {
   /** Đánh dấu tin nhắn chuyển tiếp */
   isForwarded?: boolean;
   reactions: Reaction[];
+  type?: 'text' | 'system';
 }
 
 export interface Conversation {
@@ -67,6 +68,7 @@ export interface Conversation {
   pendingMemberRequests?: PendingMemberRequest[];
   myRole?: "owner" | "deputy" | "member" | null;
   canManageGroup?: boolean;
+  onlyAdminCanMessage?: boolean;
   otherParticipant?: User | null;
 }
 
@@ -166,6 +168,7 @@ export interface ApiMessage {
   _hiddenForMe?: boolean;
   isForwarded?: boolean;
   reactions: ApiReaction[];
+  type?: 'text' | 'system';
 }
 
 export interface ApiConversation {
@@ -179,6 +182,7 @@ export interface ApiConversation {
   pendingMemberRequests?: PendingMemberRequest[];
   myRole?: "owner" | "deputy" | "member" | null;
   canManageGroup?: boolean;
+  onlyAdminCanMessage?: boolean;
   metadata?: unknown;
   participants: ApiUser[];
   lastMessage?: ApiMessage | null;

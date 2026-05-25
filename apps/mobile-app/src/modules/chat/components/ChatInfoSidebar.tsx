@@ -12,15 +12,18 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Socket } from "socket.io-client";
 import { ApiConversation, ApiMessage } from "../types";
 import {
   fetchConversationInfo,
   fetchFileItems,
   fetchLinkItems,
   fetchMediaItems,
+  updateConversationSettings,
 } from "../chatApi";
 import {
   extractMediaItems,
@@ -38,6 +41,7 @@ interface ChatInfoSidebarProps {
   onClose: () => void;
   conversationId: string;
   currentChatUserId?: string;
+  socket?: Socket | null;
 }
 
 export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
@@ -45,6 +49,7 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
   onClose,
   conversationId,
   currentChatUserId,
+  socket,
 }) => {
   const slideAnim = useRef(new Animated.Value(SIDEBAR_WIDTH)).current;
   const [info, setInfo] = useState<ApiConversation | null>(null);
@@ -52,6 +57,26 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
   const [files, setFiles] = useState<FileItemUI[]>([]);
   const [links, setLinks] = useState<LinkItemUI[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+  const isOwner = info?.ownerId === currentChatUserId || info?.myRole === 'owner';
+  const isDeputy = info?.deputyId === currentChatUserId;
+  const isAdmin = isOwner || isDeputy;
+
+  const handleToggleOnlyAdminCanMessage = async (value: boolean) => {
+    if (!info) return;
+    
+    // Optimistic update
+    const previousValue = info.onlyAdminCanMessage;
+    setInfo((prev) => prev ? { ...prev, onlyAdminCanMessage: value } : null);
+
+    try {
+      await updateConversationSettings(conversationId, { onlyAdminCanMessage: value });
+    } catch (error) {
+      console.error("[ChatInfoSidebar] updateConversationSettings error:", error);
+      // Rollback on error
+      setInfo((prev) => prev ? { ...prev, onlyAdminCanMessage: previousValue } : null);
+    }
+  };
 
   useEffect(() => {
     if (isVisible) {
@@ -69,6 +94,21 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
       }).start();
     }
   }, [isVisible]);
+
+  useEffect(() => {
+    if (!socket || !conversationId) return;
+
+    const handleSettingsUpdated = (data: { conversationId: string; onlyAdminCanMessage: boolean }) => {
+      if (data.conversationId === conversationId) {
+        setInfo((prev) => prev ? { ...prev, onlyAdminCanMessage: data.onlyAdminCanMessage } : null);
+      }
+    };
+
+    socket.on("conversation_settings_updated", handleSettingsUpdated);
+    return () => {
+      socket.off("conversation_settings_updated", handleSettingsUpdated);
+    };
+  }, [socket, conversationId]);
 
   const loadAllData = async () => {
     try {
@@ -421,6 +461,25 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
               <View style={styles.dividerSmall} />
 
               {renderSectionHeader("Thiết lập bảo mật", "shield-checkmark-outline", "security")}
+              {expandedSection === "security" && (
+                <View style={styles.sectionContent}>
+                  <View style={styles.settingRow}>
+                    <View style={styles.settingTextContainer}>
+                      <Text style={styles.settingLabel}>Chỉ admin gửi tin nhắn</Text>
+                      <Text style={styles.settingSublabel}>
+                        Chỉ Trưởng nhóm và Phó nhóm mới được phép gửi tin nhắn trong nhóm.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={info?.onlyAdminCanMessage ?? false}
+                      onValueChange={handleToggleOnlyAdminCanMessage}
+                      disabled={!isAdmin}
+                      trackColor={{ false: "#CBD5E1", true: "#93C5FD" }}
+                      thumbColor={(info?.onlyAdminCanMessage ?? false) ? "#2563EB" : "#F4F3F4"}
+                    />
+                  </View>
+                </View>
+              )}
               <View style={{ height: 40 }} />
             </ScrollView>
           </SafeAreaView>
@@ -666,5 +725,30 @@ const styles = StyleSheet.create({
     textAlign: "center",
     width: "100%",
     paddingVertical: 10,
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  settingTextContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  settingLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  settingSublabel: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+    lineHeight: 16,
   },
 });

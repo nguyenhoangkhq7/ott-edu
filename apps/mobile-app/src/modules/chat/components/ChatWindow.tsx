@@ -235,6 +235,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     ? otherParticipant?.avatarUrl || `https://i.pravatar.cc/150?u=${otherParticipant?.id}`
     : conversation.avatarUrl || `https://i.pravatar.cc/150?img=30`;
 
+  const isOwner = conversation?.ownerId === selfId || conversation?.myRole === 'owner';
+  const isDeputy = conversation?.deputyId === selfId;
+  const isAdmin = isOwner || isDeputy;
+  const isReadOnly = conversation?.type === 'class' && !!conversation?.onlyAdminCanMessage && !isAdmin;
+
   const callHistoryMessages = React.useMemo(
     () =>
       callHistory.map((item) => ({
@@ -494,6 +499,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onCancelReply={() => setReplyingTo(null)}
         disabled={isLoadingMessages}
         onTyping={onTyping}
+        isReadOnly={isReadOnly}
       />
 
       {/* Sidebar */}
@@ -502,6 +508,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         onClose={() => setIsSidebarVisible(false)}
         conversationId={conversation.id}
         currentChatUserId={currentUser?.id}
+        socket={socket}
       />
 
       {/* 🚀 RENDER MODAL THÊM THÀNH VIÊN CỦA BẠN */}

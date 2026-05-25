@@ -1,9 +1,19 @@
-package fit.iuh.models;
+package fit.iuh.config.security;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.time.LocalDateTime;
 
+/**
+ * Local read-only projection of the accounts table within ott_assignment_db.
+ *
+ * This is NOT a copy of the core-service Account entity. It is a minimal
+ * local record seeded by Flyway migration V5 that mirrors the essential fields
+ * needed for JWT token validation (email, password_hash, role, status).
+ *
+ * The assignment-service NEVER writes to this table directly; the core-service
+ * owns account lifecycle. In production you would replace the DB lookup here
+ * with a JWT-only validation (stateless) so this table is not required at all.
+ */
 @Entity
 @Table(name = "accounts")
 @Getter
@@ -11,7 +21,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Account {
+public class LocalAccount {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -22,14 +33,14 @@ public class Account {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private AccountStatus status = AccountStatus.AVAILABLE;
+    @Builder.Default
+    private LocalAccountStatus status = LocalAccountStatus.AVAILABLE;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
-    private Role role;
+    private LocalRole role;
 
     @Column(name = "is_email_verified")
     private boolean isEmailVerified;
@@ -37,8 +48,4 @@ public class Account {
     @Builder.Default
     @Column(name = "is_online", nullable = false)
     private boolean isOnline = false;
-
-    @Builder.Default
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
 }

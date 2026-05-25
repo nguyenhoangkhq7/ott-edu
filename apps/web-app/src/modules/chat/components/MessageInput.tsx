@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { Send, Paperclip, Smile, X, AlertCircle } from "lucide-react";
+import { Send, Paperclip, Smile, X, AlertCircle, Lock } from "lucide-react";
 import { Message, Attachment } from "../types";
 import { uploadFileToChatService } from "../chatApi";
 import { Socket } from "socket.io-client";
@@ -17,6 +17,7 @@ interface MessageInputProps {
   onCancelReply?: () => void;
   socket?: Socket | null;
   conversationId?: string;
+  isReadOnly?: boolean;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -26,6 +27,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onCancelReply,
   socket,
   conversationId,
+  isReadOnly = false,
 }) => {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -288,6 +290,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showEmojiPicker]);
+
+  if (isReadOnly) {
+    return (
+      <div className="flex items-center justify-center gap-2 border-t border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 font-medium select-none">
+        <Lock size={16} className="text-slate-400" />
+        <span>Chỉ Trưởng nhóm và Phó nhóm mới có quyền gửi tin nhắn trong nhóm này.</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 border-t border-slate-200 bg-white p-4">

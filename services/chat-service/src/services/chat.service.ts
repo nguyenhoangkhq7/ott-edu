@@ -408,6 +408,21 @@ export class ChatService {
       throw error;
     }
 
+    // ✅ Kiểm tra chế độ chỉ admin được gửi tin nhắn
+    if ((conversation as any).onlyAdminCanMessage) {
+      const isOwner = conversation.ownerId?.toString() === senderId.toString();
+      const isDeputy =
+        conversation.deputyId != null &&
+        conversation.deputyId.toString() === senderId.toString();
+      if (!isOwner && !isDeputy) {
+        const error = new Error(
+          "Chỉ Trưởng nhóm và Phó nhóm mới có quyền gửi tin nhắn trong nhóm này.",
+        );
+        (error as any).statusCode = 403;
+        throw error;
+      }
+    }
+
     const messagePayload: any = {
       conversationId: conversation._id,
       senderId,
@@ -895,6 +910,14 @@ export class ChatService {
     if (deputyId === undefined || deputyId === null || deputyId === "") {
       conversation.deputyId = null;
       await conversation.save();
+
+      // ✨ BÁO CHO TẤT CẢ THÀNH VIÊN CẬP NHẬT ROLE (Group Updated)
+      for (const participantId of conversation.participants) {
+        socketManager.emitToUserTarget(participantId.toString(), "group_updated", {
+          conversationId: conversation._id,
+        });
+      }
+
       return conversation;
     }
 
@@ -917,6 +940,14 @@ export class ChatService {
 
     conversation.deputyId = new mongoose.Types.ObjectId(deputyId);
     await conversation.save();
+
+    // ✨ BÁO CHO TẤT CẢ THÀNH VIÊN CẬP NHẬT ROLE (Group Updated)
+    for (const participantId of conversation.participants) {
+      socketManager.emitToUserTarget(participantId.toString(), "group_updated", {
+        conversationId: conversation._id,
+      });
+    }
+
     return conversation;
   }
 
@@ -962,6 +993,19 @@ export class ChatService {
     }
 
     await conversation.save();
+
+    // ✨ BÁO CHO THÀNH VIÊN BỊ XOÁ
+    socketManager.emitToUserTarget(memberId.toString(), "group_updated", {
+      conversationId: conversation._id,
+    });
+
+    // ✨ BÁO CHO CÁC THÀNH VIÊN CÒN LẠI
+    for (const participantId of conversation.participants) {
+      socketManager.emitToUserTarget(participantId.toString(), "group_updated", {
+        conversationId: conversation._id,
+      });
+    }
+
     return conversation;
   }
 
@@ -1157,6 +1201,19 @@ export class ChatService {
     }
 
     await conversation.save();
+
+    // ✨ BÁO CHO THÀNH VIÊN RỜI NHÓM
+    socketManager.emitToUserTarget(requesterId.toString(), "group_updated", {
+      conversationId: conversation._id,
+    });
+
+    // ✨ BÁO CHO CÁC THÀNH VIÊN CÒN LẠI
+    for (const participantId of conversation.participants) {
+      socketManager.emitToUserTarget(participantId.toString(), "group_updated", {
+        conversationId: conversation._id,
+      });
+    }
+
     return conversation;
   }
 
@@ -1455,5 +1512,87 @@ export class ChatService {
     );
 
     return { success: true };
+  }
+
+  // ===========================================================================
+  // CẬP NHẬT CÀI ĐẶT CONVERSATION
+  // ===========================================================================
+
+  /**
+   * Bật/tắt chế độ "Chỉ Admin gửi tin nhắn".
+   * Chỉ owner và deputy mới có quyền gọi.
+   * Tự động gửi System Message và emit WebSocket.
+   */
+  static async updateConversationSettings(
+    requesterId: string,
+    conversationId: string,
+    settings: { onlyAdminCanMessage?: boolean },
+  ) {
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      const error = new Error("Conversation not found");
+      (error as any).statusCode = 404;
+      throw error;
+    }
+
+    if (conversation.type !== "class") {
+      const error = new Error("Only group conversations support this setting");
+      (error as any).statusCode = 400;
+      throw error;
+    }
+
+    // Kiểm tra quyền: chỉ owner và deputy mới được phép
+    this.ensureConversationManager(
+      conversation as ConversationWithRole,
+      requesterId,
+    );
+
+    // Áp dụng thay đổi
+    if (typeof settings.onlyAdminCanMessage !== "boolean") {
+      return { conversation, systemMessage: null };
+    }
+
+    if ((conversation as any).onlyAdminCanMessage === settings.onlyAdminCanMessage) {
+      return { conversation, systemMessage: null };
+    }
+
+    (conversation as any).onlyAdminCanMessage = settings.onlyAdminCanMessage;
+    await conversation.save();
+
+    // Tạo nội dung System Message
+    const isEnabled = settings.onlyAdminCanMessage;
+    const systemContent = isEnabled
+      ? "Trưởng nhóm đã bật chế độ chỉ Quản trị viên được gửi tin nhắn."
+      : "Trưởng nhóm đã tắt chế độ chỉ Quản trị viên được gửi tin nhắn.";
+
+    // Lưu System Message vào DB
+    const systemMessage = await Message.create({
+      conversationId: conversation._id,
+      type: "system",
+      content: systemContent,
+      reactions: [],
+    });
+
+    // Cập nhật lastMessage
+    conversation.lastMessage = systemMessage._id as any;
+    await conversation.save();
+
+    // Emit real-time qua WebSocket đến toàn bộ thành viên trong phòng
+    socketManager.emitMessageToRoom(
+      conversation._id.toString(),
+      systemMessage,
+    );
+
+    // Emit sự kiện cập nhật conversation để UI refresh flag onlyAdminCanMessage
+    socketManager.broadcastToRoom(
+      conversation._id.toString(),
+      "conversation_settings_updated",
+      {
+        conversationId: conversation._id.toString(),
+        onlyAdminCanMessage: isEnabled,
+      },
+    );
+
+    return { conversation, systemMessage };
   }
 }

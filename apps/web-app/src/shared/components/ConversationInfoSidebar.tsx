@@ -33,6 +33,7 @@ import {
   fetchMediaItems as fetchMediaItemsApi,
   fetchFileItems as fetchFileItemsApi,
   fetchLinkItems as fetchLinkItemsApi,
+  updateConversationSettings,
 } from "@/modules/chat/chatApi";
 import type {
   MediaItemUI,
@@ -73,6 +74,7 @@ interface ConversationInfoDTO {
   joinPolicy: "open" | "approval";
   participants: Participant[];
   totalMembers: number;
+  onlyAdminCanMessage?: boolean;
 }
 
 interface ConversationInfoSidebarProps {
@@ -82,6 +84,7 @@ interface ConversationInfoSidebarProps {
   onOpenGroupManage?: () => void;
   conversationType?: "private" | "class";
   refreshSignal?: number;
+  currentUserId?: string;
 }
 
 // ===================== UTILITY FUNCTIONS =====================
@@ -159,6 +162,7 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   onOpenGroupManage,
   conversationType,
   refreshSignal,
+  currentUserId,
 }) => {
   const [conversationInfo, setConversationInfo] =
     useState<ConversationInfoDTO | null>(null);
@@ -171,6 +175,27 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+
+  const isOwner = conversationInfo?.ownerId === currentUserId;
+  const isDeputy = conversationInfo?.deputyId === currentUserId;
+  const isAdmin = isOwner || isDeputy;
+
+  const handleToggleOnlyAdminCanMessage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!conversationInfo) return;
+    const value = e.target.checked;
+    
+    // Optimistic update
+    const previousValue = conversationInfo.onlyAdminCanMessage;
+    setConversationInfo((prev) => prev ? { ...prev, onlyAdminCanMessage: value } : null);
+
+    try {
+      await updateConversationSettings(conversationId, { onlyAdminCanMessage: value });
+    } catch (err) {
+      console.error("[ConversationInfoSidebar] updateConversationSettings error:", err);
+      // Rollback
+      setConversationInfo((prev) => prev ? { ...prev, onlyAdminCanMessage: previousValue } : null);
+    }
+  };
 
   // Determine if this is a private or class conversation
   const isPrivateChat =
@@ -868,7 +893,6 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             )}
           </Accordion>
 
-          {/* Settings Accordion */}
           <Accordion
             title="Thiết lập bảo mật"
             icon={<Lock size={14} />}
@@ -876,6 +900,28 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
             onToggle={() => toggleAccordion("settings")}
           >
             <div className="space-y-1">
+              {conversationInfo?.type === "class" && (
+                <div className="flex items-center justify-between p-2 hover:bg-gray-100 rounded transition border-b border-gray-100 mb-2 pb-2">
+                  <div className="flex-1 pr-2">
+                    <p className="text-xs font-semibold text-gray-800">
+                      Chỉ admin gửi tin nhắn
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      Chỉ Trưởng nhóm và Phó nhóm mới được gửi tin nhắn.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={conversationInfo?.onlyAdminCanMessage ?? false}
+                      disabled={!isAdmin}
+                      onChange={handleToggleOnlyAdminCanMessage}
+                    />
+                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              )}
               {conversationType === "class" && onOpenGroupManage && (
                 <>
                   <button

@@ -180,6 +180,7 @@ export function ChatGroupManageModal({
               {conversation.participants.map((participant) => {
                 const isCurrentUser = participant.id === currentUser.id;
                 const isOwner = conversation.ownerId === participant.id;
+                const isDeputy = conversation.deputyId === participant.id;
                 return (
                   <View key={participant.id} style={styles.memberRow}>
                     <TouchableOpacity
@@ -191,7 +192,8 @@ export function ChatGroupManageModal({
                       <View style={styles.memberInfo}>
                         <View style={styles.memberTitleRow}>
                           <Text style={styles.memberName}>{participant.name}</Text>
-                          {isOwner && <View style={styles.ownerPill}><Text style={styles.ownerPillText}>Owner</Text></View>}
+                          {isOwner && <View style={styles.ownerPill}><Text style={styles.ownerPillText}>Trưởng nhóm</Text></View>}
+                          {isDeputy && <View style={styles.deputyPill}><Text style={styles.deputyPillText}>Phó nhóm</Text></View>}
                           {isCurrentUser && <View style={styles.mePill}><Text style={styles.mePillText}>Bạn</Text></View>}
                         </View>
                         <Text style={styles.memberSub}>{participant.email || participant.code || ''}</Text>
@@ -334,6 +336,8 @@ const styles = StyleSheet.create({
   memberSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
   ownerPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#FFEDD5' },
   ownerPillText: { fontSize: 11, color: '#C2410C', fontWeight: '700' },
+  deputyPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#E0F2FE' },
+  deputyPillText: { fontSize: 11, color: '#0369A1', fontWeight: '700' },
   mePill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: '#DBEAFE' },
   mePillText: { fontSize: 11, color: '#2563EB', fontWeight: '700' },
   removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999, backgroundColor: '#FEF2F2' },
