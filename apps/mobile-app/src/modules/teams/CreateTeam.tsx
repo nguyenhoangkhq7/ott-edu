@@ -9,10 +9,12 @@ import {
   KeyboardAvoidingView, 
   Platform,
   SafeAreaView,
-  StatusBar
+  StatusBar,
+  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import CreateClassForm from './CreateClassForm';
+import { teamApi } from './team.api';
 
 interface CreateTeamProps {
   onBack: () => void;
@@ -21,6 +23,34 @@ interface CreateTeamProps {
 export default function CreateTeam({ onBack }: CreateTeamProps) {
   const [teamCode, setTeamCode] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [joining, setJoining] = useState(false);
+
+  const handleJoinTeam = async () => {
+    if (!teamCode.trim()) return;
+    setJoining(true);
+    try {
+      const response = await teamApi.joinWithCode(teamCode.trim().toUpperCase());
+      
+      // Nếu response trả về id = -1 -> Đang chờ duyệt
+      if (response && response.id === -1) {
+        Alert.alert(
+          "Yêu cầu đã được gửi",
+          "Lớp học này yêu cầu phê duyệt. Vui lòng chờ Trưởng lớp duyệt yêu cầu tham gia của bạn.",
+          [{ text: "OK", onPress: () => { setTeamCode(''); onBack(); } }]
+        );
+      } else {
+        Alert.alert(
+          "Thành công",
+          "Bạn đã tham gia lớp học thành công!",
+          [{ text: "OK", onPress: onBack }]
+        );
+      }
+    } catch (e: any) {
+      Alert.alert('Lỗi', e.message || 'Không thể tham gia lớp học. Vui lòng kiểm tra lại mã.');
+    } finally {
+      setJoining(false);
+    }
+  };
 
   if (showForm) {
     return (
@@ -90,18 +120,19 @@ export default function CreateTeam({ onBack }: CreateTeamProps) {
             />
             
             <TouchableOpacity 
-              disabled={teamCode.length === 0}
+              disabled={teamCode.length === 0 || joining}
               style={[
                 styles.secondaryBtn, 
                 teamCode.length > 0 && styles.activeJoinBtn
               ]}
               activeOpacity={0.7}
+              onPress={handleJoinTeam}
             >
               <Text style={[
                 styles.secondaryBtnText, 
                 teamCode.length > 0 && styles.activeJoinText
               ]}>
-                Join Team
+                {joining ? "Đang tham gia..." : "Join Team"}
               </Text>
             </TouchableOpacity>
           </View>

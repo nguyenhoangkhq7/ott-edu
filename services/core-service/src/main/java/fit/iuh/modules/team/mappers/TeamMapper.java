@@ -13,6 +13,7 @@ import java.util.List;
 public interface TeamMapper {
     @Mapping(target = "departmentId", source = "department.id")
     @Mapping(target = "isActive", source = "active")
+    @Mapping(target = "isApprovalRequired", source = "approvalRequired")
     TeamResponse toResponse(Team team);
 
     List<TeamResponse> toResponseList(List<Team> teams);

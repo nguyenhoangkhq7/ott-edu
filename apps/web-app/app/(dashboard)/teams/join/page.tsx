@@ -26,11 +26,15 @@ export default function JoinTeamPage() {
         setError(null);
         setSuccess(null);
         try {
-          await teamApi.joinWithCode(codeParam.trim());
-          setSuccess("Tham gia lớp học thành công! Đang chuyển hướng...");
-          setTimeout(() => {
-            router.push("/teams");
-          }, 1500);
+          const response = await teamApi.joinWithCode(codeParam.trim());
+          if (response && response.id === -1) {
+            setSuccess(response.name === "PENDING" ? (response.description || "Yêu cầu tham gia đã được gửi. Vui lòng chờ duyệt.") : "Yêu cầu tham gia đã được gửi.");
+          } else {
+            setSuccess("Tham gia lớp học thành công! Đang chuyển hướng...");
+            setTimeout(() => {
+              router.push("/teams");
+            }, 1500);
+          }
         } catch (err) {
           setError(err instanceof Error ? err.message : "Mã tham gia không hợp lệ hoặc lỗi kết nối.");
         } finally {
@@ -52,11 +56,15 @@ export default function JoinTeamPage() {
       setError(null);
       setSuccess(null);
       try {
-        await teamApi.joinWithCode(joinCode.trim());
-        setSuccess("Tham gia lớp học thành công! Đang chuyển hướng...");
-        setTimeout(() => {
-          router.push("/teams");
-        }, 1500);
+        const response = await teamApi.joinWithCode(joinCode.trim());
+        if (response && response.id === -1) {
+          setSuccess(response.name === "PENDING" ? (response.description || "Yêu cầu tham gia đã được gửi. Vui lòng chờ duyệt.") : "Yêu cầu tham gia đã được gửi.");
+        } else {
+          setSuccess("Tham gia lớp học thành công! Đang chuyển hướng...");
+          setTimeout(() => {
+            router.push("/teams");
+          }, 1500);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Mã tham gia không hợp lệ hoặc lỗi kết nối.");
       } finally {

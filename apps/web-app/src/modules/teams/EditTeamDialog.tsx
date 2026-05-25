@@ -23,6 +23,7 @@ export default function EditTeamDialog({
     description: '',
     joinCode: '',
     departmentId: 1,
+    isApprovalRequired: false,
   });
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function EditTeamDialog({
           description: team.description || '',
           joinCode: team.joinCode || '',
           departmentId: team.departmentId || 1,
+          isApprovalRequired: team.isApprovalRequired || false,
         });
         setError(null);
       });
@@ -42,12 +44,18 @@ export default function EditTeamDialog({
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
+    const target = e.target as HTMLInputElement;
+    const { name, value, type, checked } = target;
     
     if (name === 'departmentId') {
       setFormData(prev => ({
         ...prev,
         [name]: parseInt(value) || 1,
+      }));
+    } else if (type === 'checkbox') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked,
       }));
     } else {
       setFormData(prev => ({
@@ -86,7 +94,7 @@ export default function EditTeamDialog({
   if (!isOpen || !team) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -131,39 +139,20 @@ export default function EditTeamDialog({
               />
             </div>
 
-            {/* Mã tham gia */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Mã tham gia
-              </label>
+            {/* Yêu cầu duyệt thành viên */}
+            <div className="flex items-center gap-3 py-2">
               <input
-                type="text"
-                name="joinCode"
-                value={formData.joinCode}
+                type="checkbox"
+                id="isApprovalRequired"
+                name="isApprovalRequired"
+                checked={formData.isApprovalRequired}
                 onChange={handleChange}
-                placeholder="VD: ABC123"
                 disabled={isLoading}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
-            </div>
-
-            {/* Khoa */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Khoa
+              <label htmlFor="isApprovalRequired" className="text-sm font-medium text-slate-700 cursor-pointer">
+                Yêu cầu duyệt khi tham gia bằng mã
               </label>
-              <select
-                name="departmentId"
-                value={formData.departmentId}
-                onChange={handleChange}
-                disabled={isLoading}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
-              >
-                <option value="1">Khoa Công Nghệ Thông Tin</option>
-                <option value="2">Khoa Kỹ Thuật</option>
-                <option value="3">Khoa Kinh Tế</option>
-                <option value="4">Khoa Ngoại Ngữ</option>
-              </select>
             </div>
 
             {error && (

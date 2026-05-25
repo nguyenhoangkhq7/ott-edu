@@ -6,6 +6,7 @@ interface TeamCardProps {
   showMenu?: boolean;
   onAddMember?: () => void;
   onLockToggle?: () => void;
+  onLeaveTeam?: () => void;
 }
 
 export default function TeamCard({
@@ -13,6 +14,7 @@ export default function TeamCard({
   showMenu = false,
   onAddMember,
   onLockToggle,
+  onLeaveTeam,
 }: TeamCardProps) {
   const isLocked = item.isActive === false;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -124,6 +126,22 @@ export default function TeamCard({
                         Khóa lớp
                       </>
                     )}
+                  </button>
+                )}
+                {onLeaveTeam && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDropdownOpen(false);
+                      onLeaveTeam();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-orange-600 hover:bg-orange-50/50 transition-colors border-t border-slate-100"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-orange-500" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Rời lớp
                   </button>
                 )}
               </div>

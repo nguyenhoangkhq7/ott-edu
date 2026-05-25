@@ -12,4 +12,13 @@ public class TeamRequest {
     private String description;
     private String joinCode;
     private Long departmentId;
+    private boolean isApprovalRequired;
+
+    public boolean getIsApprovalRequired() {
+        return isApprovalRequired;
+    }
+
+    public void setIsApprovalRequired(boolean isApprovalRequired) {
+        this.isApprovalRequired = isApprovalRequired;
+    }
 }

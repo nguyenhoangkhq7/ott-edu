@@ -21,5 +21,14 @@ public class TeamResponse {
     private LocalDateTime createdAt;
     private LocalDateTime deletedAt;
     private Long departmentId;
+    private boolean isApprovalRequired;
+
+    public boolean getIsApprovalRequired() {
+        return isApprovalRequired;
+    }
+
+    public void setIsApprovalRequired(boolean isApprovalRequired) {
+        this.isApprovalRequired = isApprovalRequired;
+    }
     private List<TeamMemberResponse> members;
 }

@@ -19,9 +19,11 @@ import { useRouter } from 'expo-router';
 import CreateTeam from './CreateTeam'; 
 import TeamDetailScreen from './TeamDetailScreen';
 import { teamApi, type Team } from './team.api';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function TeamsListScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   
   // --- QUẢN LÝ TRẠNG THÁI GIAO DIỆN ---
   const [teams, setTeams] = useState<Team[]>([]);
@@ -122,14 +124,20 @@ export default function TeamsListScreen() {
   };
 
   // 3. Render từng phần tử trong danh sách
-  const renderTeamCard = ({ item, index }: { item: Team; index: number }) => (
-    <TouchableOpacity 
-      style={styles.card}
-      activeOpacity={0.7}
-      onPress={() => setSelectedTeam(item)} 
-    >
-      {/* Icon đại diện */}
-      {renderIcon(item, index)}
+  const renderTeamCard = ({ item, index }: { item: Team; index: number }) => {
+    // Kiểm tra xem user hiện tại có phải là LEADER không
+    const isLeader = (item as any).members?.some(
+      (m: any) => m.accountId === user?.accountId && m.role === 'LEADER'
+    );
+
+    return (
+      <TouchableOpacity 
+        style={styles.card}
+        activeOpacity={0.7}
+        onPress={() => setSelectedTeam(item)} 
+      >
+        {/* Icon đại diện */}
+        {renderIcon(item, index)}
       
       {/* Thông tin lớp học */}
       <View style={styles.cardContent}>
@@ -139,15 +147,18 @@ export default function TeamsListScreen() {
         </Text>
       </View>
 
-      {/* Nút hành động (Tuỳ chọn mở modal khoá lớp) */}
-      <TouchableOpacity 
-        style={styles.moreBtn}
-        onPress={() => setActionTeam(item)}
-      >
-        <Ionicons name="ellipsis-vertical" size={20} color="#94a3b8" />
+        {/* Nút hành động (Tuỳ chọn mở modal khoá lớp) - Chỉ hiện cho Leader */}
+        {isLeader && (
+          <TouchableOpacity 
+            style={styles.moreBtn}
+            onPress={() => setActionTeam(item)}
+          >
+            <Ionicons name="ellipsis-vertical" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>

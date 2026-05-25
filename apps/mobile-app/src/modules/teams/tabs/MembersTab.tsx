@@ -7,11 +7,12 @@ import {
   Image, 
   TouchableOpacity, 
   TextInput,
-  ScrollView
+  ScrollView,
+  Alert
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { teamApi, TeamMember } from '../team.api';
+import { teamApi, TeamMember, JoinRequestResponse } from '../team.api';
 import * as chatApi from '../../chat/chatApi';
 
 interface MembersTabProps {
@@ -24,6 +25,10 @@ export default function MembersTab({ teamId }: MembersTabProps) {
   const [showMembers, setShowMembers] = useState(true);
   const [owners, setOwners] = useState<TeamMember[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  
+  const [showPending, setShowPending] = useState(true);
+  const [pendingRequests, setPendingRequests] = useState<JoinRequestResponse[]>([]);
+  const [isLeader, setIsLeader] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addEmail, setAddEmail] = useState('');
@@ -39,6 +44,15 @@ export default function MembersTab({ teamId }: MembersTabProps) {
         // Phân loại owner/leader và member
         setOwners(data.filter((m) => m.role === 'LEADER' || m.role === 'OWNER'));
         setMembers(data.filter((m) => m.role !== 'LEADER' && m.role !== 'OWNER'));
+        
+        // Thử lấy danh sách chờ duyệt (nếu là leader mới lấy được, không thì catch bỏ qua)
+        try {
+          const pendingData = await teamApi.getPendingJoinRequests(teamId);
+          setPendingRequests(pendingData || []);
+          setIsLeader(true); // Đánh dấu là Leader vì lấy được
+        } catch (pendingErr) {
+          // Bỏ qua nếu không có quyền
+        }
       } catch (e) {
         setOwners([]);
         setMembers([]);
@@ -73,6 +87,53 @@ export default function MembersTab({ teamId }: MembersTabProps) {
     </View>
   );
 
+  const handleApprove = async (requestId: number) => {
+    try {
+      await teamApi.approveJoinRequest(teamId, requestId);
+      // Cập nhật lại danh sách Pending
+      setPendingRequests(prev => prev.filter(r => r.id !== requestId));
+      // Tải lại danh sách members
+      const data = await teamApi.getMembers(teamId);
+      setOwners(data.filter((m) => m.role === 'LEADER' || m.role === 'OWNER'));
+      setMembers(data.filter((m) => m.role !== 'LEADER' && m.role !== 'OWNER'));
+    } catch (e: any) {
+      Alert.alert("Lỗi", e.message || "Không thể duyệt yêu cầu.");
+    }
+  };
+
+  const handleReject = async (requestId: number) => {
+    try {
+      await teamApi.rejectJoinRequest(teamId, requestId);
+      setPendingRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch (e: any) {
+      Alert.alert("Lỗi", e.message || "Không thể từ chối yêu cầu.");
+    }
+  };
+
+  const renderPendingRequest = (request: JoinRequestResponse) => (
+    <View key={request.id} style={styles.memberCard}>
+      <View style={styles.avatarContainer}>
+        <View style={[styles.avatar, styles.initialsAvatar, { backgroundColor: '#fef08a' }]}>
+          <Text style={[styles.initialsText, { color: '#854d0e' }]}>
+            {request.firstName?.[0] || ''}{request.lastName?.[0] || ''}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.memberInfo}>
+        <Text style={styles.memberName}>{request.firstName} {request.lastName}</Text>
+        <Text style={styles.memberRole}>{request.email}</Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => handleApprove(request.id)}>
+          <Ionicons name="checkmark-circle" size={28} color="#10b981" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => handleReject(request.id)}>
+          <Ionicons name="close-circle" size={28} color="#ef4444" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   // Lấy conversationId từ teamId (giả định conversationId = teamId, nếu không đúng cần mapping từ backend)
   const conversationId = String(teamId);
 
@@ -83,15 +144,22 @@ export default function MembersTab({ teamId }: MembersTabProps) {
     setAddSuccess(null);
     try {
       // 1. Thêm vào team
-      await teamApi.addMember(teamId, { email: addEmail, role: 'MEMBER' });
-      // 2. Thêm vào nhóm chat
-      await chatApi.requestOrAddGroupMember(conversationId, { email: addEmail });
-      setAddSuccess('Thêm thành viên thành công!');
-      setAddEmail('');
-      // Reload lại danh sách
-      const data = await teamApi.getMembers(teamId);
-      setOwners(data.filter((m) => m.role === 'LEADER' || m.role === 'OWNER'));
-      setMembers(data.filter((m) => m.role !== 'LEADER' && m.role !== 'OWNER'));
+      const memberResponse = await teamApi.addMember(teamId, { email: addEmail, role: 'MEMBER' });
+      
+      // Kiểm tra nếu id = -1 (Tức là đang chờ duyệt)
+      if (memberResponse && memberResponse.id === -1) {
+        setAddSuccess('Đã gửi yêu cầu tham gia, vui lòng chờ duyệt!');
+        setAddEmail('');
+      } else {
+        // 2. Thêm vào nhóm chat
+        await chatApi.requestOrAddGroupMember(conversationId, { email: addEmail });
+        setAddSuccess('Thêm thành viên thành công!');
+        setAddEmail('');
+        // Reload lại danh sách
+        const data = await teamApi.getMembers(teamId);
+        setOwners(data.filter((m) => m.role === 'LEADER' || m.role === 'OWNER'));
+        setMembers(data.filter((m) => m.role !== 'LEADER' && m.role !== 'OWNER'));
+      }
     } catch (e: any) {
       setAddError(e?.message || 'Thêm thành viên thất bại');
     } finally {
@@ -112,7 +180,31 @@ export default function MembersTab({ teamId }: MembersTabProps) {
             onChangeText={setSearch}
           />
         </View>
-        <View style={styles.section}>
+          
+          {isLeader && pendingRequests.length > 0 && (
+            <View style={styles.section}>
+              <TouchableOpacity 
+                style={styles.sectionHeader} 
+                onPress={() => setShowPending(!showPending)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.headerLeft}>
+                  <Ionicons name={showPending ? "chevron-down" : "chevron-forward"} size={18} color="#f59e0b" />
+                  <Text style={[styles.headerTitle, { color: '#d97706' }]}>Yêu cầu tham gia</Text>
+                  <View style={[styles.badge, { backgroundColor: '#fef3c7' }]}>
+                    <Text style={[styles.badgeText, { color: '#d97706' }]}>{pendingRequests.length}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+              {showPending && (
+                <View style={styles.sectionContent}>
+                  {pendingRequests.map(renderPendingRequest)}
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={styles.section}>
           <TouchableOpacity 
             style={styles.sectionHeader} 
             onPress={() => setShowOwners(!showOwners)}
@@ -266,6 +358,7 @@ const styles = StyleSheet.create({
   memberName: { fontSize: 15, fontWeight: 'bold', color: '#1e293b' },
   memberRole: { fontSize: 12, color: '#64748b', marginTop: 2 },
   moreBtn: { padding: 5 },
+  actionBtn: { padding: 2 },
 
   // FAB
   fab: {

@@ -221,4 +221,105 @@ public class TeamController {
                         "Cập nhật trạng thái lớp học thành công.",
                         response));
     }
+
+    @PutMapping("/{teamId}/members/{memberId}/role")
+    public ResponseEntity<ApiSuccessResponse<String>> updateTeamMemberRole(
+            Authentication authentication,
+            @PathVariable Long teamId,
+            @PathVariable Long memberId,
+            @RequestBody fit.iuh.modules.team.dtos.UpdateTeamMemberRoleRequest request) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy thông tin người dùng đăng nhập.");
+        }
+
+        teamService.updateMemberRole(teamId, memberId, request, authentication.getName());
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Cập nhật quyền thành công.",
+                        null));
+    }
+
+    @DeleteMapping("/{teamId}/leave")
+    public ResponseEntity<ApiSuccessResponse<String>> leaveTeam(
+            Authentication authentication,
+            @PathVariable Long teamId) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy thông tin người dùng đăng nhập.");
+        }
+
+        teamService.leaveTeam(teamId, authentication.getName());
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Rời lớp thành công.",
+                        null));
+    }
+
+    @GetMapping("/{teamId}/join-requests")
+    public ResponseEntity<ApiSuccessResponse<List<fit.iuh.modules.team.dtos.JoinRequestResponse>>> getPendingJoinRequests(
+            Authentication authentication,
+            @PathVariable Long teamId) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy thông tin người dùng đăng nhập.");
+        }
+
+        List<fit.iuh.modules.team.dtos.JoinRequestResponse> response = teamService.getPendingJoinRequests(teamId, authentication.getName());
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Lấy danh sách yêu cầu tham gia thành công.",
+                        response));
+    }
+
+    @PostMapping("/{teamId}/join-requests/{requestId}/approve")
+    public ResponseEntity<ApiSuccessResponse<String>> approveJoinRequest(
+            Authentication authentication,
+            @PathVariable Long teamId,
+            @PathVariable Long requestId) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy thông tin người dùng đăng nhập.");
+        }
+
+        teamService.approveJoinRequest(teamId, requestId, authentication.getName());
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Duyệt yêu cầu tham gia thành công.",
+                        null));
+    }
+
+    @PostMapping("/{teamId}/join-requests/{requestId}/reject")
+    public ResponseEntity<ApiSuccessResponse<String>> rejectJoinRequest(
+            Authentication authentication,
+            @PathVariable Long teamId,
+            @PathVariable Long requestId) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy thông tin người dùng đăng nhập.");
+        }
+
+        teamService.rejectJoinRequest(teamId, requestId, authentication.getName());
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Từ chối yêu cầu tham gia thành công.",
+                        null));
+    }
+
+    @PatchMapping("/{teamId}/approval-setting")
+    public ResponseEntity<ApiSuccessResponse<String>> updateApprovalSetting(
+            Authentication authentication,
+            @PathVariable Long teamId,
+            @RequestParam boolean isApprovalRequired) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy thông tin người dùng đăng nhập.");
+        }
+
+        teamService.updateApprovalSetting(teamId, isApprovalRequired, authentication.getName());
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(
+                        HttpStatus.OK,
+                        "Cập nhật cài đặt phê duyệt thành công.",
+                        null));
+    }
 }

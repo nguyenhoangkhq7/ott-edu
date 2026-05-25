@@ -7,6 +7,7 @@ import TeamCard from "@/shared/components/ui/TeamCard";
 import SearchInput from "@/shared/components/ui/SearchInput";
 import AddTeamMemberModal from "./AddTeamMemberModal";
 import LockTeamDialog from "./LockTeamDialog";
+import LeaveTeamDialog from "./LeaveTeamDialog";
 import type { TeamSection } from "@/shared/types/teams";
 import { teamApi, Team } from "@/services/api/teamApi";
 import { useAuth } from "@/shared/providers/AuthProvider";
@@ -27,6 +28,11 @@ export default function TeamsMainPage() {
   const [showLockDialog, setShowLockDialog] = useState(false);
   const [lockingTeamId, setLockingTeamId] = useState<number | null>(null);
   const [lockingTeamName, setLockingTeamName] = useState("");
+  
+  // State cho LeaveTeamDialog
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [leavingTeamId, setLeavingTeamId] = useState<number | null>(null);
+  const [leavingTeamName, setLeavingTeamName] = useState("");
   
   // 1. State để quản lý việc đóng/mở các Section
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -322,16 +328,21 @@ export default function TeamsMainPage() {
                           <div className="block opacity-50 cursor-not-allowed filter grayscale pointer-events-none select-none">
                             <TeamCard
                               item={item}
-                              showMenu={userIsLeader}
+                              showMenu={true}
                               onAddMember={() => {
                                 setSelectedTeamId(teamId);
                                 setSelectedTeamName(item.name);
                                 setShowAddMemberModal(true);
                               }}
-                              onLockToggle={() => {
+                              onLockToggle={userIsLeader ? () => {
                                 setLockingTeamId(teamId);
                                 setLockingTeamName(item.name);
                                 setShowLockDialog(true);
+                              } : undefined}
+                              onLeaveTeam={() => {
+                                setLeavingTeamId(teamId);
+                                setLeavingTeamName(item.name);
+                                setShowLeaveDialog(true);
                               }}
                             />
                           </div>
@@ -339,16 +350,25 @@ export default function TeamsMainPage() {
                           <Link href={`/teams/${item.id}`} className="block hover:opacity-95 transition-opacity">
                             <TeamCard
                               item={item}
-                              showMenu={userIsLeader}
+                              showMenu={true}
                               onAddMember={() => {
                                 setSelectedTeamId(teamId);
                                 setSelectedTeamName(item.name);
                                 setShowAddMemberModal(true);
                               }}
-                              onLockToggle={() => {
+                              onLockToggle={userIsLeader ? () => {
                                 setLockingTeamId(teamId);
                                 setLockingTeamName(item.name);
                                 setShowLockDialog(true);
+                              } : undefined}
+                              onLeaveTeam={(e?: React.MouseEvent) => {
+                                if (e) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                }
+                                setLeavingTeamId(teamId);
+                                setLeavingTeamName(item.name);
+                                setShowLeaveDialog(true);
                               }}
                             />
                           </Link>
@@ -425,6 +445,24 @@ export default function TeamsMainPage() {
           onSuccess={() => {
             // Re-fetch để cập nhật trạng thái
             window.location.reload(); 
+          }}
+        />
+      )}
+
+      {/* Dialog rời lớp */}
+      {leavingTeamId && (
+        <LeaveTeamDialog
+          isOpen={showLeaveDialog}
+          teamId={leavingTeamId}
+          teamName={leavingTeamName}
+          onClose={() => {
+            setShowLeaveDialog(false);
+            setLeavingTeamId(null);
+            setLeavingTeamName("");
+          }}
+          onSuccess={() => {
+            // Refresh
+            window.location.reload();
           }}
         />
       )}

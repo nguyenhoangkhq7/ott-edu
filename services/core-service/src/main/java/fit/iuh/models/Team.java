@@ -46,6 +46,10 @@ public class Team {
     private boolean isActive = true;
 
     @Builder.Default
+    @Column(name = "is_approval_required", nullable = false)
+    private boolean isApprovalRequired = false;
+
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 

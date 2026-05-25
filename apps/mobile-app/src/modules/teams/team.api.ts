@@ -7,6 +7,7 @@ export interface Team {
   joinCode: string;
   departmentId: number;
   isActive?: boolean;
+  isApprovalRequired?: boolean;
   createdAt?: string;
 }
 
@@ -15,6 +16,7 @@ export interface TeamRequest {
   description: string;
   joinCode: string;
   departmentId: number;
+  isApprovalRequired?: boolean;
 }
 
 export interface TeamMember {
@@ -32,6 +34,15 @@ export interface AddTeamMemberRequest {
   accountId?: number;
   email?: string;
   role: "MEMBER" | "LEADER";
+}
+
+export interface JoinRequestResponse {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: string;
+  requestedAt: string;
 }
 
 const BASE_PATH = "/teams";
@@ -75,5 +86,25 @@ export const teamApi = {
 
   updateStatus: async (teamId: number, isActive: boolean): Promise<Team> => {
     return apiClient.patch<Team, { isActive: boolean }>(`${BASE_PATH}/${teamId}/status`, { isActive });
+  },
+
+  updateApprovalSetting: async (teamId: number, isApprovalRequired: boolean): Promise<null> => {
+    return apiClient.patch<null, null>(`${BASE_PATH}/${teamId}/approval-setting?isApprovalRequired=${isApprovalRequired}`, null);
+  },
+
+  joinWithCode: async (joinCode: string): Promise<Team> => {
+    return apiClient.post<Team, null>(`${BASE_PATH}/join/${joinCode}`, null);
+  },
+
+  getPendingJoinRequests: async (teamId: number): Promise<JoinRequestResponse[]> => {
+    return apiClient.get<JoinRequestResponse[]>(`${BASE_PATH}/${teamId}/join-requests`);
+  },
+
+  approveJoinRequest: async (teamId: number, requestId: number): Promise<null> => {
+    return apiClient.post<null, null>(`${BASE_PATH}/${teamId}/join-requests/${requestId}/approve`, null);
+  },
+
+  rejectJoinRequest: async (teamId: number, requestId: number): Promise<null> => {
+    return apiClient.post<null, null>(`${BASE_PATH}/${teamId}/join-requests/${requestId}/reject`, null);
   },
 };

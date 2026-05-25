@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Switch } from 'react-native';
 import { teamApi, Team, TeamRequest } from './team.api';
 
 interface EditTeamScreenProps {
@@ -14,10 +14,11 @@ export default function EditTeamScreen({ team, onBack, onSuccess }: EditTeamScre
     description: team.description || '',
     joinCode: team.joinCode || '',
     departmentId: team.departmentId || 1,
+    isApprovalRequired: team.isApprovalRequired || false,
   });
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (key: keyof TeamRequest, value: string) => {
+  const handleChange = (key: keyof TeamRequest, value: string | boolean) => {
     setForm(prev => ({ ...prev, [key]: key === 'departmentId' ? Number(value) : value }));
   };
 
@@ -55,21 +56,21 @@ export default function EditTeamScreen({ team, onBack, onSuccess }: EditTeamScre
         placeholder="Nhập mô tả chi tiết về lớp học..."
         multiline
       />
-      <Text style={styles.label}>Mã tham gia</Text>
-      <TextInput
-        style={styles.input}
-        value={form.joinCode}
-        onChangeText={v => handleChange('joinCode', v)}
-        placeholder="VD: ABC123"
-      />
-      <Text style={styles.label}>Khoa</Text>
-      <TextInput
-        style={styles.input}
-        value={String(form.departmentId)}
-        onChangeText={v => handleChange('departmentId', v)}
-        placeholder="Nhập mã khoa (VD: 1)"
-        keyboardType="numeric"
-      />
+      <View style={styles.switchContainer}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.switchTitle}>Yêu cầu duyệt khi tham gia</Text>
+          <Text style={styles.switchSubtitle}>
+            Thành viên mới phải được Trưởng lớp phê duyệt mới có thể vào lớp.
+          </Text>
+        </View>
+        <Switch
+          value={form.isApprovalRequired}
+          onValueChange={v => handleChange('isApprovalRequired', v)}
+          trackColor={{ false: '#cbd5e1', true: '#1868f0' }}
+          thumbColor={form.isApprovalRequired ? '#ffffff' : '#f8fafc'}
+        />
+      </View>
+      
       {loading ? (
         <ActivityIndicator style={{ marginTop: 20 }} />
       ) : (
@@ -89,6 +90,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: 'bold', marginBottom: 24, color: '#1e293b' },
   label: { fontSize: 15, color: '#334155', marginTop: 16, marginBottom: 4 },
   input: { borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 10, fontSize: 15, backgroundColor: '#f8fafc' },
+  switchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#f1f5f9', marginTop: 24 },
+  switchTitle: { fontSize: 15, fontWeight: '600', color: '#1e293b', marginBottom: 4 },
+  switchSubtitle: { fontSize: 13, color: '#64748b', lineHeight: 18, paddingRight: 16 },
   button: { backgroundColor: '#1868f0', padding: 14, borderRadius: 8, alignItems: 'center', marginTop: 28 },
   buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
   cancelBtn: { alignItems: 'center', marginTop: 18 },

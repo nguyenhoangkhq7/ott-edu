@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { teamApi, TeamMember } from '@/services/api/teamApi';
+import { teamApi, TeamMember, JoinRequest } from '@/services/api/teamApi';
 import AddTeamMemberModal from '@/modules/teams/AddTeamMemberModal';
 import DeleteMemberDialog from '@/modules/teams/DeleteMemberDialog';
-import LockTeamDialog from '@/modules/teams/LockTeamDialog'; // Thêm Dialog khóa
+import { useAuth } from '@/shared/providers/AuthProvider';
 
 interface TeamMembersTabProps {
   teamId: number;
@@ -11,23 +11,27 @@ interface TeamMembersTabProps {
 }
 
 export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: TeamMembersTabProps) {
+  const { user } = useAuth();
+  
   // Dữ liệu members từ API
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
 
   // Trạng thái đóng/mở của các danh sách
   const [isOwnersOpen, setIsOwnersOpen] = useState(true);
   const [isMembersOpen, setIsMembersOpen] = useState(true);
+  const [isPendingOpen, setIsPendingOpen] = useState(true);
+
+  // Danh sách chờ duyệt
+  const [pendingRequests, setPendingRequests] = useState<JoinRequest[]>([]);
+  const [isProcessingRequest, setIsProcessingRequest] = useState(false);
 
   // Delete member dialog state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [selectedMemberName, setSelectedMemberName] = useState<string>('');
-  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
-
-  // Lock team dialog state
-  const [isLockDialogOpen, setIsLockDialogOpen] = useState(false);
 
   // Dùng chung 1 ref cho tất cả các menu để tiện xử lý click outside
   const menusRef = useRef<HTMLDivElement>(null);
@@ -53,6 +57,22 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
     fetchMembers();
   }, [teamId]);
 
+  const handlePromoteToLeader = async (memberId: number, memberName: string) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn chỉ định ${memberName} làm Trưởng nhóm?`)) return;
+    
+    try {
+      setIsUpdatingRole(true);
+      await teamApi.updateMemberRole(teamId, memberId, 'LEADER');
+      // Refetch
+      const response = await teamApi.getMembers(teamId);
+      setMembers(response || []);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không thể chuyển quyền');
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menusRef.current && !menusRef.current.contains(event.target as Node)) {
@@ -62,6 +82,50 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Xác định quyền user hiện tại
+  const currentUserMember = members.find(m => m.accountId === user?.accountId || m.email === user?.email);
+  const isCurrentUserOwner = currentUserMember?.role === 'LEADER';
+
+  // Lấy danh sách chờ duyệt nếu là Trưởng nhóm
+  useEffect(() => {
+    if (isCurrentUserOwner && teamId) {
+      teamApi.getPendingJoinRequests(teamId)
+        .then(res => setPendingRequests(res || []))
+        .catch(console.error);
+    }
+  }, [isCurrentUserOwner, teamId]);
+
+  const handleApproveRequest = async (requestId: number) => {
+    try {
+      setIsProcessingRequest(true);
+      await teamApi.approveJoinRequest(teamId, requestId);
+      // Reload lists
+      const [membersRes, requestsRes] = await Promise.all([
+        teamApi.getMembers(teamId),
+        teamApi.getPendingJoinRequests(teamId)
+      ]);
+      setMembers(membersRes || []);
+      setPendingRequests(requestsRes || []);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không thể duyệt yêu cầu');
+    } finally {
+      setIsProcessingRequest(false);
+    }
+  };
+
+  const handleRejectRequest = async (requestId: number) => {
+    try {
+      setIsProcessingRequest(true);
+      await teamApi.rejectJoinRequest(teamId, requestId);
+      const requestsRes = await teamApi.getPendingJoinRequests(teamId);
+      setPendingRequests(requestsRes || []);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Không thể từ chối yêu cầu');
+    } finally {
+      setIsProcessingRequest(false);
+    }
+  };
 
   return (
     <>
@@ -80,22 +144,6 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
               className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm"
             />
           </div>
-          <button
-            onClick={() => setIsAddMemberModalOpen(true)}
-            className="bg-[#1868f0] hover:bg-blue-700 text-white px-5 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap"
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" /></svg>
-            Add member
-          </button>
-
-          {/* Nút Khóa lớp mới thêm vào theo yêu cầu */}
-          <button 
-            onClick={() => setIsLockDialogOpen(true)}
-            className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors shadow-sm whitespace-nowrap"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-            Khóa lớp học
-          </button>
         </div>
 
         {/* Loading State */}
@@ -127,7 +175,72 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
 
               return (
                 <>
-                  {/* ================= SECTION: OWNERS ================= */}
+                  {/* Tính toán quyền của user hiện tại */}
+                  {(() => {
+                    return (
+                      <>
+                        {/* ================= SECTION: PENDING REQUESTS ================= */}
+                        {isCurrentUserOwner && pendingRequests.length > 0 && (
+                          <div className="bg-orange-50 border border-orange-200 rounded-xl shadow-sm mb-6">
+                            <button 
+                              onClick={() => setIsPendingOpen(!isPendingOpen)}
+                              className="w-full flex items-center justify-between p-4 hover:bg-orange-100/50 transition-colors rounded-t-xl"
+                            >
+                              <div className="flex items-center gap-3">
+                                <svg className={`w-4 h-4 text-orange-600 transition-transform ${isPendingOpen ? 'rotate-0' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                <h3 className="font-bold text-orange-900">Yêu cầu tham gia</h3>
+                                <span className="bg-orange-600 text-white text-xs px-2 py-0.5 rounded-full font-bold">{pendingRequests.length}</span>
+                              </div>
+                            </button>
+
+                            {isPendingOpen && (
+                              <div className="border-t border-orange-100 divide-y divide-orange-100/50">
+                                {pendingRequests.map((req) => (
+                                  <div key={req.id} className="flex items-center justify-between p-4 hover:bg-orange-100/30 transition-colors group">
+                                    <div className="flex items-center gap-4">
+                                      <div className="relative">
+                                        <Image 
+                                          src={`https://i.pravatar.cc/150?u=${req.email}`} 
+                                          alt={req.firstName || req.email}
+                                          width={40}
+                                          height={40}
+                                          className="w-10 h-10 rounded-full object-cover border border-orange-200" 
+                                        />
+                                      </div>
+                                      <div>
+                                        <h4 className="font-bold text-slate-900 text-sm">
+                                          {req.firstName ? `${req.firstName} ${req.lastName}` : 'Người dùng'}
+                                        </h4>
+                                        <p className="text-xs text-slate-500">{req.email}</p>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2">
+                                      <button 
+                                        onClick={() => handleApproveRequest(req.id)}
+                                        disabled={isProcessingRequest}
+                                        className="p-1.5 text-green-600 hover:bg-green-100 rounded-lg transition-colors disabled:opacity-50"
+                                        title="Duyệt"
+                                      >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                      </button>
+                                      <button 
+                                        onClick={() => handleRejectRequest(req.id)}
+                                        disabled={isProcessingRequest}
+                                        className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                                        title="Từ chối"
+                                      >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ================= SECTION: OWNERS ================= */}
                   {owners.length > 0 && (
                     <div className="bg-white border border-slate-200 rounded-xl shadow-sm mb-6">
                       <button 
@@ -166,19 +279,6 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
                               
                               <div className="flex items-center gap-2 sm:gap-4">
                                 <span className="text-sm text-slate-500 font-medium hidden sm:block">Owner</span>
-                                <button 
-                                  onClick={() => {
-                                    setSelectedMemberId(owner.id);
-                                    setSelectedMemberName(`${owner.firstName} ${owner.lastName}`);
-                                    setIsDeleteDialogOpen(true);
-                                  }}
-                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                  title="Delete member"
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
                               </div>
                             </div>
                           ))}
@@ -226,19 +326,33 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
                               
                               <div className="flex items-center gap-2 sm:gap-4">
                                 <span className="text-sm text-slate-500 font-medium hidden sm:block">Member</span>
-                                <button 
-                                  onClick={() => {
-                                    setSelectedMemberId(member.id);
-                                    setSelectedMemberName(`${member.firstName} ${member.lastName}`);
-                                    setIsDeleteDialogOpen(true);
-                                  }}
-                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                  title="Delete member"
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
+                                {isCurrentUserOwner && (member.accountId !== user?.accountId && member.email !== user?.email) && (
+                                  <>
+                                    <button 
+                                      onClick={() => handlePromoteToLeader(member.id, `${member.firstName} ${member.lastName}`)}
+                                      disabled={isUpdatingRole}
+                                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                                      title="Chỉ định làm Trưởng nhóm"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setSelectedMemberId(member.id);
+                                        setSelectedMemberName(`${member.firstName} ${member.lastName}`);
+                                        setIsDeleteDialogOpen(true);
+                                      }}
+                                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                      title="Delete member"
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -253,6 +367,9 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
                       <p>No members in this team yet.</p>
                     </div>
                   )}
+                      </>
+                    );
+                  })()}
                 </>
               );
             })()}
@@ -281,35 +398,6 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
             }
           };
           fetchMembers();
-        }}
-      />
-
-      <AddTeamMemberModal
-        isOpen={isAddMemberModalOpen}
-        teamId={teamId}
-        teamName={teamName}
-        onClose={() => setIsAddMemberModalOpen(false)}
-        onSuccess={() => {
-          const fetchMembers = async () => {
-            try {
-              const response = await teamApi.getMembers(teamId);
-              setMembers(response || []);
-            } catch (err) {
-              console.error('Error refetching members:', err);
-            }
-          };
-          fetchMembers();
-        }}
-      />
-
-      <LockTeamDialog
-        isOpen={isLockDialogOpen}
-        teamId={teamId}
-        teamName="Lớp học hiện tại"
-        onClose={() => setIsLockDialogOpen(false)}
-        onSuccess={() => {
-          // Refresh trang để cập nhật trạng thái đã khóa
-          window.location.reload();
         }}
       />
     </>

@@ -9,7 +9,19 @@ export interface Team {
   createdAt?: string;
   isActive?: boolean;
   active?: boolean;
+  isApprovalRequired?: boolean;
   members?: TeamMember[];
+}
+
+export interface JoinRequest {
+  id: number;
+  teamId: number;
+  accountId: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  status: string;
+  requestedAt: string;
 }
 
 export interface TeamRequest {
@@ -17,6 +29,7 @@ export interface TeamRequest {
   description: string;
   joinCode: string;
   departmentId: number;
+  isApprovalRequired?: boolean;
 }
 
 export interface TeamMember {
@@ -100,8 +113,38 @@ export const teamApi = {
     return httpService.patch<Team>(`${BASE_PATH}/${teamId}/status`, { isActive });
   },
 
+  // Thay đổi quyền thành viên
+  updateMemberRole: async (teamId: number, memberId: number, role: string): Promise<null> => {
+    return httpService.put<null>(`${BASE_PATH}/${teamId}/members/${memberId}/role`, { role });
+  },
+
+  // Rời lớp học
+  leaveTeam: async (teamId: number): Promise<null> => {
+    return httpService.delete<null>(`${BASE_PATH}/${teamId}/leave`);
+  },
+
   // Tham gia lớp học bằng mã code
   joinWithCode: async (joinCode: string): Promise<Team> => {
     return httpService.post<Team>(`${BASE_PATH}/join/${joinCode}`);
+  },
+
+  // Lấy danh sách yêu cầu tham gia
+  getPendingJoinRequests: async (teamId: number): Promise<JoinRequest[]> => {
+    return httpService.get<JoinRequest[]>(`${BASE_PATH}/${teamId}/join-requests`);
+  },
+
+  // Duyệt yêu cầu tham gia
+  approveJoinRequest: async (teamId: number, requestId: number): Promise<null> => {
+    return httpService.post<null>(`${BASE_PATH}/${teamId}/join-requests/${requestId}/approve`);
+  },
+
+  // Từ chối yêu cầu tham gia
+  rejectJoinRequest: async (teamId: number, requestId: number): Promise<null> => {
+    return httpService.post<null>(`${BASE_PATH}/${teamId}/join-requests/${requestId}/reject`);
+  },
+
+  // Bật/tắt chế độ yêu cầu duyệt
+  updateApprovalSetting: async (teamId: number, isApprovalRequired: boolean): Promise<null> => {
+    return httpService.patch<null>(`${BASE_PATH}/${teamId}/approval-setting?isApprovalRequired=${isApprovalRequired}`);
   },
 };
