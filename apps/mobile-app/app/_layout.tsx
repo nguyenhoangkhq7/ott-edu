@@ -27,7 +27,7 @@ function RootNavigator() {
             // Nếu đã đăng nhập mà đang không ở trong nhánh dashboard -> Búng vào dashboard
             if (!inDashboardGroup) {
                 // SỬA LẠI DÒNG NÀY: Trỏ đích danh vào tab Teams thay vì để lửng ở dashboard
-                router.replace("/(dashboard)/teams"); 
+                router.replace("/(dashboard)/calendar");
             }
         }
     }, [isAuthenticated, isInitializing, segments]);

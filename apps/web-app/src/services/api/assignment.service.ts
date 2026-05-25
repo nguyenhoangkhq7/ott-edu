@@ -79,6 +79,14 @@ export const assignmentApi = {
       }
     }
   },
+
+  /**
+   * Get student calendar events aggregated by month and year
+   */
+  getCalendarEvents: async (month: number, year: number): Promise<Array<{ id: number; title: string; type: 'ASSIGNMENT' | 'QUIZ'; courseName: string; dueDate: string }>> => {
+    const response = await axiosV1.get(`/api/v1/calendar/my-events?month=${month}&year=${year}`);
+    return response.data;
+  },
 };
 
 /**

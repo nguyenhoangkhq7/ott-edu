@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 
 // Import các màn hình con cùng thư mục
 import CreateTeam from './CreateTeam'; 
@@ -23,11 +23,23 @@ import { useAuth } from '../auth/AuthProvider';
 
 export default function TeamsListScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ teamId?: string }>();
   const { user } = useAuth();
   
   // --- QUẢN LÝ TRẠNG THÁI GIAO DIỆN ---
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+
+  // Auto-select team when teamId is passed in query parameters
+  useEffect(() => {
+    if (params.teamId && teams.length > 0) {
+      const teamIdNum = parseInt(params.teamId, 10);
+      const matchedTeam = teams.find((t) => t.id === teamIdNum);
+      if (matchedTeam) {
+        setSelectedTeam(matchedTeam);
+      }
+    }
+  }, [params.teamId, teams]);
   const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

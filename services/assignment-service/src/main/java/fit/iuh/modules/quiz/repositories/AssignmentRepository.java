@@ -49,4 +49,15 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
      */
     @Query("SELECT DISTINCT a FROM Assignment a JOIN a.teamIds t WHERE t = :teamId AND a.archivedAt IS NULL")
     List<Assignment> findActiveByTeamId(@Param("teamId") Long teamId);
+
+    /**
+     * Find all assignments and quizzes (non-archived) assigned to any of the student's teams
+     * with due dates falling in the specified year and month.
+     */
+    @Query("SELECT DISTINCT a FROM Assignment a JOIN a.teamIds t WHERE t IN :teamIds AND a.archivedAt IS NULL AND YEAR(a.dueDate) = :year AND MONTH(a.dueDate) = :month")
+    List<Assignment> findActiveByTeamIdsAndMonthAndYear(
+            @Param("teamIds") List<Long> teamIds,
+            @Param("month") int month,
+            @Param("year") int year
+    );
 }

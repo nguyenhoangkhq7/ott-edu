@@ -109,7 +109,7 @@ export default function LoginPage() {
       setTouched({ email: false, password: false });
 
       // 6. Chuyển hướng
-      router.replace(userClassId ? `/teams/${userClassId}` : "/teams");
+      router.replace("/calendar");
       
     } catch (error) {
       if (error instanceof Error) {

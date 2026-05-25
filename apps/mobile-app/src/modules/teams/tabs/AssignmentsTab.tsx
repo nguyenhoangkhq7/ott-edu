@@ -26,6 +26,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter, useLocalSearchParams } from "expo-router";
 
 import { useAuth } from "../../auth/AuthProvider";
 import { assignmentApi } from "../../assignments/assignment.api";
@@ -179,11 +180,35 @@ export default function AssignmentsTab({ teamId, teamTitle }: AssignmentsTabProp
   const { user } = useAuth();
   const isTeacher = (user?.roles ?? []).includes("ROLE_TEACHER");
 
+  const router = useRouter();
+  const params = useLocalSearchParams<{ assignmentId?: string }>();
+
   const [screen, setScreen] = useState<Screen>({ name: "list" });
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Deep link auto-navigation when assignmentId is present
+  useEffect(() => {
+    if (params.assignmentId && assignments.length > 0) {
+      const assignmentIdNum = parseInt(params.assignmentId, 10);
+      const matched = assignments.find((a) => a.id === assignmentIdNum);
+      if (matched) {
+        // Clear routing param immediately to prevent loop when going back
+        try {
+          router.setParams({ assignmentId: undefined });
+        } catch (e) {
+          console.warn("Could not clear assignmentId routing parameter:", e);
+        }
+        if (isTeacher) {
+          setScreen({ name: "grading", assignment: matched });
+        } else {
+          setScreen({ name: "detail", assignment: matched });
+        }
+      }
+    }
+  }, [params.assignmentId, assignments, isTeacher, router]);
 
   // ─── Data fetching ──────────────────────────────────────────────────────────
 

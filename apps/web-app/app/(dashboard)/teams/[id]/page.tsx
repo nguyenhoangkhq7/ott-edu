@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 // Import 3 file Tab mà chúng ta đã tạo
@@ -17,8 +17,22 @@ import { useAuth } from '@/shared/providers/AuthProvider';
 export default function TeamDetailPage() {
   const { user } = useAuth();
   const params = useParams();
+  const searchParams = useSearchParams();
   const teamId = parseInt(params.id as string) || 0;
   const [activeTab, setActiveTab] = useState('posts');
+
+  const assignmentIdParam = searchParams.get('assignmentId');
+  const typeParam = searchParams.get('type');
+
+  useEffect(() => {
+    if (assignmentIdParam && typeParam) {
+      if (typeParam === 'QUIZ') {
+        setActiveTab('online-quizzes');
+      } else if (typeParam === 'ASSIGNMENT') {
+        setActiveTab('assignments');
+      }
+    }
+  }, [assignmentIdParam, typeParam]);
   const [isLockDialogOpen, setIsLockDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -104,11 +118,11 @@ export default function TeamDetailPage() {
                 General
               </button>
             </li>
-            <li>
+            {/* <li>
               <button className="w-full flex items-center text-left px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 rounded border-l-[3px] border-transparent transition-colors">
                 Homework & Assignments
               </button>
-            </li>
+            </li> */}
           </ul>
 
           {/* SECTION 2: CÔNG CỤ LỚP HỌC (CLASS TOOLS) */}
@@ -146,14 +160,14 @@ export default function TeamDetailPage() {
             </li>
 
             {/* Quản lý điểm */}
-            <li>
+            {/* <li>
               <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-white hover:shadow-sm rounded-lg transition-all group">
                 <div className="w-6 h-6 rounded flex items-center justify-center bg-amber-100 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                 </div>
                 Gradebook
               </button>
-            </li>
+            </li> */}
           </ul>
         </div>
       </div>
@@ -288,8 +302,24 @@ export default function TeamDetailPage() {
             {activeTab === 'posts' && <TeamPostsTab teamId={teamId} />}
             {activeTab === 'files' && <TeamFilesTab teamId={teamId} />}
             {activeTab === 'members' && <TeamMembersTab teamId={teamId} teamName={team?.name} />}
-            {activeTab === 'assignments' && <div className="w-full"><AssignmentsTab teamId={teamId} filterType="ESSAY" /></div>}
-            {activeTab === 'online-quizzes' && <div className="w-full"><AssignmentsTab teamId={teamId} filterType="QUIZ" /></div>}
+            {activeTab === 'assignments' && (
+              <div className="w-full">
+                <AssignmentsTab
+                  teamId={teamId}
+                  filterType="ESSAY"
+                  initialAssignmentId={assignmentIdParam ? Number(assignmentIdParam) : undefined}
+                />
+              </div>
+            )}
+            {activeTab === 'online-quizzes' && (
+              <div className="w-full">
+                <AssignmentsTab
+                  teamId={teamId}
+                  filterType="QUIZ"
+                  initialAssignmentId={assignmentIdParam ? Number(assignmentIdParam) : undefined}
+                />
+              </div>
+            )}
 
           </div>
         </div>

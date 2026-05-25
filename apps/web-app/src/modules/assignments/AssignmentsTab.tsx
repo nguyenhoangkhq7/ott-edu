@@ -12,10 +12,12 @@ type Tab = 'upcoming' | 'pastdue';
 
 export default function AssignmentsTab({
   teamId,
-  filterType
+  filterType,
+  initialAssignmentId
 }: {
   teamId?: number;
   filterType?: 'ESSAY' | 'QUIZ';
+  initialAssignmentId?: number;
 }) {
   const params = useParams();
   const { user } = useAuth();
@@ -29,8 +31,15 @@ export default function AssignmentsTab({
   // State Management
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState<number | null>(null);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<number | null>(initialAssignmentId || null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Sync initialAssignmentId prop when changed
+  useEffect(() => {
+    if (initialAssignmentId) {
+      setSelectedAssignmentId(initialAssignmentId);
+    }
+  }, [initialAssignmentId]);
 
   // Data fetching state
   const [assignments, setAssignments] = useState<Assignment[]>([]);

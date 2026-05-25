@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import EditTeamScreen from './EditTeamScreen';
 import { 
   View, Text, StyleSheet, TouchableOpacity, 
@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 
 // IMPORT CÁC TAB
 import PostsTab from './tabs/PostsTab';
@@ -21,6 +22,14 @@ interface TeamDetailScreenProps {
 
 export default function TeamDetailScreen({ team, onBack }: TeamDetailScreenProps) {
   const [activeTab, setActiveTab] = useState('Posts');
+  const params = useLocalSearchParams<{ assignmentId?: string }>();
+
+  // Auto-switch to Assignments tab if deep linked with assignmentId parameter
+  useEffect(() => {
+    if (params.assignmentId) {
+      setActiveTab('Assignments');
+    }
+  }, [params.assignmentId]);
   const [editVisible, setEditVisible] = useState(false);
   const [teamState, setTeamState] = useState({
     ...team,

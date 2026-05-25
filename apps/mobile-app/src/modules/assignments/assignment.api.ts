@@ -524,4 +524,28 @@ export const assignmentApi = {
     );
     return response.data;
   },
+
+  /**
+   * GET /api/v1/calendar/my-events?month=...&year=...
+   * Returns student's aggregated calendar events.
+   * STUDENT only.
+   */
+  getCalendarEvents: async (month: number, year: number): Promise<Array<{
+    id: number;
+    title: string;
+    type: "ASSIGNMENT" | "QUIZ";
+    courseName: string;
+    teamId?: number;
+    dueDate: string;
+  }>> => {
+    const response = await assignmentClient.get<Array<{
+      id: number;
+      title: string;
+      type: "ASSIGNMENT" | "QUIZ";
+      courseName: string;
+      teamId?: number;
+      dueDate: string;
+    }>>("/calendar/my-events", { params: { month, year } });
+    return response.data;
+  },
 };

@@ -19,14 +19,14 @@ export default function BottomTabBar({ state, descriptors, navigation }: BottomT
       <View style={styles.container}>
         {sortedRoutes.map((route) => {
           const { options } = descriptors[route.key];
-          
+
           // 🚀 ÉP KIỂU SANG 'any' ĐỂ DÙNG TRƯỜNG HREF CỦA EXPO ROUTER MÀ KHÔNG BỊ LỖI ĐỎ
           const expoOptions = options as any;
 
           // 🛡️ BỘ LỌC CHỐT CHẶN: Nếu cấu hình layout bảo ẩn (href = null) hoặc là phòng chat chi tiết [id] thì bỏ qua luôn
           if (
-            expoOptions.href === null || 
-            expoOptions.tabBarButton?.() === null || 
+            expoOptions.href === null ||
+            expoOptions.tabBarButton?.() === null ||
             route.name.includes('[id]')
           ) {
             return null;
@@ -51,15 +51,12 @@ export default function BottomTabBar({ state, descriptors, navigation }: BottomT
           let iconName = 'ellipse-outline';
           let label = 'Tab';
 
-          if (baseRouteName === 'activity') {
-            iconName = isFocused ? 'pulse' : 'pulse-outline';
-            label = 'Activity';
+          if (baseRouteName === 'teams') {
+            iconName = isFocused ? 'people' : 'people-outline';
+            label = 'Teams';
           } else if (baseRouteName === 'chat') {
             iconName = isFocused ? 'chatbubble' : 'chatbubble-outline';
             label = 'Chat';
-          } else if (baseRouteName === 'teams') {
-            iconName = isFocused ? 'people' : 'people-outline'; 
-            label = 'Teams';
           } else if (baseRouteName === 'calendar') {
             iconName = isFocused ? 'calendar' : 'calendar-outline';
             label = 'Calendar';
@@ -67,29 +64,29 @@ export default function BottomTabBar({ state, descriptors, navigation }: BottomT
             iconName = isFocused ? 'ellipsis-horizontal' : 'ellipsis-horizontal-outline';
             label = 'More';
           } else {
-            return null; 
+            return null;
           }
 
-          const activeColor = '#1f67f0'; 
-          const inactiveColor = '#64748b'; 
+          const activeColor = '#1f67f0';
+          const inactiveColor = '#64748b';
 
           return (
             <TouchableOpacity
               key={route.key}
               onPress={onPress}
               style={styles.tabButton}
-              activeOpacity={0.7} 
+              activeOpacity={0.7}
             >
-              <Ionicons 
-                name={iconName as any} 
-                size={26} 
-                color={isFocused ? activeColor : inactiveColor} 
+              <Ionicons
+                name={iconName as any}
+                size={26}
+                color={isFocused ? activeColor : inactiveColor}
               />
               <Text style={[
-                styles.tabLabel, 
-                { 
+                styles.tabLabel,
+                {
                   color: isFocused ? activeColor : inactiveColor,
-                  fontWeight: isFocused ? '600' : '400' 
+                  fontWeight: isFocused ? '600' : '400'
                 }
               ]}>
                 {label}
@@ -110,7 +107,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
     height: Platform.OS === 'ios' ? 60 : 65,
-    paddingBottom: Platform.OS === 'ios' ? 0 : 5, 
+    paddingBottom: Platform.OS === 'ios' ? 0 : 5,
     paddingTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
@@ -124,7 +121,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabLabel: {
-    fontSize: 11, 
+    fontSize: 11,
     marginTop: 4,
   }
 });
