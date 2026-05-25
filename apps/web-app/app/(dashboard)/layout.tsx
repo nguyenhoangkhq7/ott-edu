@@ -53,7 +53,6 @@ export default function DashboardLayout({
   // Get active page from pathname
   const getActivePageId = () => {
     if (pathname.includes('/teams')) return 'teams';
-    if (pathname.includes('/activity')) return 'activity';
     if (pathname.includes('/chat')) return 'chat';
     if (pathname.includes('/assignments')) return 'assignments';
     if (pathname.includes('/calendar')) return 'calendar';
@@ -61,26 +60,6 @@ export default function DashboardLayout({
   };
 
   const sidebarItems: NavItem[] = [
-    {
-      id: "activity",
-      label: "Activity",
-      icon: (
-        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M6 12h4l2-6 4 12 2-6h4" />
-        </svg>
-      ),
-      href: "/activity",
-    },
-    {
-      id: "chat",
-      label: "Chat",
-      icon: (
-        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      ),
-      href: "/chat",
-    },
     {
       id: "teams",
       label: "Teams",
@@ -92,6 +71,16 @@ export default function DashboardLayout({
         </svg>
       ),
       href: "/teams",
+    },
+    {
+      id: "chat",
+      label: "Chat",
+      icon: (
+        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      ),
+      href: "/chat",
     },
     {
       id: "assignments",

@@ -10,8 +10,8 @@ interface SidebarProps {
 
 export default function Sidebar({ items, activeId }: SidebarProps) {
   return (
-    <aside 
-      className="flex h-full w-20 flex-shrink-0 flex-col items-center py-5 text-slate-700 relative"
+    <aside
+      className="flex h-screen sticky top-0 w-20 flex-shrink-0 flex-col items-center py-5 text-slate-700 relative"
       style={{
         background: 'rgba(255, 255, 255, 0.06)',
         backdropFilter: 'blur(30px) saturate(160%)',
@@ -41,11 +41,11 @@ export default function Sidebar({ items, activeId }: SidebarProps) {
               prefetch={true}
               className="group relative flex w-full flex-col items-center justify-center py-3 px-2 rounded-xl transition-all duration-300 ease-out"
               style={{
-                background: isActive 
-                  ? 'rgba(0, 95, 184, 0.15)' 
+                background: isActive
+                  ? 'rgba(0, 95, 184, 0.15)'
                   : 'transparent',
-                backdropFilter: isActive 
-                  ? 'blur(10px) saturate(140%)' 
+                backdropFilter: isActive
+                  ? 'blur(10px) saturate(140%)'
                   : 'none',
                 color: isActive ? '#005fb8' : 'rgb(100, 116, 139)'
               }}
@@ -65,18 +65,16 @@ export default function Sidebar({ items, activeId }: SidebarProps) {
               }}
             >
               {/* THANH DỌC: Dài hơn (h-10) và có hiệu ứng trượt/ẩn hiện sinh động */}
-              <div 
-                className={`absolute left-0 w-[4px] rounded-r-full bg-[#005fb8] transition-all duration-200 ease-out ${
-                  isActive 
-                    ? "h-10 opacity-100 transform translate-x-0" 
-                    : "h-0 opacity-0 transform -translate-x-full"
-                }`} 
+              <div
+                className={`absolute left-0 w-[4px] rounded-r-full bg-[#005fb8] transition-all duration-200 ease-out ${isActive
+                  ? "h-10 opacity-100 transform translate-x-0"
+                  : "h-0 opacity-0 transform -translate-x-full"
+                  }`}
               />
-              
+
               {/* Icon: Có hiệu ứng nảy nhẹ (scale) khi active hoặc hover */}
-              <div className={`mb-1 transition-all duration-300 ${
-                isActive ? "scale-110" : "group-hover:scale-110"
-              }`}>
+              <div className={`mb-1 transition-all duration-300 ${isActive ? "scale-110" : "group-hover:scale-110"
+                }`}>
                 {item.icon}
               </div>
 
@@ -88,52 +86,6 @@ export default function Sidebar({ items, activeId }: SidebarProps) {
           );
         })}
       </nav>
-
-      {/* Bottom Actions */}
-      <div className="mt-auto flex w-full flex-col items-center gap-2">
-        <button 
-          className="flex w-full flex-col items-center justify-center py-3 px-2 text-slate-500 rounded-xl transition-all duration-300"
-          style={{ background: 'transparent' }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.12)';
-            e.currentTarget.style.boxShadow = '0 0 15px rgba(255,255,255,0.2), inset 0 0 10px rgba(255,255,255,0.1)';
-            e.currentTarget.style.color = '#005fb8';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.boxShadow = 'none';
-            e.currentTarget.style.color = 'rgb(100, 116, 139)';
-          }}
-        >
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor">
-            <circle cx="12" cy="12" r="2" />
-            <circle cx="6" cy="12" r="2" />
-            <circle cx="18" cy="12" r="2" />
-          </svg>
-        </button>
-
-        <button 
-          className="flex w-full flex-col items-center justify-center py-3 px-2 text-slate-500 rounded-xl transition-all duration-300"
-          style={{ background: 'transparent' }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.12)';
-            e.currentTarget.style.boxShadow = '0 0 15px rgba(255,255,255,0.2), inset 0 0 10px rgba(255,255,255,0.1)';
-            e.currentTarget.style.color = '#005fb8';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.boxShadow = 'none';
-            e.currentTarget.style.color = 'rgb(100, 116, 139)';
-          }}
-        >
-          <div className="flex h-7 w-7 items-center justify-center rounded border-2 border-current transition-transform hover:scale-110">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M12 7v10M7 12h10" />
-            </svg>
-          </div>
-          <span className="mt-1 text-[11px]">Apps</span>
-        </button>
-      </div>
     </aside>
   );
 }
