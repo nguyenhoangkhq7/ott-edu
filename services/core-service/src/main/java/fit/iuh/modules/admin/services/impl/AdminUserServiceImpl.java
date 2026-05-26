@@ -184,12 +184,12 @@ public class AdminUserServiceImpl implements AdminUserService {
     public UserSummaryResponse getUserSummary() {
         long totalAccounts = adminUserRepository.countAllAccounts();
         long activeNow = adminUserRepository.countActiveAccounts();
-        long pendingReview = adminUserRepository.countPendingAccounts();
+        long lockedAccounts = adminUserRepository.countLockedAccounts();
 
         return UserSummaryResponse.builder()
                 .totalAccounts(totalAccounts)
                 .activeNow(activeNow)
-                .pendingReview(pendingReview)
+                .lockedAccounts(lockedAccounts)
                 .build();
     }
 

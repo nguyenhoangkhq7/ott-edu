@@ -21,6 +21,36 @@ export default function AdminStatisticsPage() {
   const [growthData, setGrowthData] = useState<UserGrowthPoint[]>([]);
   const [topUsers, setTopUsers] = useState<TopActiveUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleExportStats = () => {
+    try {
+      let csvContent = "Date,Internal Messages,External Messages\n";
+      messageData.forEach(row => {
+        csvContent += `${row.date},${row.internal},${row.external}\n`;
+      });
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", "message_statistics.csv");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      
+      showToast("CSV stats exported successfully.");
+    } catch (error) {
+      console.error("Export failed:", error);
+      showToast("Failed to export statistics.", "error");
+    }
+  };
 
   useEffect(() => {
     async function loadStats() {
@@ -78,7 +108,7 @@ export default function AdminStatisticsPage() {
           </div>
 
           <button
-            onClick={() => alert("CSV stats exported. Includes daily traffic counts and user growth records.")}
+            onClick={handleExportStats}
             className="flex items-center gap-2 h-9 px-3.5 rounded-md border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -112,6 +142,28 @@ export default function AdminStatisticsPage() {
         </div>
         <span>Last updated: just now</span>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg border text-sm font-medium animate-in slide-in-from-bottom-5 z-50 flex items-center gap-2 ${
+            toast.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-red-50 text-red-700 border-red-200'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }

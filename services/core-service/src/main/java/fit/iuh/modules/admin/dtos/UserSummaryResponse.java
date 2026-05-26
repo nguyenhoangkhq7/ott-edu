@@ -9,5 +9,5 @@ import lombok.*;
 public class UserSummaryResponse {
     private long totalAccounts;
     private long activeNow;
-    private long pendingReview;
+    private long lockedAccounts;
 }

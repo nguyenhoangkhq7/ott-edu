@@ -17,11 +17,9 @@ import type {
 
 export const ROLE_OPTIONS: FilterOption[] = [
   { value: 'all', label: 'All Roles' },
-  { value: 'Super Admin', label: 'Super Admin' },
-  { value: 'Editor', label: 'Editor' },
-  { value: 'Viewer', label: 'Viewer' },
-  { value: 'Teacher', label: 'Teacher' },
-  { value: 'Student', label: 'Student' },
+  { value: 'ROLE_ADMIN', label: 'Admin' },
+  { value: 'ROLE_TEACHER', label: 'Teacher' },
+  { value: 'ROLE_STUDENT', label: 'Student' },
 ];
 
 export const STATUS_OPTIONS: FilterOption[] = [
@@ -355,7 +353,7 @@ export const MOCK_TOP_ACTIVE_USERS: TopActiveUser[] = [
 export const MOCK_USER_SUMMARY = {
   totalAccounts: 1248,
   activeNow: 842,
-  pendingReview: 12,
+  lockedAccounts: 12,
 };
 
 export const MOCK_MONTHLY_PERFORMANCE = {

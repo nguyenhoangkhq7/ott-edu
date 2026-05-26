@@ -96,7 +96,7 @@ export async function getTopActiveUsers(): Promise<TopActiveUser[]> {
 export async function getUserSummary(): Promise<{
   totalAccounts: number;
   activeNow: number;
-  pendingReview: number;
+  lockedAccounts: number;
 }> {
   return httpService.get('/admin/users/summary');
 }
