@@ -31,7 +31,7 @@ type UseWebRTCMediasoupReturn = {
   isScreenSharing: boolean;
   callError: string | null;
   retryMediaPermission: () => Promise<void>;
-  startGroupCall: (conversationId: string, callType?: MediaCallKind) => Promise<void>;
+  startGroupCall: (conversationId: string, callType?: MediaCallKind, isInitiator?: boolean) => Promise<void>;
   acceptIncomingCall: () => Promise<void>;
   declineIncomingCall: () => void;
   endCall: (reason?: string) => void;
@@ -364,12 +364,12 @@ export default function useWebRTCMediasoup({
 
   const toggleScreenShare = useCallback(async () => {
     if (!currentConversationIdRef.current) {
-      setCallError("Can bat dau cuoc goi truoc khi chia se man hinh.");
+      setCallError("Cần bắt đầu cuộc gọi trước khi chia sẻ màn hình.");
       return;
     }
 
     if (!sendTransportRef.current) {
-      setCallError("Send transport chua san sang.");
+      setCallError("Send transport chưa sẵn sàng.");
       return;
     }
 
@@ -398,7 +398,7 @@ export default function useWebRTCMediasoup({
       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       const screenTrack = screenStream.getVideoTracks()[0];
       if (!screenTrack) {
-        setCallError("Khong the chia se man hinh.");
+        setCallError("Không thể chia sẻ màn hình.");
         return;
       }
 
@@ -435,7 +435,7 @@ export default function useWebRTCMediasoup({
       };
     } catch (error) {
       console.warn("toggleScreenShare failed:", error);
-      setCallError("Khong the chia se man hinh luc nay.");
+      setCallError("Không thể chia sẻ màn hình lúc này.");
     }
   }, [socket]);
 
@@ -871,7 +871,7 @@ export default function useWebRTCMediasoup({
   );
 
   const startGroupCall = useCallback(
-    async (conversationId: string, callType: MediaCallKind = "video") => {
+    async (conversationId: string, callType: MediaCallKind = "video", isInitiator: boolean = true) => {
       if (!socket || (callStatus !== "idle" && callStatus !== "receiving")) return;
 
       try {
@@ -934,8 +934,10 @@ export default function useWebRTCMediasoup({
           producersRef.current.set("video", videoProducer);
         }
 
-        // Notify other peers that this user is starting a group call
-        socket.emit("startGroupMediaCall", { conversationId, callType: effectiveCallType });
+        // Notify other peers that this user is starting a group call ONLY if they are the initiator
+        if (isInitiator) {
+          socket.emit("startGroupMediaCall", { conversationId, callType: effectiveCallType });
+        }
 
         setActiveCall({
           callId: conversationId,
@@ -968,7 +970,7 @@ export default function useWebRTCMediasoup({
 
   const acceptIncomingCall = useCallback(async () => {
     if (!incomingCall) return;
-    await startGroupCall(incomingCall.conversationId, incomingCall.callType || "video");
+    await startGroupCall(incomingCall.conversationId, incomingCall.callType || "video", false);
     setIncomingCall(null);
   }, [incomingCall, startGroupCall]);
 

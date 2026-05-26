@@ -79,15 +79,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     switch (item.status) {
       case "connected":
       case "ended":
-        return "Da goi";
+        return "Đã gọi";
       case "declined":
-        return "Bi tu choi";
+        return "Bị từ chối";
       case "unavailable":
-        return "Khong lien lac duoc";
+        return "Không liên lạc được";
       case "failed":
-        return "Loi ket noi";
+        return "Lỗi kết nối";
       case "ringing":
-        return "Dang do chuong";
+        return "Đang đổ chuông";
       default:
         return item.status;
     }
@@ -250,7 +250,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           callType: item.callType || "video",
           status: item.status,
           durationSec: item.durationSec,
-          label: `Cuoc goi ${formatCallStatus(item).toLowerCase()}`,
+          label: `Cuộc gọi ${formatCallStatus(item).toLowerCase()}`,
         })}`,
         createdAt: item.startedAt,
         status: "sent" as const,
