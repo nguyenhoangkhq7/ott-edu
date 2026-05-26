@@ -1,5 +1,5 @@
-import { Image, StyleSheet, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Image, StyleSheet, View, Text } from "react-native";
+import { getDisplayName, getInitialsFromDisplayName } from "../utils/user-display";
 
 type UserAvatarProps = {
   avatarUrl?: string | null;
@@ -22,9 +22,12 @@ export default function UserAvatar({
     return <Image source={{ uri: avatarUrl?.trim() }} style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]} />;
   }
 
+  const displayName = getDisplayName(firstName, lastName, email);
+  const initials = getInitialsFromDisplayName(displayName);
+
   return (
     <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Ionicons name="person" size={size * 0.5} color="#94a3b8" />
+      <Text style={[styles.initials, { fontSize: size * 0.4 }]}>{initials}</Text>
     </View>
   );
 }
@@ -36,8 +39,10 @@ const styles = StyleSheet.create({
   fallback: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f1f5f9",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
+    backgroundColor: "#d1d2eb",
+  },
+  initials: {
+    color: "#4b53bc",
+    fontWeight: "bold",
   },
 });

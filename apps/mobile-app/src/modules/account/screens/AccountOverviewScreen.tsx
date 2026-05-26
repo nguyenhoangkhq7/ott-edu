@@ -50,7 +50,7 @@ export default function AccountOverviewScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fullName = useMemo(() => {
-    const value = [user?.lastName, user?.firstName].filter(Boolean).join(" ").trim();
+    const value = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
     return value || "User";
   }, [user]);
 

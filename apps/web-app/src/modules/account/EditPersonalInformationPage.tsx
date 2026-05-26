@@ -37,7 +37,7 @@ export default function EditPersonalInformationPage() {
     const loadData = async () => {
       try {
         const user = await getCurrentUser();
-        const fullName = [user.lastName, user.firstName].filter(Boolean).join(" ");
+        const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ");
 
         if (mounted) {
           setUser(user);

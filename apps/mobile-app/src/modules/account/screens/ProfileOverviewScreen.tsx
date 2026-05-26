@@ -29,7 +29,7 @@ export default function ProfileOverviewScreen() {
   const statusMeta = useMemo(() => toStatusMeta(user?.status), [user?.status]);
 
   const fullName = useMemo(() => {
-    const value = [user?.lastName, user?.firstName].filter(Boolean).join(" ").trim();
+    const value = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
     return value || user?.email || "User";
   }, [user]);
 

@@ -57,7 +57,7 @@ export default function EditProfileScreen() {
         }
 
         setUser(nextUser);
-        setFullName([nextUser.lastName, nextUser.firstName].filter(Boolean).join(" "));
+        setFullName([nextUser.firstName, nextUser.lastName].filter(Boolean).join(" "));
         setAbout(nextUser.bio || "");
         setPhone(nextUser.phone || "");
         setAvatarUrl(nextUser.avatarUrl);

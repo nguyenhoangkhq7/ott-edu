@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getCurrentUser, type AuthUser } from "@/services/auth/auth.service";
 import { Mail, Phone, User, Building, Shield, Info, Edit, Sparkles } from "lucide-react";
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 
 export default function ProfileOverviewPage() {
   const router = useRouter();
@@ -40,8 +41,12 @@ export default function ProfileOverviewPage() {
     if (!user) {
       return "Đang tải...";
     }
-    return [user.lastName, user.firstName].filter(Boolean).join(" ") || user.email;
+    return [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
   }, [user]);
+
+  const initials = useMemo(() => {
+    return getInitialsFromDisplayName(fullName);
+  }, [fullName]);
 
   const roleLabel = useMemo(() => {
     const roles = user?.roles;
@@ -83,13 +88,19 @@ export default function ProfileOverviewPage() {
             {/* Avatar container */}
             <div className="relative h-32 w-32 shrink-0 rounded-2xl bg-white p-1.5 shadow-xl ring-4 ring-white/85">
               <div className="relative h-full w-full overflow-hidden rounded-xl bg-slate-100">
-                <Image
-                  src={user?.avatarUrl || "/assets/avatar-placeholder.png"}
-                  alt={fullName}
-                  fill
-                  className="object-cover"
-                  priority
-                />
+                {user?.avatarUrl ? (
+                  <Image
+                    src={user.avatarUrl}
+                    alt={fullName}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-[#d1d2eb] text-4xl font-extrabold text-[#4b53bc]">
+                    {initials}
+                  </div>
+                )}
               </div>
               {/* Online indicator badge */}
               <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-4 border-white bg-green-500">
