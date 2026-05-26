@@ -27,8 +27,8 @@ export default function AdminLayout({
             role.includes("ADMIN")
         );
         if (!isAdmin) {
-          // If not admin, redirect to normal user dashboard /chat or /teams
-          router.replace("/chat");
+          // If not admin, redirect to normal user dashboard /calendar
+          router.replace("/calendar");
         }
       }
     }

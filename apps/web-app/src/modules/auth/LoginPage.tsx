@@ -108,8 +108,19 @@ export default function LoginPage() {
       setForm(INITIAL_FORM);
       setTouched({ email: false, password: false });
 
-      // 6. Chuyển hướng
-      router.replace("/calendar");
+      // 6. Chuyển hướng theo vai trò
+      const isAdmin = latestUser.roles?.some(
+        (role) =>
+          role === "ROLE_ADMIN" ||
+          role === "ROLE_SUPER_ADMIN" ||
+          role.includes("ADMIN")
+      );
+
+      if (isAdmin) {
+        router.replace("/admin");
+      } else {
+        router.replace("/calendar");
+      }
       
     } catch (error) {
       if (error instanceof Error) {
