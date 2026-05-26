@@ -33,8 +33,8 @@ public interface AdminUserRepository extends JpaRepository<Profile, Long> {
     @Query("SELECT COUNT(a) FROM Account a WHERE a.isOnline = true")
     long countActiveAccounts();
 
-    @Query("SELECT COUNT(a) FROM Account a WHERE a.isEmailVerified = false")
-    long countPendingAccounts();
+    @Query("SELECT COUNT(a) FROM Account a WHERE a.isLocked = true")
+    long countLockedAccounts();
 
     @Query("SELECT COUNT(a) FROM Account a WHERE a.createdAt <= :dateTime")
     long countAccountsBefore(@Param("dateTime") java.time.LocalDateTime dateTime);

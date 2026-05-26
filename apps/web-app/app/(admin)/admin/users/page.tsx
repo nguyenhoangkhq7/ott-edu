@@ -22,12 +22,18 @@ import { ROLE_OPTIONS, STATUS_OPTIONS } from "@/modules/admin/constants";
 export default function AdminUserManagementPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Summary Metrics
   const [summary, setSummary] = useState<{
     totalAccounts: number;
     activeNow: number;
-    pendingReview: number;
+    lockedAccounts: number;
   } | null>(null);
 
   // Users Table Dataset
@@ -120,15 +126,15 @@ export default function AdminUserManagementPage() {
     try {
       if (isCurrentlyLocked) {
         await unlockUser(user.accountId);
-        alert(`Account for ${user.firstName} ${user.lastName} unlocked successfully.`);
+        showToast(`Account for ${user.firstName} ${user.lastName} unlocked successfully.`);
       } else {
         await lockUser(user.accountId);
-        alert(`Account for ${user.firstName} ${user.lastName} locked successfully.`);
+        showToast(`Account for ${user.firstName} ${user.lastName} locked successfully.`);
       }
       fetchUserData();
     } catch (err) {
       console.error("Toggle lock failed:", err);
-      alert("Failed to update status. Please try again.");
+      showToast("Failed to update status. Please try again.", "error");
     }
   };
 
@@ -201,11 +207,11 @@ export default function AdminUserManagementPage() {
             </div>
           </div>
 
-          {/* Pending Review */}
+          {/* Locked Accounts */}
           <div className="col-span-2 md:col-span-1 bg-white p-4.5 rounded-xl border border-slate-200 flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Audit</p>
-              <h3 className="text-2xl font-bold text-amber-600 mt-1">{summary.pendingReview}</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Locked Accounts</p>
+              <h3 className="text-2xl font-bold text-amber-600 mt-1">{summary.lockedAccounts}</h3>
             </div>
             <div className="h-9 w-9 rounded-lg bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center">
               <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -282,6 +288,28 @@ export default function AdminUserManagementPage() {
         onConfirm={handleResetPassword}
         user={selectedUser}
       />
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg border text-sm font-medium animate-in slide-in-from-bottom-5 z-50 flex items-center gap-2 ${
+            toast.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-red-50 text-red-700 border-red-200'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
