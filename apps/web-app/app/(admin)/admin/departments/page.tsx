@@ -13,8 +13,10 @@ import type { School, Department } from "@/shared/types/admin";
 import AddDepartmentModal from "@/modules/admin/components/AddDepartmentModal";
 import EditDepartmentModal from "@/modules/admin/components/EditDepartmentModal";
 import DeleteDepartmentModal from "@/modules/admin/components/DeleteDepartmentModal";
+import { useAuth } from "@/shared/providers/AuthProvider";
 
 export default function DepartmentsPage() {
+  const { user, setUser } = useAuth();
   const [schools, setSchools] = useState<School[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -82,6 +84,15 @@ export default function DepartmentsPage() {
       );
       setSchools(updatedSchools);
       setSelectedSchool({ ...selectedSchool, name: newSchoolName });
+      
+      // Update authenticated user's schoolName in global auth state
+      if (user && user.schoolId === selectedSchool.id) {
+        setUser({
+          ...user,
+          schoolName: newSchoolName,
+        });
+      }
+
       alert("Đổi tên trường thành công!");
     } catch (err) {
       console.error(err);

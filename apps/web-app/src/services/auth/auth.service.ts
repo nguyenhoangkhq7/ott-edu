@@ -18,6 +18,7 @@ export type AuthUser = {
   phone: string | null;
   code: string | null;
   schoolId: number | null;
+  schoolName: string | null;
   departmentId: number | null;
   departmentName: string | null;
 };

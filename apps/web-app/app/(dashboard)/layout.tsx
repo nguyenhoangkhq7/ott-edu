@@ -7,6 +7,7 @@ import type { NavItem } from "@/shared/types/navigation";
 import { useAuth } from "@/shared/providers/AuthProvider";
 import { getDisplayName } from "@/shared/utils/user-display";
 import AppLoader from "@/shared/components/common/AppLoader";
+import { getSchools } from "@/services/auth/auth.service";
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,7 @@ export default function DashboardLayout({
   const { user, logout, isInitializing } = useAuth();
   const [searchValue, setSearchValue] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [schoolName, setSchoolName] = useState("");
   const pathname = usePathname();
 
   useEffect(() => {
@@ -136,6 +138,24 @@ export default function DashboardLayout({
     },
   ];
 
+  useEffect(() => {
+    async function fetchSchoolName() {
+      try {
+        const schools = await getSchools();
+        const mySchoolId = user?.schoolId ?? 1;
+        const school = schools.find((s) => s.id === mySchoolId);
+        if (school) {
+          setSchoolName(school.name);
+        }
+      } catch (err) {
+        console.error("Failed to load school name from DB:", err);
+      }
+    }
+    if (user) {
+      fetchSchoolName();
+    }
+  }, [user]);
+
   const headerConfig = {
     searchValue,
     onSearchChange: setSearchValue,
@@ -146,6 +166,7 @@ export default function DashboardLayout({
     notifications: 3,
     onLogout: handleLogout,
     isLoggingOut,
+    schoolName: schoolName || undefined,
   };
 
   return (

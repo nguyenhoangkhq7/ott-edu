@@ -23,6 +23,7 @@ public interface AuthMapper {
     @Mapping(target = "phone", source = "profile.phone")
     @Mapping(target = "code", source = "profile.code")
     @Mapping(target = "schoolId", source = "profile.school.id")
+    @Mapping(target = "schoolName", source = "profile.school.name")
     @Mapping(target = "departmentId", source = "profile.department.id")
     @Mapping(target = "departmentName", source = "profile.department.departmentName")
     AuthUserResponse toAuthUserResponse(Account account, Profile profile);
