@@ -58,7 +58,7 @@ export default function DeleteDepartmentModal({
             <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
               Bạn có chắc chắn muốn xóa phòng ban/khoa{" "}
               <strong className="text-slate-700">
-                "{department.name}"
+                &quot;{department.name}&quot;
               </strong>
               ? Hành động này không thể hoàn tác và tất cả các liên kết với tài khoản sẽ bị ảnh hưởng.
             </p>

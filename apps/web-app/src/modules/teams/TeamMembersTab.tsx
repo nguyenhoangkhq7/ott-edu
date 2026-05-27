@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { teamApi, TeamMember, JoinRequest } from '@/services/api/teamApi';
-import AddTeamMemberModal from '@/modules/teams/AddTeamMemberModal';
 import DeleteMemberDialog from '@/modules/teams/DeleteMemberDialog';
 import { useAuth } from '@/shared/providers/AuthProvider';
 
@@ -131,6 +130,10 @@ export default function TeamMembersTab({ teamId, teamName = 'Lớp học' }: Tea
     <>
       {/* Cột chính chứa danh sách Thành viên */}
       <div className="flex-1 min-w-0 animate-in fade-in duration-300">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-slate-900">{teamName}</h2>
+          <p className="text-xs text-slate-500">Danh sách thành viên</p>
+        </div>
         
         {/* Thanh tìm kiếm và nút Add member */}
         <div className="flex items-center gap-4 mb-6">

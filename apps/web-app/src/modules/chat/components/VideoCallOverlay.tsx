@@ -18,7 +18,6 @@ import {
   ActiveVideoCall,
   Conversation,
   IncomingVideoCall,
-  MediaCallKind,
   VideoCallStatus,
 } from "../types";
 

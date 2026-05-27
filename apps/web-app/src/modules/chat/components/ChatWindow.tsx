@@ -25,10 +25,8 @@ import {
   Phone,
   PhoneOff,
   RefreshCw,
-  Share2,
   UserCheck,
   UserPlus,
-  Users,
   Video,
   X,
 } from "lucide-react";

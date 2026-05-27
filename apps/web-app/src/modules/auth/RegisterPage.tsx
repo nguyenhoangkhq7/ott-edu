@@ -38,25 +38,6 @@ const INITIAL_FORM: RegisterFormState = {
   birthday: "",
 };
 
-function splitFullName(fullName: string): { firstName: string; lastName: string } {
-  const parts = fullName
-    .trim()
-    .split(/\s+/)
-    .filter((part) => part.length > 0);
-
-  if (parts.length <= 1) {
-    return {
-      firstName: parts[0] ?? "",
-      lastName: "",
-    };
-  }
-
-  return {
-    firstName: parts[0],
-    lastName: parts.slice(1).join(" "),
-  };
-}
-
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState<RegisterFormState>(INITIAL_FORM);

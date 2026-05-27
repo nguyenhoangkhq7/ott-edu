@@ -5,10 +5,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   getCurrentUser,
-  getDepartmentsBySchoolId,
   updateCurrentUser,
   uploadAvatar,
-  type DepartmentOption,
 } from "@/services/auth/auth.service";
 import { useAuth } from "@/shared/providers/AuthProvider";
 import { User, Camera, Sparkles } from "lucide-react";
@@ -21,7 +19,6 @@ export default function EditPersonalInformationPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [formData, setFormData] = useState({
     fullName: "",
     departmentId: "",
@@ -48,13 +45,6 @@ export default function EditPersonalInformationPage() {
             phone: user.phone || "",
           });
           setAvatarUrl(user.avatarUrl || "/assets/avatar-placeholder.svg");
-        }
-
-        if (user.schoolId) {
-          const departmentOptions = await getDepartmentsBySchoolId(user.schoolId);
-          if (mounted) {
-            setDepartments(departmentOptions);
-          }
         }
       } catch (err) {
         if (mounted) {

@@ -1,4 +1,5 @@
 import type { OtpPurpose } from "@/services/auth/auth.service";
+import type { RegisterValidationInput } from "@/modules/auth/validators";
 
 type OtpFlowState = {
   challengeId: string;
@@ -126,7 +127,7 @@ export type RegisterOtpState = {
   challengeId: string;
   maskedEmail: string;
   email: string;
-  form: any;
+  form: RegisterValidationInput;
   code: string;
   departmentId: string;
 };
@@ -135,7 +136,7 @@ export function setRegisterOtpState(
   challengeId: string,
   maskedEmail: string,
   email: string,
-  form: any,
+  form: RegisterValidationInput,
   code: string,
   departmentId: string
 ): void {

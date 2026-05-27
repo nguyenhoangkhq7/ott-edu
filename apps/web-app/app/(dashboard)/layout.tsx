@@ -72,6 +72,24 @@ export default function DashboardLayout({
       role.includes("ADMIN")
   );
 
+  useEffect(() => {
+    async function fetchSchoolName() {
+      try {
+        const schools = await getSchools();
+        const mySchoolId = user?.schoolId ?? 1;
+        const school = schools.find((s) => s.id === mySchoolId);
+        if (school) {
+          setSchoolName(school.name);
+        }
+      } catch (err) {
+        console.error("Failed to load school name from DB:", err);
+      }
+    }
+    if (user && !isAdmin) {
+      fetchSchoolName();
+    }
+  }, [user, isAdmin]);
+
   if (isInitializing || !user || isAdmin) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-slate-50">
@@ -137,24 +155,6 @@ export default function DashboardLayout({
       href: "/assignments",
     },
   ];
-
-  useEffect(() => {
-    async function fetchSchoolName() {
-      try {
-        const schools = await getSchools();
-        const mySchoolId = user?.schoolId ?? 1;
-        const school = schools.find((s) => s.id === mySchoolId);
-        if (school) {
-          setSchoolName(school.name);
-        }
-      } catch (err) {
-        console.error("Failed to load school name from DB:", err);
-      }
-    }
-    if (user) {
-      fetchSchoolName();
-    }
-  }, [user]);
 
   const headerConfig = {
     searchValue,
