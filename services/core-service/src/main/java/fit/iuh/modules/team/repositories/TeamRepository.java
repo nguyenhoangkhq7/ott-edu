@@ -19,4 +19,6 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
 
     @EntityGraph(attributePaths = {"department", "members.account"})
     List<Team> findByDepartmentId(Long departmentId);
+
+    boolean existsByDepartmentId(Long departmentId);
 }

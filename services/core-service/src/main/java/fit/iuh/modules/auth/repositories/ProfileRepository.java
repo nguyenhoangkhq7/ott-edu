@@ -7,9 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.transaction.annotation.Transactional;
 
 import fit.iuh.models.Profile;
-import org.springframework.data.jpa.repository.Modifying;
 
 @Repository
 public interface ProfileRepository extends JpaRepository<Profile, Long> {
@@ -44,4 +45,9 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
             @Param("keyword") String keyword,
             @Param("currentUserEmail") String currentUserEmail
     );
+
+        @Modifying
+        @Transactional
+        @Query("UPDATE Profile p SET p.department = null WHERE p.department.id = :departmentId")
+        void nullifyDepartmentRelations(@Param("departmentId") Long departmentId);
 }

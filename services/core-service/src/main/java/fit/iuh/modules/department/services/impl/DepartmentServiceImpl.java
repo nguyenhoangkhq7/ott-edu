@@ -4,6 +4,7 @@ import fit.iuh.modules.department.dtos.DepartmentResponse;
 import fit.iuh.modules.department.mappers.DepartmentMapper;
 import fit.iuh.modules.department.repositories.DepartmentRepository;
 import fit.iuh.modules.department.services.DepartmentService;
+import fit.iuh.modules.team.repositories.TeamRepository;
 import fit.iuh.modules.school.repositories.SchoolRepository;
 import fit.iuh.models.Department;
 import fit.iuh.models.School;
@@ -21,6 +22,7 @@ public class DepartmentServiceImpl implements DepartmentService {
     private final SchoolRepository schoolRepository;
     private final DepartmentMapper departmentMapper;
     private final ProfileRepository profileRepository;
+    private final TeamRepository teamRepository;
 
     @Override
     public List<DepartmentResponse> getDepartmentsBySchoolId(Long schoolId) {
@@ -61,6 +63,9 @@ public class DepartmentServiceImpl implements DepartmentService {
     public void deleteDepartment(Long id) {
         if (!departmentRepository.existsById(id)) {
             throw new RuntimeException("Không tìm thấy khoa/phòng ban.");
+        }
+        if (teamRepository.existsByDepartmentId(id)) {
+            throw new RuntimeException("Không thể xóa khoa/phòng ban đang có team.");
         }
         profileRepository.nullifyDepartmentRelations(id);
         departmentRepository.deleteById(id);
