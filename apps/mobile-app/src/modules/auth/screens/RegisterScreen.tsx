@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Platform,
   Pressable,
@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,6 +20,8 @@ import {
   getDepartmentsBySchoolId,
   getSchools,
   registerAccount,
+  sendRegisterOtp,
+  verifyOtp,
 } from "../auth.service";
 import { type RegisterValidationInput, validateRegisterForm } from "../validators";
 import SelectModal, { type SelectOption } from "../../../shared/ui/SelectModal";
@@ -89,6 +92,14 @@ export default function RegisterScreen() {
   const [code, setCode] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // OTP Verification Flow states
+  const [showOtpScreen, setShowOtpScreen] = useState(false);
+  const [otpChallenge, setOtpChallenge] = useState<{ challengeId: string; maskedEmail: string } | null>(null);
+  const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
+  const [timeLeft, setTimeLeft] = useState(48);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const otpInputRefs = useRef<(TextInput | null)[]>([]);
 
   const [schoolId, setSchoolId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
@@ -242,6 +253,14 @@ export default function RegisterScreen() {
     };
   }, [schoolId, useCustomSchool]);
 
+  // Resend timer countdown effect
+  useEffect(() => {
+    if (showOtpScreen && timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [showOtpScreen, timeLeft]);
+
   const handleChange = (field: keyof RegisterFormState, value: string) => {
     setForm((current) => ({
       ...current,
@@ -258,7 +277,8 @@ export default function RegisterScreen() {
     }));
   };
 
-  const handleRegister = async () => {
+  // Submit main form: sends register OTP and redirects to full screen OTP view
+  const handleRegisterSubmit = async () => {
     setTouched({
       email: true,
       fullName: true,
@@ -282,7 +302,76 @@ export default function RegisterScreen() {
 
     try {
       setIsSubmitting(true);
+      const challenge = await sendRegisterOtp({ email: form.email.trim() });
+      setOtpChallenge(challenge);
+      setTimeLeft(48);
+      setOtpDigits(["", "", "", "", "", ""]);
+      setShowOtpScreen(true);
+    } catch (error) {
+      if (error instanceof Error) {
+        setSubmitError(error.message);
+      } else {
+        setSubmitError("Không thể gửi mã xác minh lúc này, vui lòng thử lại.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
+  // Resend registration OTP in verification screen
+  const handleResendOtp = async () => {
+    setSubmitError(null);
+    setSubmitSuccess(null);
+    try {
+      const challenge = await sendRegisterOtp({ email: form.email.trim() });
+      setOtpChallenge(challenge);
+      setTimeLeft(48);
+      setOtpDigits(["", "", "", "", "", ""]);
+      setSubmitSuccess("Gửi lại mã OTP thành công!");
+      setTimeout(() => setSubmitSuccess(null), 3000);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Gửi lại OTP thất bại.");
+    }
+  };
+
+  // Handle single digit OTP typing
+  const handleOtpDigitChange = (index: number, value: string) => {
+    const cleanValue = value.replace(/\D/g, "");
+    const newDigits = [...otpDigits];
+    newDigits[index] = cleanValue.slice(-1);
+    setOtpDigits(newDigits);
+
+    if (cleanValue && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  // Handle backspace key press to focus previous digit
+  const handleOtpKeyPress = (index: number, key: string) => {
+    if (key === "Backspace" && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  // Verify registration OTP and finalize account creation immediately
+  const handleVerifyAndRegister = async () => {
+    if (!otpDigits.every((digit) => digit !== "")) {
+      return;
+    }
+
+    setSubmitError(null);
+    setSubmitSuccess(null);
+    setIsVerifying(true);
+
+    try {
+      // 1. Verify code
+      const result = await verifyOtp({
+        challengeId: otpChallenge!.challengeId,
+        otpCode: otpDigits.join(""),
+        purpose: "REGISTER",
+      });
+
+      // 2. Register account immediately
       const normalizedName = splitFullName(form.fullName);
       const payload: RegisterPayload = {
         email: form.email.trim(),
@@ -295,21 +384,20 @@ export default function RegisterScreen() {
         departmentId: useCustomDepartment ? null : Number(departmentId),
         customSchool: useCustomSchool ? customSchool.trim() : null,
         customDepartment: useCustomDepartment ? customDepartment.trim() : null,
+        verifiedToken: result.verifiedToken,
       };
 
       const message = await registerAccount(payload);
-      setSubmitSuccess(message || "Đăng ký thành công. Bạn có thể đăng nhập ngay.");
+      setSubmitSuccess(message || "Đăng ký thành công! Đang chuyển hướng...");
+      
       setTimeout(() => {
+        setShowOtpScreen(false);
         router.replace("/(auth)/login");
-      }, 800);
+      }, 1500);
     } catch (error) {
-      if (error instanceof Error) {
-        setSubmitError(error.message);
-      } else {
-        setSubmitError("Không thể đăng ký lúc này, vui lòng thử lại.");
-      }
+      setSubmitError(error instanceof Error ? error.message : "Xác thực OTP thất bại.");
     } finally {
-      setIsSubmitting(false);
+      setIsVerifying(false);
     }
   };
 
@@ -326,6 +414,100 @@ export default function RegisterScreen() {
     handleBlur("birthday");
   };
 
+  // -------------------------------------------------------------
+  // Full screen OTP Verification View
+  // -------------------------------------------------------------
+  if (showOtpScreen) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.card}>
+            <Pressable 
+              onPress={() => {
+                setShowOtpScreen(false);
+                setSubmitError(null);
+                setSubmitSuccess(null);
+              }}
+              style={styles.backButton}
+            >
+              <Text style={styles.backButtonText}>← Quay lại chỉnh sửa</Text>
+            </Pressable>
+
+            <Text style={styles.title}>Xác thực tài khoản</Text>
+            <Text style={styles.subtitle}>
+              Để bảo mật, chúng tôi đã gửi một mã xác thực 6 số đến{" "}
+              <Text style={{ fontWeight: "700", color: "#4f46e5" }}>
+                {otpChallenge?.maskedEmail || form.email}
+              </Text>
+              . Vui lòng nhập mã để hoàn tất đăng ký.
+            </Text>
+
+            {submitError ? <Text style={styles.errorAlert}>{submitError}</Text> : null}
+            {submitSuccess ? <Text style={styles.successAlert}>{submitSuccess}</Text> : null}
+
+            <View style={styles.otpGrid}>
+              {otpDigits.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(el) => { otpInputRefs.current[index] = el; }}
+                  style={styles.otpInput}
+                  keyboardType="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChangeText={(value) => handleOtpDigitChange(index, value)}
+                  onKeyPress={({ nativeEvent }) => handleOtpKeyPress(index, nativeEvent.key)}
+                />
+              ))}
+            </View>
+
+            <Pressable
+              onPress={handleVerifyAndRegister}
+              disabled={isVerifying || !otpDigits.every((digit) => digit !== "")}
+              style={[
+                styles.submitButton, 
+                (isVerifying || !otpDigits.every((digit) => digit !== "")) && styles.submitButtonDisabled
+              ]}
+            >
+              {isVerifying ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.submitButtonText}>Xác thực và hoàn tất</Text>
+              )}
+            </Pressable>
+
+            <View style={styles.timerContainer}>
+              <Text style={styles.timerTitle}>GỬI LẠI MÃ SAU</Text>
+              <View style={styles.timerRow}>
+                <View style={styles.timerCol}>
+                  <Text style={styles.timerDigits}>
+                    {Math.floor(timeLeft / 60).toString().padStart(2, "0")}
+                  </Text>
+                  <Text style={styles.timerLabel}>PHÚT</Text>
+                </View>
+                <Text style={styles.timerDivider}>:</Text>
+                <View style={styles.timerCol}>
+                  <Text style={styles.timerDigits}>
+                    {(timeLeft % 60).toString().padStart(2, "0")}
+                  </Text>
+                  <Text style={styles.timerLabel}>GIÂY</Text>
+                </View>
+              </View>
+
+              {timeLeft === 0 && (
+                <Pressable onPress={handleResendOtp}>
+                  <Text style={styles.resendLink}>Tôi chưa nhận được mã OTP</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // Main Registration Form View
+  // -------------------------------------------------------------
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -559,11 +741,11 @@ export default function RegisterScreen() {
           {submitSuccess ? <Text style={styles.successAlert}>{submitSuccess}</Text> : null}
 
           <Pressable
-            onPress={handleRegister}
+            onPress={handleRegisterSubmit}
             disabled={isSubmitting || !isFormValid}
             style={[styles.submitButton, (isSubmitting || !isFormValid) && styles.submitButtonDisabled]}
           >
-            <Text style={styles.submitButtonText}>{isSubmitting ? "Đang xử lý..." : "Tạo tài khoản"}</Text>
+            <Text style={styles.submitButtonText}>{isSubmitting ? "Đang gửi OTP..." : "Tạo tài khoản"}</Text>
           </Pressable>
 
           <View style={styles.footerRow}>
@@ -654,6 +836,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: "#475569",
     fontSize: 14,
+    lineHeight: 20,
+  },
+  backButton: {
+    marginBottom: 8,
+    paddingVertical: 6,
+  },
+  backButtonText: {
+    color: "#475569",
+    fontSize: 14,
+    fontWeight: "600",
   },
   fieldGroup: {
     gap: 6,
@@ -804,5 +996,64 @@ const styles = StyleSheet.create({
     color: "#4f46e5",
     fontSize: 13,
     fontWeight: "700",
+  },
+  // OTP Verification Styles
+  otpGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 6,
+    marginVertical: 18,
+  },
+  otpInput: {
+    width: 44,
+    height: 48,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#cbd5e1",
+    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#0f172a",
+    backgroundColor: "#ffffff",
+  },
+  timerContainer: {
+    alignItems: "center",
+    marginTop: 16,
+    gap: 8,
+  },
+  timerTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#94a3b8",
+    letterSpacing: 1,
+  },
+  timerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  timerCol: {
+    alignItems: "center",
+  },
+  timerDigits: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#4f46e5",
+  },
+  timerLabel: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: "#94a3b8",
+  },
+  timerDivider: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#cbd5e1",
+  },
+  resendLink: {
+    color: "#4f46e5",
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 4,
   },
 });

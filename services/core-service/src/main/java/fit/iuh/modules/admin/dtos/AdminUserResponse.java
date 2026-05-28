@@ -16,4 +16,8 @@ public class AdminUserResponse {
     private String status; // "Active" or "Locked"
     private String createdDate; // e.g. "Oct 12, 2023"
     private String avatarUrl;
+    private Long schoolId;
+    private String schoolName;
+    private Long departmentId;
+    private String departmentName;
 }

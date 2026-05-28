@@ -20,6 +20,7 @@ interface AppLayoutProps {
     onNavigateForward?: () => void;
     canGoBack?: boolean;
     canGoForward?: boolean;
+    schoolName?: string;
   };
   children: ReactNode;
 }

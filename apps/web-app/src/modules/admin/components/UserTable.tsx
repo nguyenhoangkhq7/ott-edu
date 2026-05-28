@@ -15,6 +15,7 @@ interface UserTableProps {
   onResetPassword: (user: AdminUser) => void;
   onToggleLock: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
+  onEdit?: (user: AdminUser) => void;
   isLoading?: boolean;
 }
 
@@ -29,6 +30,7 @@ export default function UserTable({
   onResetPassword,
   onToggleLock,
   onDelete,
+  onEdit,
   isLoading = false,
 }: UserTableProps) {
   const getRoleBadgeStyle = (role: string) => {
@@ -59,6 +61,7 @@ export default function UserTable({
               <th className="px-5 py-3">Account / User</th>
               <th className="px-5 py-3">Email</th>
               <th className="px-5 py-3">Role</th>
+              <th className="px-5 py-3">Phòng Ban / Khoa</th>
               <th className="px-5 py-3 text-center">Status</th>
               <th className="px-5 py-3">Created Date</th>
               <th className="px-5 py-3 text-right">Actions</th>
@@ -67,7 +70,7 @@ export default function UserTable({
           <tbody className="divide-y divide-slate-100 text-xs">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-slate-400 font-medium">
+                <td colSpan={7} className="px-5 py-10 text-center text-slate-400 font-medium">
                   <div className="flex justify-center items-center gap-2">
                     <svg viewBox="0 0 24 24" className="h-4.5 w-4.5 animate-spin text-blue-600" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <circle cx="12" cy="12" r="10" />
@@ -79,7 +82,7 @@ export default function UserTable({
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-slate-400 font-medium">
+                <td colSpan={7} className="px-5 py-10 text-center text-slate-400 font-medium">
                   No accounts found matching current filter criteria.
                 </td>
               </tr>
@@ -129,6 +132,11 @@ export default function UserTable({
                       </span>
                     </td>
 
+                    {/* Department */}
+                    <td className="px-5 py-3.5 text-slate-600 font-medium">
+                      {user.departmentName ? `${user.departmentName} (${user.schoolName})` : "N/A"}
+                    </td>
+
                     {/* Status with Toggle */}
                     <td className="px-5 py-3.5">
                       <div className="flex justify-center items-center gap-2.5">
@@ -151,6 +159,19 @@ export default function UserTable({
                     {/* Actions */}
                     <td className="px-5 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                        {/* Edit */}
+                        {onEdit && (
+                          <button
+                            onClick={() => onEdit(user)}
+                            className="flex h-7.5 w-7.5 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                            title="Chỉnh sửa tài khoản"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                        )}
                         {/* Reset Password */}
                         <button
                           onClick={() => onResetPassword(user)}

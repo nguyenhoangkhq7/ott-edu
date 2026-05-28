@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import UserFilterBar from "@/modules/admin/components/UserFilterBar";
 import UserTable from "@/modules/admin/components/UserTable";
 import AddUserModal from "@/modules/admin/components/AddUserModal";
+import EditUserModal from "@/modules/admin/components/EditUserModal";
 import DeleteConfirmModal from "@/modules/admin/components/DeleteConfirmModal";
 import ResetPasswordModal from "@/modules/admin/components/ResetPasswordModal";
 import {
@@ -15,8 +16,10 @@ import {
   unlockUser,
   resetUserPassword,
   getUserSummary,
+  getAllDepartments,
+  updateUser,
 } from "@/services/api/admin.service";
-import type { AdminUser, PaginatedResponse } from "@/shared/types/admin";
+import type { AdminUser, PaginatedResponse, Department } from "@/shared/types/admin";
 import { ROLE_OPTIONS, STATUS_OPTIONS } from "@/modules/admin/constants";
 
 export default function AdminUserManagementPage() {
@@ -49,9 +52,11 @@ export default function AdminUserManagementPage() {
 
   // Modal Triggers
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   const shouldOpenAddModal = searchParams.get("add") === "true";
 
@@ -76,6 +81,19 @@ export default function AdminUserManagementPage() {
       }
     }
     loadSummary();
+  }, []);
+
+  // Load departments once
+  useEffect(() => {
+    async function loadDepartments() {
+      try {
+        const depts = await getAllDepartments();
+        setDepartments(depts);
+      } catch (err) {
+        console.error("Failed to load departments:", err);
+      }
+    }
+    loadDepartments();
   }, []);
 
   // Fetch paginated user table data
@@ -148,6 +166,20 @@ export default function AdminUserManagementPage() {
   const triggerResetModal = (user: AdminUser) => {
     setSelectedUser(user);
     setShowResetModal(true);
+  };
+
+  // Trigger edit user dialog
+  const triggerEditModal = (user: AdminUser) => {
+    setSelectedUser(user);
+    setShowEditModal(true);
+  };
+
+  // Handle Edit Account
+  const handleUpdateUser = async (payload: Parameters<typeof updateUser>[1]) => {
+    if (!selectedUser) return;
+    await updateUser(selectedUser.accountId, payload);
+    fetchUserData();
+    showToast(`Cập nhật thông tin cho ${selectedUser.firstName} ${selectedUser.lastName} thành công.`);
   };
 
   // Trigger delete dialog
@@ -258,6 +290,7 @@ export default function AdminUserManagementPage() {
         onResetPassword={triggerResetModal}
         onToggleLock={handleToggleLock}
         onDelete={triggerDeleteModal}
+        onEdit={triggerEditModal}
         isLoading={loading}
       />
 
@@ -287,6 +320,18 @@ export default function AdminUserManagementPage() {
         }}
         onConfirm={handleResetPassword}
         user={selectedUser}
+      />
+
+      <EditUserModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedUser(null);
+        }}
+        onSubmit={handleUpdateUser}
+        user={selectedUser}
+        roleOptions={ROLE_OPTIONS}
+        departments={departments}
       />
 
       {/* Toast Notification */}

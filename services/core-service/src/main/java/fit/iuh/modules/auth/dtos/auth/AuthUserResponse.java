@@ -23,6 +23,7 @@ public class AuthUserResponse {
     private String phone;
     private String code;
     private Long schoolId;
+    private String schoolName;
     private Long departmentId;
     private String departmentName;
 

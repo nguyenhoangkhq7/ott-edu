@@ -28,7 +28,7 @@ export type AuthUser = {
   departmentName: string | null;
 };
 
-export type OtpPurpose = "FORGOT_PASSWORD" | "CHANGE_PASSWORD";
+export type OtpPurpose = "FORGOT_PASSWORD" | "CHANGE_PASSWORD" | "REGISTER";
 
 export type SchoolOption = {
   id: number;
@@ -52,6 +52,7 @@ export type RegisterPayload = {
   departmentId: number | null;
   customSchool?: string | null;
   customDepartment?: string | null;
+  verifiedToken?: string;
 };
 
 export type OtpChallenge = {
@@ -238,6 +239,14 @@ export async function registerAccount(payload: RegisterPayload): Promise<string>
 export async function sendChangePasswordOtp(): Promise<OtpChallenge> {
   try {
     return await apiClient.post<OtpChallenge>("/auth/send-change-password-otp", {});
+  } catch (error) {
+    throw new Error(toErrorMessage(error));
+  }
+}
+
+export async function sendRegisterOtp(payload: { email: string }): Promise<OtpChallenge> {
+  try {
+    return await apiClient.post<OtpChallenge, { email: string }>("/auth/send-register-otp", payload);
   } catch (error) {
     throw new Error(toErrorMessage(error));
   }

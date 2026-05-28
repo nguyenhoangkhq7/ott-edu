@@ -147,6 +147,14 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Đã gửi mã OTP qua email.", response));
     }
 
+    @PostMapping("/send-register-otp")
+    public ResponseEntity<ApiSuccessResponse<OtpChallengeResponse>> sendRegisterOtp(
+            @Valid @RequestBody ForgotPasswordRequest request
+    ) {
+        OtpChallengeResponse response = authService.sendRegisterOtp(request);
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Đã gửi mã OTP qua email.", response));
+    }
+
     @PostMapping("/send-change-password-otp")
     public ResponseEntity<ApiSuccessResponse<OtpChallengeResponse>> sendChangePasswordOtp(Authentication authentication) {
         if (authentication == null || authentication.getName() == null) {

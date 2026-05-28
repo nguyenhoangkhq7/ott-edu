@@ -2,6 +2,7 @@ package fit.iuh.modules.admin.controllers;
 
 import fit.iuh.modules.admin.dtos.AdminUserResponse;
 import fit.iuh.modules.admin.dtos.CreateUserRequest;
+import fit.iuh.modules.admin.dtos.UpdateUserRequest;
 import fit.iuh.modules.admin.dtos.UserSummaryResponse;
 import fit.iuh.modules.admin.services.AdminUserService;
 import fit.iuh.modules.platform.api.ApiResponseFactory;
@@ -47,6 +48,19 @@ public class AdminUserController {
         AdminUserResponse result = adminUserService.createUser(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 ApiResponseFactory.success(HttpStatus.CREATED, "Tạo người dùng thành công.", result)
+        );
+    }
+
+    @PutMapping("/{userId}")
+    public ResponseEntity<ApiSuccessResponse<AdminUserResponse>> updateUser(
+            @PathVariable("userId") Long userId,
+            @Valid @RequestBody UpdateUserRequest request,
+            Authentication authentication
+    ) {
+        checkAdminAccess(authentication);
+        AdminUserResponse result = adminUserService.updateUser(userId, request);
+        return ResponseEntity.ok(
+                ApiResponseFactory.success(HttpStatus.OK, "Cập nhật người dùng thành công.", result)
         );
     }
 

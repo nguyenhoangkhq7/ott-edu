@@ -6,6 +6,7 @@ import Image from "next/image";
 import { getCurrentUser, type AuthUser } from "@/services/auth/auth.service";
 import { Mail, Lock, Sparkles, Edit3 } from "lucide-react";
 import Toggle from "@/shared/components/ui/Toggle";
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -40,8 +41,12 @@ export default function AccountPage() {
     if (!user) {
       return "Đang tải...";
     }
-    return [user.lastName, user.firstName].filter(Boolean).join(" ") || user.email;
+    return [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
   }, [user]);
+
+  const initials = useMemo(() => {
+    return getInitialsFromDisplayName(fullName);
+  }, [fullName]);
 
   const roleLabel = useMemo(() => {
     const roles = user?.roles;
@@ -89,12 +94,18 @@ export default function AccountPage() {
         <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-slate-100 ring-4 ring-slate-50">
-              <Image
-                src={user?.avatarUrl || "/assets/avatar-placeholder.png"}
-                alt={fullName}
-                fill
-                className="object-cover"
-              />
+              {user?.avatarUrl ? (
+                <Image
+                  src={user.avatarUrl}
+                  alt={fullName}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-[#d1d2eb] text-2xl font-extrabold text-[#4b53bc]">
+                  {initials}
+                </div>
+              )}
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Họ và Tên</p>

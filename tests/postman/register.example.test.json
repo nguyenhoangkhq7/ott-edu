@@ -21,7 +21,8 @@
               "pm.environment.set('registerRoleName', pm.environment.get('registerRoleName') || 'ROLE_STUDENT');",
               "pm.environment.set('registerCode', 'STU' + suffix);",
               "pm.environment.set('registerSchoolId', pm.environment.get('registerSchoolId') || '1');",
-              "pm.environment.set('registerDepartmentId', pm.environment.get('registerDepartmentId') || '1');"
+              "pm.environment.set('registerDepartmentId', pm.environment.get('registerDepartmentId') || '1');",
+              "pm.environment.set('registerVerifiedToken', pm.environment.get('registerVerifiedToken') || '');"
             ]
           }
         },
@@ -31,7 +32,11 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Status is 200, 201, or 409 for example flow', function () {",
-              "    pm.expect([200, 201, 409]).to.include(pm.response.code);",
+              "    if (pm.environment.get('registerVerifiedToken')) {",
+              "        pm.expect([200, 201, 409]).to.include(pm.response.code);",
+              "    } else {",
+              "        pm.expect([200, 201, 400, 409]).to.include(pm.response.code);",
+              "    }",
               "});"
             ]
           }
@@ -47,7 +52,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"{{registerPassword}}\",\n  \"firstName\": \"{{registerFirstName}}\",\n  \"lastName\": \"{{registerLastName}}\",\n  \"roleName\": \"{{registerRoleName}}\",\n  \"code\": \"{{registerCode}}\",\n  \"departmentId\": {{registerDepartmentId}},\n  \"schoolId\": {{registerSchoolId}}\n}"
+          "raw": "{\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"{{registerPassword}}\",\n  \"firstName\": \"{{registerFirstName}}\",\n  \"lastName\": \"{{registerLastName}}\",\n  \"roleName\": \"{{registerRoleName}}\",\n  \"code\": \"{{registerCode}}\",\n  \"departmentId\": {{registerDepartmentId}},\n  \"schoolId\": {{registerSchoolId}},\n  \"verifiedToken\": \"{{registerVerifiedToken}}\"\n}"
         },
         "url": "{{baseUrl}}/api/core/auth/register"
       },

@@ -10,9 +10,10 @@ import {
 } from "@/modules/auth/validators";
 import {
   getDepartmentsBySchoolId,
-  registerAccount,
+  sendRegisterOtp,
   type DepartmentOption,
 } from "@/services/auth/auth.service";
+import { setRegisterOtpState } from "@/services/auth/otp-flow-store";
 import Input from "@/shared/components/ui/Input";
 
 import {
@@ -36,25 +37,6 @@ const INITIAL_FORM: RegisterFormState = {
   confirmPassword: "",
   birthday: "",
 };
-
-function splitFullName(fullName: string): { firstName: string; lastName: string } {
-  const parts = fullName
-    .trim()
-    .split(/\s+/)
-    .filter((part) => part.length > 0);
-
-  if (parts.length <= 1) {
-    return {
-      firstName: parts[0] ?? "",
-      lastName: "",
-    };
-  }
-
-  return {
-    firstName: parts[0],
-    lastName: parts.slice(1).join(" "),
-  };
-}
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -182,42 +164,23 @@ export default function RegisterPage() {
     try {
       setIsSubmitting(true);
 
-      const normalizedName = splitFullName(form.fullName);
+      const challenge = await sendRegisterOtp({ email: form.email.trim() });
 
-      const responseMessage = await registerAccount({
-        email: form.email.trim(),
-        password: form.password,
-        firstName: normalizedName.firstName,
-        lastName: normalizedName.lastName,
-        roleName: "ROLE_STUDENT",
-        code: code.trim(),
-        schoolId: DEFAULT_SCHOOL_ID,
-        departmentId: Number(departmentId),
-      });
+      setRegisterOtpState(
+        challenge.challengeId,
+        challenge.maskedEmail,
+        form.email.trim(),
+        form,
+        code,
+        departmentId
+      );
 
-      setSubmitSuccess(responseMessage || `Đăng ký thành công tài khoản sinh viên cho ${form.fullName.trim()}. Bạn có thể đăng nhập ngay.`);
-
-      setForm(INITIAL_FORM);
-      setCode("");
-      setAcceptedTerms(false);
-      setDepartmentId("");
-      setTouched({
-        email: false,
-        fullName: false,
-        password: false,
-        confirmPassword: false,
-        birthday: false,
-        terms: false,
-        code: false,
-        departmentId: false,
-      });
-      setShowPassword(false);
-      router.replace("/login");
+      router.push("/register/verify");
     } catch (error) {
       if (error instanceof Error) {
         setSubmitError(error.message);
       } else {
-        setSubmitError("Không thể đăng ký lúc này, vui lòng thử lại.");
+        setSubmitError("Không thể gửi mã xác nhận lúc này, vui lòng thử lại.");
       }
     } finally {
       setIsSubmitting(false);

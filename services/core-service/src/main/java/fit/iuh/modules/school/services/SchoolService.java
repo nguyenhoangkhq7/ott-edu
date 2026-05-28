@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface SchoolService {
     List<SchoolResponse> getAllSchools();
+    void updateSchoolName(Long schoolId, String name);
 }

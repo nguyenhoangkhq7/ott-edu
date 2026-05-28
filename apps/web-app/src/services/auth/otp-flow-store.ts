@@ -1,4 +1,5 @@
 import type { OtpPurpose } from "@/services/auth/auth.service";
+import type { RegisterValidationInput } from "@/modules/auth/validators";
 
 type OtpFlowState = {
   challengeId: string;
@@ -118,4 +119,52 @@ export function setChangeVerifiedToken(token: string): void {
 
 export function getChangeVerifiedToken(): string | null {
   return loadToken(CHANGE_VERIFIED_TOKEN_KEY);
+}
+
+const REGISTER_STATE_KEY = "register-otp-state";
+
+export type RegisterOtpState = {
+  challengeId: string;
+  maskedEmail: string;
+  email: string;
+  form: RegisterValidationInput;
+  code: string;
+  departmentId: string;
+};
+
+export function setRegisterOtpState(
+  challengeId: string,
+  maskedEmail: string,
+  email: string,
+  form: RegisterValidationInput,
+  code: string,
+  departmentId: string
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.setItem(
+    REGISTER_STATE_KEY,
+    JSON.stringify({ challengeId, maskedEmail, email, form, code, departmentId })
+  );
+}
+
+export function getRegisterOtpState(): RegisterOtpState | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = sessionStorage.getItem(REGISTER_STATE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as RegisterOtpState;
+  } catch {
+    return null;
+  }
+}
+
+export function clearRegisterOtpState(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.removeItem(REGISTER_STATE_KEY);
 }

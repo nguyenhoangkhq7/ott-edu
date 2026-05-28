@@ -141,7 +141,7 @@ public class SecurityConfig {
                                                 .requestMatchers("/auth/verify-otp").permitAll()
                                                 .requestMatchers("/auth/reset-password").permitAll()
                                                 .requestMatchers("/api/schools/**").permitAll()
-                                                .requestMatchers("/schools/**").permitAll()
+                                                .requestMatchers("/schools", "/schools/**").permitAll()
                                                 .requestMatchers("/posts/**").permitAll()
                                                 .requestMatchers("/attachments/**").permitAll()
                                                 .requestMatchers("/interact/**").permitAll()

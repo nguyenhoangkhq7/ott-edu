@@ -29,6 +29,8 @@ public interface AuthService {
 
     OtpChallengeResponse forgotPassword(ForgotPasswordRequest request);
 
+    OtpChallengeResponse sendRegisterOtp(ForgotPasswordRequest request);
+
     OtpChallengeResponse sendChangePasswordOtp(String email);
 
     VerifyOtpResponse verifyOtp(VerifyOtpRequest request);

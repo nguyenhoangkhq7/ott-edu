@@ -5,7 +5,7 @@ export type LoginPayload = {
   password: string;
 };
 
-export type OtpPurpose = "FORGOT_PASSWORD" | "CHANGE_PASSWORD";
+export type OtpPurpose = "FORGOT_PASSWORD" | "CHANGE_PASSWORD" | "REGISTER";
 
 export type AuthUser = {
   accountId: number;
@@ -18,6 +18,7 @@ export type AuthUser = {
   phone: string | null;
   code: string | null;
   schoolId: number | null;
+  schoolName: string | null;
   departmentId: number | null;
   departmentName: string | null;
 };
@@ -42,6 +43,7 @@ export type RegisterPayload = {
   code: string;
   schoolId: 1;
   departmentId: number;
+  verifiedToken?: string;
 };
 
 export type ForgotPasswordPayload = {
@@ -134,6 +136,10 @@ export async function registerAccount(payload: RegisterPayload): Promise<string>
 
 export async function forgotPassword(payload: ForgotPasswordPayload): Promise<OtpChallenge> {
   return httpService.post<OtpChallenge>("/auth/forgot-password", payload);
+}
+
+export async function sendRegisterOtp(payload: ForgotPasswordPayload): Promise<OtpChallenge> {
+  return httpService.post<OtpChallenge>("/auth/send-register-otp", payload);
 }
 
 export async function sendChangePasswordOtp(): Promise<OtpChallenge> {

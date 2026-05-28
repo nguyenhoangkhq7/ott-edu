@@ -12,6 +12,8 @@ import type {
   UserGrowthPoint,
   TopActiveUser,
   PaginatedResponse,
+  School,
+  Department,
 } from '@/shared/types/admin';
 
 import {
@@ -99,4 +101,48 @@ export async function getUserSummary(): Promise<{
   lockedAccounts: number;
 }> {
   return httpService.get('/admin/users/summary');
+}
+
+export interface UpdateUserPayload {
+  firstName: string;
+  lastName: string;
+  role: string;
+  departmentId?: number | null;
+}
+
+export async function updateUser(
+  userId: number,
+  payload: UpdateUserPayload,
+): Promise<AdminUser> {
+  return httpService.put<AdminUser>(`/admin/users/${userId}`, payload);
+}
+
+// ---- School & Department Management ----
+
+export async function getSchools(): Promise<School[]> {
+  return httpService.get<School[]>('/schools');
+}
+
+export async function renameSchool(schoolId: number, name: string): Promise<void> {
+  return httpService.put<void>(`/admin/schools/${schoolId}?name=${encodeURIComponent(name)}`);
+}
+
+export async function getDepartmentsBySchool(schoolId: number): Promise<Department[]> {
+  return httpService.get<Department[]>(`/schools/${schoolId}/departments`);
+}
+
+export async function getAllDepartments(): Promise<Department[]> {
+  return httpService.get<Department[]>('/admin/departments');
+}
+
+export async function createDepartment(schoolId: number, name: string): Promise<Department> {
+  return httpService.post<Department>(`/admin/departments?schoolId=${schoolId}&name=${encodeURIComponent(name)}`);
+}
+
+export async function updateDepartment(id: number, name: string): Promise<Department> {
+  return httpService.put<Department>(`/admin/departments/${id}?name=${encodeURIComponent(name)}`);
+}
+
+export async function deleteDepartment(id: number): Promise<void> {
+  return httpService.delete<void>(`/admin/departments/${id}`);
 }

@@ -13,4 +13,5 @@ public class RegisterRequest {
 
     private Long departmentId;
     private Long schoolId;
+    private String verifiedToken;
 }

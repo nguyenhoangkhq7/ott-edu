@@ -8,6 +8,7 @@ import fit.iuh.models.Role;
 import fit.iuh.models.School;
 import fit.iuh.modules.admin.dtos.AdminUserResponse;
 import fit.iuh.modules.admin.dtos.CreateUserRequest;
+import fit.iuh.modules.admin.dtos.UpdateUserRequest;
 import fit.iuh.modules.admin.dtos.UserSummaryResponse;
 import fit.iuh.modules.admin.dtos.UserGrowthPoint;
 import fit.iuh.modules.admin.dtos.TopActiveUser;
@@ -126,6 +127,33 @@ public class AdminUserServiceImpl implements AdminUserService {
 
     @Override
     @Transactional
+    public AdminUserResponse updateUser(Long userId, UpdateUserRequest request) {
+        Profile profile = profileRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại."));
+        Account account = profile.getAccount();
+
+        profile.setFirstName(request.getFirstName());
+        profile.setLastName(request.getLastName());
+
+        Role roleEnum = mapFrontendRoleToBackend(request.getRole());
+        account.setRole(roleEnum);
+        accountRepository.save(account);
+
+        if (request.getDepartmentId() != null) {
+            Department department = departmentRepository.findById(request.getDepartmentId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy khoa/phòng ban."));
+            profile.setDepartment(department);
+            profile.setSchool(department.getSchool());
+        } else {
+            profile.setDepartment(null);
+        }
+
+        profile = profileRepository.save(profile);
+        return mapToResponse(profile);
+    }
+
+    @Override
+    @Transactional
     public void deleteUser(Long userId) {
         if (!accountRepository.existsById(userId)) {
             throw new RuntimeException("Tài khoản không tồn tại.");
@@ -205,6 +233,10 @@ public class AdminUserServiceImpl implements AdminUserService {
                 .status(account.isLocked() ? "Locked" : "Active")
                 .createdDate(formatDateTime(account.getCreatedAt()))
                 .avatarUrl(profile.getAvatarUrl())
+                .schoolId(profile.getSchool() != null ? profile.getSchool().getId() : null)
+                .schoolName(profile.getSchool() != null ? profile.getSchool().getName() : null)
+                .departmentId(profile.getDepartment() != null ? profile.getDepartment().getId() : null)
+                .departmentName(profile.getDepartment() != null ? profile.getDepartment().getDepartmentName() : null)
                 .build();
     }
 

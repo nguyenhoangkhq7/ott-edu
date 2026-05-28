@@ -1,5 +1,4 @@
-import { Image, StyleSheet, Text, View } from "react-native";
-
+import { Image, StyleSheet, View, Text } from "react-native";
 import { getDisplayName, getInitialsFromDisplayName } from "../utils/user-display";
 
 type UserAvatarProps = {
@@ -28,7 +27,7 @@ export default function UserAvatar({
 
   return (
     <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={[styles.initials, { fontSize: Math.max(12, Math.floor(size * 0.38)) }]}>{initials}</Text>
+      <Text style={[styles.initials, { fontSize: size * 0.4 }]}>{initials}</Text>
     </View>
   );
 }
@@ -44,6 +43,6 @@ const styles = StyleSheet.create({
   },
   initials: {
     color: "#4b53bc",
-    fontWeight: "700",
+    fontWeight: "bold",
   },
 });

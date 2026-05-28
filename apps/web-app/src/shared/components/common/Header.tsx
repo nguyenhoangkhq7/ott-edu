@@ -17,6 +17,7 @@ interface HeaderProps {
   notifications: number;
   onLogout?: () => Promise<void>;
   isLoggingOut?: boolean;
+  schoolName?: string;
 }
 
 export default function Header({
@@ -29,6 +30,7 @@ export default function Header({
   notifications,
   onLogout,
   isLoggingOut = false,
+  schoolName,
 }: HeaderProps) {
   const router = useRouter();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -109,8 +111,8 @@ export default function Header({
           </div>
 
           <div className="hidden xl:block ml-2 mr-2 text-right">
-            <p className="text-[11px] font-medium text-slate-600 truncate max-w-[150px]">
-              Industrial University...
+            <p className="text-[11px] font-medium text-slate-600 truncate max-w-[150px]" title={schoolName || "Industrial University..."}>
+              {schoolName || "Industrial University..."}
             </p>
           </div>
 

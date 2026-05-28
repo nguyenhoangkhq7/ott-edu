@@ -16,6 +16,21 @@ export interface AdminUser {
   status: AdminUserStatus;
   createdDate: string;
   avatarUrl?: string;
+  schoolId?: number;
+  schoolName?: string;
+  departmentId?: number;
+  departmentName?: string;
+}
+
+export interface School {
+  id: number;
+  name: string;
+}
+
+export interface Department {
+  id: number;
+  name: string;
+  schoolId: number;
 }
 
 /** Dashboard overview statistics */

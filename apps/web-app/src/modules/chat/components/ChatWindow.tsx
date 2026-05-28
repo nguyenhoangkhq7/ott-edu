@@ -25,10 +25,8 @@ import {
   Phone,
   PhoneOff,
   RefreshCw,
-  Share2,
   UserCheck,
   UserPlus,
-  Users,
   Video,
   X,
 } from "lucide-react";
@@ -37,6 +35,7 @@ import { Socket } from "socket.io-client";
 import ConversationInfoSidebar from "@/shared/components/ConversationInfoSidebar";
 import { AddMemberModal } from "./AddMemberModal";
 import { requestOrAddGroupMember, sendFriendRequestApi } from "../chatApi";
+import { VideoCallOverlay } from "./VideoCallOverlay";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -84,78 +83,7 @@ interface ChatWindowProps {
   onConversationInfoRefreshTick?: number;
 }
 
-interface RemoteVideoProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
-  stream: MediaStream;
-}
 
-const RemoteVideo: React.FC<RemoteVideoProps> = ({ stream, ...props }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-
-    if (el.srcObject !== stream) {
-      el.srcObject = stream;
-    }
-
-    el.muted = true;
-    const tryPlay = () => {
-      if (!el) return;
-      el.play()
-        .then(() => {
-          el.muted = false;
-        })
-        .catch((err) => {
-          console.warn("[RemoteVideo] Play failed:", err);
-        });
-    };
-
-    if (el.readyState >= 2) {
-      tryPlay();
-    } else {
-      el.oncanplay = tryPlay;
-    }
-
-    return () => {
-      el.oncanplay = null;
-    };
-  }, [stream]);
-
-  return <video ref={videoRef} {...props} />;
-};
-
-interface RemoteAudioProps extends React.AudioHTMLAttributes<HTMLAudioElement> {
-  stream: MediaStream;
-}
-
-const RemoteAudio: React.FC<RemoteAudioProps> = ({ stream, ...props }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-
-    if (el.srcObject !== stream) {
-      el.srcObject = stream;
-    }
-
-    el.muted = true;
-    el.play()
-      .then(() => {
-        try {
-          el.muted = false;
-        } catch {
-          // ignore
-        }
-      })
-      .catch((err) => {
-        console.warn("[RemoteAudio] Play failed:", err);
-      });
-  }, [stream]);
-
-  return <audio ref={audioRef} {...props} />;
-};
 
 
 
@@ -201,15 +129,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     switch (item.status) {
       case "connected":
       case "ended":
-        return "Da goi";
+        return "Đã gọi";
       case "declined":
-        return "Bi tu choi";
+        return "Bị từ chối";
       case "unavailable":
-        return "Khong lien lac duoc";
+        return "Không liên lạc được";
       case "failed":
-        return "Loi ket noi";
+        return "Lỗi kết nối";
       case "ringing":
-        return "Dang do chuong";
+        return "Đang đổ chuông";
       default:
         return item.status;
     }
@@ -244,7 +172,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           callType: item.callType || "video",
           status: item.status,
           durationSec: item.durationSec,
-          label: `Cuoc goi ${formatCallStatus(item).toLowerCase()}`,
+          label: `Cuộc gọi ${formatCallStatus(item).toLowerCase()}`,
         })}`,
         createdAt: item.startedAt,
         status: "sent" as const,
@@ -355,24 +283,24 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const callStatusLabel = React.useMemo(() => {
     const currentCallType: MediaCallKind = activeCall?.callType || incomingCall?.callType || "video";
-    const callTypeLabel = currentCallType === "audio" ? "am thanh" : "video";
+    const callTypeLabel = currentCallType === "audio" ? "audio" : "video";
 
     switch (callStatus) {
       case "calling":
-        return `Dang goi ${callTypeLabel}... cho doi phuong chap nhan`;
+        return `Đang gọi ${callTypeLabel}... chờ đối phương chấp nhận`;
       case "receiving":
-        return `Ban co cuoc goi ${callTypeLabel} den`;
+        return `Bạn có cuộc gọi ${callTypeLabel} đến`;
       case "connected":
-        return `Da ket noi ${callTypeLabel}`;
+        return `Đã kết nối ${callTypeLabel}`;
       default:
-        return "San sang";
+        return "Sẵn sàng";
     }
   }, [activeCall, callStatus, incomingCall]);
 
   const incomingCallerName =
-    incomingCaller?.name || incomingCall?.fromUserId || "Nguoi dung";
-  const incomingCallTypeLabel = incomingCall?.callType === "audio" ? "am thanh" : "video";
-  const activeCallTypeLabel = activeCall?.callType === "audio" ? "am thanh" : "video";
+    incomingCaller?.name || incomingCall?.fromUserId || "Người dùng";
+  const incomingCallTypeLabel = incomingCall?.callType === "audio" ? "audio" : "video";
+  const activeCallTypeLabel = activeCall?.callType === "audio" ? "audio" : "video";
   const currentCallType: MediaCallKind = activeCall?.callType || incomingCall?.callType || "video";
   const isAudioCall = currentCallType === "audio";
   const showFullScreenCall =
@@ -382,375 +310,33 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const showInlineCallPanel = !showFullScreenCall && Boolean(callError);
 
   const renderFullScreenCallOverlay = () => {
-    if (!showFullScreenCall) {
-      return null;
-    }
-
-    const callTitle = conversation?.name || incomingCallerName || "Cuoc goi";
-    const isOneOnOne = remoteStreamsList.length <= 1;
-
-    // Responsive grid for group: 1→full, 2→2col, 3-4→2col, 5+→3col
-    const gridCols =
-      remoteStreamsList.length <= 1
-        ? "grid-cols-1"
-        : remoteStreamsList.length <= 4
-          ? "grid-cols-2"
-          : "grid-cols-3";
-
-    const renderLocalPreview = () => {
-      if (isAudioCall) {
-        return (
-          <div className="absolute bottom-4 right-4 z-20 flex w-44 items-center gap-3 rounded-2xl border border-white/20 bg-black/80 px-3 py-3 shadow-2xl backdrop-blur-sm">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white">
-              <Users size={18} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-white">Ban</p>
-              <p className="text-[11px] text-white/60">Dang goi am thanh</p>
-            </div>
-          </div>
-        );
-      }
-
-      return (
-        <div
-          className="absolute bottom-4 right-4 z-20 overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl
-                        w-28 sm:w-36 md:w-44"
-        >
-          <video
-            ref={(el) => {
-              if (!el) return;
-              if (el.srcObject !== localStream) {
-                el.srcObject = localStream;
-              }
-              if (localStream) el.play().catch(() => { });
-            }}
-            autoPlay
-            muted
-            playsInline
-            className="aspect-video w-full object-cover"
-          />
-          {(!localStream || !isCameraEnabled) && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 text-[10px] text-slate-300">
-              {isCameraEnabled ? "Dang tai..." : "Camera tat"}
-            </div>
-          )}
-          <div className="absolute bottom-1 left-2 text-[10px] text-white/70">
-            Ban
-          </div>
-        </div>
-      );
-    };
-
     return (
-      <div className="fixed inset-0 z-50 flex flex-col overflow-hidden text-white">
-        {/* Background */}
-        <div className="absolute inset-0 bg-slate-950" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.18),transparent_60%),radial-gradient(ellipse_at_bottom_left,rgba(14,116,144,0.15),transparent_50%)]" />
-
-        {/* Content wrapper — takes full height, never overflows */}
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-          {/* ── Header ── */}
-          <div className="flex shrink-0 items-center justify-between px-4 py-3 sm:px-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm">
-                <Users size={16} />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-xs uppercase tracking-widest text-slate-400">
-                  Cuoc goi {incomingCallTypeLabel === "am thanh" ? "am thanh" : activeCallTypeLabel}
-                </p>
-                <h2 className="truncate text-base font-semibold leading-tight text-white sm:text-lg">
-                  {callTitle}
-                </h2>
-              </div>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[11px] text-slate-400">{callStatusLabel}</p>
-            </div>
-          </div>
-
-          {/* ── Error banner ── */}
-          {callError && (
-            <div className="mx-4 mb-2 shrink-0 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 sm:mx-6">
-              <div className="flex items-start justify-between gap-2">
-                <p className="flex-1">{callError}</p>
-                {onClearCallError && (
-                  <button
-                    type="button"
-                    onClick={onClearCallError}
-                    className="shrink-0 rounded-full p-1 hover:bg-white/10"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-              {onRetryMediaPermission && (
-                <button
-                  type="button"
-                  onClick={() => void onRetryMediaPermission()}
-                  className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-rose-200/40 px-2.5 py-1 text-[11px] font-semibold hover:bg-rose-500/20"
-                >
-                  <RefreshCw size={11} /> Xin quyen lai
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* ── Main area — flex-1 with min-h-0 to stay within bounds ── */}
-          {incomingCall && callStatus === ("receiving" as VideoCallStatus) ? (
-            /* Incoming call screen */
-            <div className="flex flex-1 items-center justify-center p-6">
-              <div className="w-full max-w-sm rounded-3xl border border-emerald-400/30 bg-emerald-500/10 px-6 py-8 text-center backdrop-blur-sm">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/20 ring-4 ring-emerald-400/30">
-                  {incomingCall?.callType === "audio" ? (
-                    <Phone size={28} className="text-emerald-300" />
-                  ) : (
-                    <Video size={28} className="text-emerald-300" />
-                  )}
-                </div>
-                <p className="text-xs uppercase tracking-widest text-emerald-300">
-                  Cuoc goi den
-                </p>
-                <p className="mt-2 text-lg font-semibold text-white">
-                  {incomingCallerName} dang goi {incomingCallTypeLabel} cho ban
-                </p>
-                <div className="mt-6 flex items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={onDeclineIncomingCall}
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/80 transition hover:bg-rose-500"
-                    title="Tu choi"
-                  >
-                    <PhoneOff size={20} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onAcceptIncomingCall}
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400 transition hover:bg-emerald-300"
-                    title="Chap nhan"
-                  >
-                    <Phone size={20} className="text-emerald-950" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : isAudioCall ? (
-            /* ── Audio Layout: compact avatar-based view ── */
-            <div className="relative min-h-0 flex-1 overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4 text-center text-white/90">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15">
-                    <Users size={42} className="text-white/80" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-semibold">
-                      {conversation?.name || callTitle}
-                    </p>
-                    <p className="text-sm text-white/60">Cuoc goi am thanh</p>
-                  </div>
-                </div>
-              </div>
-
-              {remoteStreamsList.length > 0 ? (
-                <div className="absolute inset-x-0 bottom-28 flex justify-center gap-3 px-4 flex-wrap">
-                  {remoteStreamsList.map(([userId]) => (
-                    <div
-                      key={userId}
-                      className="flex h-14 min-w-14 items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 text-xs text-white/90 backdrop-blur-sm"
-                    >
-                      {userId.slice(-6)}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {renderLocalPreview()}
-            </div>
-          ) : isOneOnOne ? (
-            /* ── 1-1 Layout: remote fills entire area, local is PiP ── */
-            <div className="relative min-h-0 flex-1">
-              {/* Remote — full bleed */}
-              {remoteStreamsList.length > 0 ? (
-                (() => {
-                  const [userId, stream] = remoteStreamsList[0]!;
-
-                  const hasVideo = stream.getVideoTracks().length > 0;
-                  const hasAudio = stream.getAudioTracks().length > 0;
-
-                  // If stream has no video but has audio (audio-only call), render an <audio>
-                  if (!hasVideo && hasAudio) {
-                    return (
-                      <RemoteAudio
-                        key={userId}
-                        stream={stream}
-                        autoPlay
-                        controls={false}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                    );
-                  }
-
-                  return (
-                    <RemoteVideo
-                      key={userId}
-                      stream={stream}
-                      autoPlay
-                      playsInline
-                      className="absolute inset-0 h-full w-full object-cover"
-                    />
-                  );
-                })()
-              ) : (
-                /* Waiting placeholder */
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-300">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/5 ring-1 ring-white/10">
-                    <Users size={36} className="opacity-40" />
-                  </div>
-                  <p className="text-sm tracking-wide text-slate-400">
-                    Dang ket noi...
-                  </p>
-                </div>
-              )}
-
-              {renderLocalPreview()}
-            </div>
-          ) : (
-            /* ── Group Layout: grid + local tile ── */
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 sm:px-4">
-              <div
-                className={`grid ${gridCols} auto-rows-fr gap-2 sm:gap-3`}
-                style={{ minHeight: 0 }}
-              >
-                {/* Remote tiles */}
-                {remoteStreamsList.map(([userId, stream]) => (
-                  <div
-                    key={userId}
-                    className="relative overflow-hidden rounded-2xl bg-slate-800 ring-1 ring-white/10"
-                    style={{ aspectRatio: "16/9" }}
-                  >
-                    <RemoteVideo
-                      key={userId}
-                      stream={stream}
-                      autoPlay
-                      playsInline
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white backdrop-blur-sm">
-                      {userId.slice(-6)}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Local tile in grid */}
-                <div
-                  className="relative overflow-hidden rounded-2xl bg-slate-800 ring-1 ring-white/10"
-                  style={{ aspectRatio: "16/9" }}
-                >
-                  {isAudioCall ? (
-                    <div className="flex h-full w-full items-center justify-center bg-slate-900 text-white/90">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10">
-                          <Users size={24} />
-                        </div>
-                        <p className="text-xs text-white/60">Ban</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <video
-                      ref={(el) => {
-                        if (!el) return;
-                        if (el.srcObject !== localStream)
-                          el.srcObject = localStream;
-                        if (localStream) el.play().catch(() => { });
-                      }}
-                      autoPlay
-                      muted
-                      playsInline
-                      className="h-full w-full object-cover"
-                    />
-                  )}
-                  {!isAudioCall && (!localStream || !isCameraEnabled) && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/70 text-xs text-slate-300">
-                      {isCameraEnabled ? "Dang tai..." : "Camera tat"}
-                    </div>
-                  )}
-                  <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white backdrop-blur-sm">
-                    Ban
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Controls bar — always at bottom, never overlaps ── */}
-          <div className="shrink-0 px-4 pb-safe-bottom">
-            <div className="flex items-center justify-center gap-2 py-4 sm:gap-3">
-              {/* Mic */}
-              <button
-                type="button"
-                onClick={onToggleMicrophone}
-                disabled={!localStream}
-                className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isMicrophoneEnabled
-                    ? "border-white/25 bg-white/10 text-white hover:bg-white/20"
-                    : "border-rose-400/60 bg-rose-500/30 text-rose-200"
-                  }`}
-                title={isMicrophoneEnabled ? "Tat micro" : "Bat micro"}
-              >
-                {isMicrophoneEnabled ? <Mic size={18} /> : <MicOff size={18} />}
-              </button>
-
-              {!isAudioCall && (
-                <>
-                  {/* Camera */}
-                  <button
-                    type="button"
-                    onClick={onToggleCamera}
-                    disabled={!localStream}
-                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isCameraEnabled
-                        ? "border-white/25 bg-white/10 text-white hover:bg-white/20"
-                        : "border-rose-400/60 bg-rose-500/30 text-rose-200"
-                      }`}
-                    title={isCameraEnabled ? "Tat camera" : "Bat camera"}
-                  >
-                    {isCameraEnabled ? (
-                      <Camera size={18} />
-                    ) : (
-                      <CameraOff size={18} />
-                    )}
-                  </button>
-
-                  {/* Screen share */}
-                  <button
-                    type="button"
-                    onClick={onToggleScreenShare}
-                    disabled={!localStream}
-                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${isScreenSharing
-                        ? "border-sky-300/60 bg-sky-500/30 text-sky-200"
-                        : "border-white/25 bg-white/10 text-white hover:bg-white/20"
-                      }`}
-                    title={isScreenSharing ? "Dung chia se" : "Chia se man hinh"}
-                  >
-                    <Share2 size={18} />
-                  </button>
-                </>
-              )}
-
-              {/* End call */}
-              {(activeCall || callStatus !== "idle") && (
-                <button
-                  type="button"
-                  onClick={() => onEndVideoCall?.()}
-                  className="flex h-12 items-center gap-2 rounded-full bg-rose-600 px-5 font-semibold transition hover:bg-rose-500 active:scale-95"
-                >
-                  <PhoneOff size={16} />
-                  <span className="text-sm">Ket thuc</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <VideoCallOverlay
+        showFullScreenCall={showFullScreenCall}
+        conversation={conversation}
+        incomingCall={incomingCall}
+        incomingCallerName={incomingCallerName}
+        incomingCallTypeLabel={incomingCallTypeLabel}
+        activeCallTypeLabel={activeCallTypeLabel}
+        callStatusLabel={callStatusLabel}
+        isAudioCall={isAudioCall}
+        localStream={localStream}
+        isCameraEnabled={isCameraEnabled}
+        isMicrophoneEnabled={isMicrophoneEnabled}
+        isScreenSharing={isScreenSharing}
+        callStatus={callStatus}
+        activeCall={activeCall}
+        remoteStreamsList={remoteStreamsList}
+        callError={callError}
+        onClearCallError={onClearCallError}
+        onRetryMediaPermission={onRetryMediaPermission}
+        onDeclineIncomingCall={onDeclineIncomingCall}
+        onAcceptIncomingCall={onAcceptIncomingCall}
+        onToggleMicrophone={onToggleMicrophone}
+        onToggleCamera={onToggleCamera}
+        onToggleScreenShare={onToggleScreenShare}
+        onEndVideoCall={onEndVideoCall}
+      />
     );
   };
 
@@ -793,7 +379,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {incomingCall && callStatus === ("receiving" as VideoCallStatus) && (
           <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
             <p className="font-semibold">
-              {incomingCallerName} dang goi {incomingCallTypeLabel} cho ban
+              {incomingCallerName} đang gọi {incomingCallTypeLabel} cho bạn
             </p>
             <div className="mt-2 flex items-center gap-2">
               <button
@@ -907,8 +493,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 {(!localStream || !isCameraEnabled) && (
                   <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-200">
                     {isCameraEnabled
-                      ? "Dang khoi tao camera..."
-                      : "Ban da tat camera"}
+                      ? "Đang khởi tạo camera..."
+                      : "Bạn đã tắt camera"}
                   </div>
                 )}
               </div>
@@ -1119,10 +705,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   }
                 }}
                 className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition mr-2 ${friendStatus === "friend"
-                    ? "bg-emerald-50 text-emerald-600 cursor-default" // Bạn bè (Xanh ngọc)
-                    : friendStatus === "pending"
-                      ? "bg-slate-100 text-slate-500 cursor-not-allowed" // Đã gửi (Xám)
-                      : "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white" // Chưa gửi (Xanh dương)
+                  ? "bg-emerald-50 text-emerald-600 cursor-default" // Bạn bè (Xanh ngọc)
+                  : friendStatus === "pending"
+                    ? "bg-slate-100 text-slate-500 cursor-not-allowed" // Đã gửi (Xám)
+                    : "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white" // Chưa gửi (Xanh dương)
                   }`}
                 title={
                   friendStatus === "friend"
@@ -1197,8 +783,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               type="button"
               onClick={() => setIsInfoSidebarOpen(!isInfoSidebarOpen)}
               className={`rounded-full p-2 transition-colors ${isInfoSidebarOpen
-                  ? "bg-blue-100 text-blue-500"
-                  : "hover:bg-slate-100 hover:text-blue-500"
+                ? "bg-blue-100 text-blue-500"
+                : "hover:bg-slate-100 hover:text-blue-500"
                 }`}
               title="Thông tin hội thoại"
             >

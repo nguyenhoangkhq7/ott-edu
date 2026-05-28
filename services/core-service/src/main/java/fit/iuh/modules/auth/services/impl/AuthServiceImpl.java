@@ -69,6 +69,19 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Email đã được sử dụng!");
         }
 
+        if (!StringUtils.hasText(request.getVerifiedToken())) {
+            throw new RuntimeException("Vui lòng xác thực email bằng OTP trước khi đăng ký!");
+        }
+
+        if (!jwtService.isOtpVerifiedTokenForPurpose(request.getVerifiedToken(), OtpPurpose.REGISTER)) {
+            throw new RuntimeException("Phiên xác thực email không hợp lệ hoặc đã hết hạn!");
+        }
+
+        String verifiedEmail = jwtService.extractSubject(request.getVerifiedToken());
+        if (!normalizeEmail(request.getEmail()).equals(normalizeEmail(verifiedEmail))) {
+            throw new RuntimeException("Email đăng ký không khớp với email đã xác thực!");
+        }
+
         Role role;
         try {
             role = parseRole(request.getRoleName());
@@ -220,6 +233,17 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new RuntimeException("Email không tồn tại trong hệ thống."));
 
         return sendOtpChallenge(account.getEmail(), OtpPurpose.FORGOT_PASSWORD, "khoi phuc mat khau");
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OtpChallengeResponse sendRegisterOtp(ForgotPasswordRequest request) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        if (accountRepository.existsByEmail(normalizedEmail)) {
+            throw new RuntimeException("Email đã được sử dụng!");
+        }
+
+        return sendOtpChallenge(normalizedEmail, OtpPurpose.REGISTER, "dang ky tai khoan");
     }
 
     @Override

@@ -108,8 +108,23 @@ apiClient.interceptors.response.use(
     }
 
     const requestUrl = originalRequest.url ?? "";
-    if (requestUrl.includes("/auth/login") || requestUrl.includes("/auth/refresh") || 
-        requestUrl.includes("auth/login") || requestUrl.includes("auth/refresh")) {
+    const isPublicAuth =
+      requestUrl.includes("/auth/login") ||
+      requestUrl.includes("/auth/refresh") ||
+      requestUrl.includes("/auth/register") ||
+      requestUrl.includes("/auth/verify-otp") ||
+      requestUrl.includes("/auth/send-register-otp") ||
+      requestUrl.includes("/auth/forgot-password") ||
+      requestUrl.includes("/auth/reset-password") ||
+      requestUrl.includes("auth/login") ||
+      requestUrl.includes("auth/refresh") ||
+      requestUrl.includes("auth/register") ||
+      requestUrl.includes("auth/verify-otp") ||
+      requestUrl.includes("auth/send-register-otp") ||
+      requestUrl.includes("auth/forgot-password") ||
+      requestUrl.includes("auth/reset-password");
+
+    if (isPublicAuth) {
       return Promise.reject(error);
     }
 

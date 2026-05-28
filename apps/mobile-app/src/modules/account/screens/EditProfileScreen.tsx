@@ -3,13 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -18,6 +19,7 @@ import SelectModal, { type SelectOption } from "../../../shared/ui/SelectModal";
 import {
   getCurrentUser,
   getDepartmentsBySchoolId,
+  getSchools,
   updateCurrentUser,
   uploadAvatar,
   type DepartmentOption,
@@ -35,6 +37,7 @@ export default function EditProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [departmentId, setDepartmentId] = useState("");
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [schoolName, setSchoolName] = useState("Đang tải...");
   const [activeSelect, setActiveSelect] = useState<"department" | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -52,26 +55,40 @@ export default function EditProfileScreen() {
     const loadData = async () => {
       try {
         const nextUser = await getCurrentUser();
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
 
         setUser(nextUser);
-        setFullName([nextUser.lastName, nextUser.firstName].filter(Boolean).join(" "));
+        setFullName([nextUser.firstName, nextUser.lastName].filter(Boolean).join(" "));
         setAbout(nextUser.bio || "");
         setPhone(nextUser.phone || "");
         setAvatarUrl(nextUser.avatarUrl);
         setDepartmentId(nextUser.departmentId ? String(nextUser.departmentId) : "");
 
         if (nextUser.schoolId) {
+          // Fetch school name
+          try {
+            const schools = await getSchools();
+            const match = schools.find((s) => s.id === nextUser.schoolId);
+            if (match && mounted) {
+              setSchoolName(match.name);
+            } else if (mounted) {
+              setSchoolName("Trường khác");
+            }
+          } catch {
+            if (mounted) setSchoolName("Chưa liên kết trường");
+          }
+
+          // Fetch departments
           const data = await getDepartmentsBySchoolId(nextUser.schoolId);
           if (mounted) {
             setDepartments(data);
           }
+        } else if (mounted) {
+          setSchoolName("Chưa liên kết trường");
         }
       } catch (error) {
         if (mounted) {
-          Alert.alert("Loi", error instanceof Error ? error.message : "Khong the tai thong tin profile.");
+          Alert.alert("Lỗi", error instanceof Error ? error.message : "Không thể tải thông tin profile.");
         }
       } finally {
         if (mounted) {
@@ -89,7 +106,7 @@ export default function EditProfileScreen() {
   const handlePickAvatar = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Tu choi quyen", "Can cap quyen thu vien de chon anh dai dien.");
+      Alert.alert("Từ chối quyền", "Cần cấp quyền thư viện để chọn ảnh đại diện.");
       return;
     }
 
@@ -100,10 +117,7 @@ export default function EditProfileScreen() {
       aspect: [1, 1],
     });
 
-    if (result.canceled || !result.assets[0]) {
-      return;
-    }
-
+    if (result.canceled || !result.assets[0]) return;
     const file = result.assets[0];
 
     try {
@@ -118,13 +132,18 @@ export default function EditProfileScreen() {
         setUser({ ...user, avatarUrl: uploaded.avatarUrl });
       }
     } catch (error) {
-      Alert.alert("Loi", error instanceof Error ? error.message : "Tai anh that bai.");
+      Alert.alert("Lỗi", error instanceof Error ? error.message : "Tải ảnh thất bại.");
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleSave = async () => {
+    if (!fullName.trim()) {
+      Alert.alert("Thông báo", "Vui lòng nhập họ và tên.");
+      return;
+    }
+
     try {
       setIsSaving(true);
       const updated = await updateCurrentUser({
@@ -135,88 +154,193 @@ export default function EditProfileScreen() {
         departmentId: departmentId ? Number(departmentId) : undefined,
       });
       setUser(updated);
-      Alert.alert("Thanh cong", "Da cap nhat ho so.");
+      Alert.alert("Thành công", "Hồ sơ của bạn đã được cập nhật.");
       router.replace("/(dashboard)/account");
     } catch (error) {
-      Alert.alert("Loi", error instanceof Error ? error.message : "Cap nhat that bai.");
+      Alert.alert("Lỗi", error instanceof Error ? error.message : "Cập nhật hồ sơ thất bại.");
     } finally {
       setIsSaving(false);
     }
   };
 
+  const selectedDeptName = useMemo(() => {
+    return departments.find((d) => String(d.id) === departmentId)?.name || "Chọn khoa / phòng ban";
+  }, [departmentId, departments]);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#4f46e5" />
+        <Text style={styles.loadingText}>Đang tải thông tin cá nhân...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <AccountHeader
-        title="Edit Profile"
-        subtitle="Update your public information"
+        title="Chỉnh sửa hồ sơ"
+        subtitle="Cập nhật thông tin hiển thị của bạn"
         onBack={() => router.back()}
         avatarUrl={avatarUrl}
         firstName={user?.firstName}
         lastName={user?.lastName}
         email={user?.email}
       />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.section}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {/* Profile Avatar Card */}
+        <View style={styles.card}>
           <View style={styles.avatarRow}>
-            <UserAvatar
-              avatarUrl={avatarUrl}
-              firstName={user?.firstName}
-              lastName={user?.lastName}
-              email={user?.email}
-              size={58}
-            />
+            <View style={styles.avatarOutline}>
+              <UserAvatar
+                avatarUrl={avatarUrl}
+                firstName={user?.firstName}
+                lastName={user?.lastName}
+                email={user?.email}
+                size={70}
+              />
+              {isUploading && (
+                <View style={styles.avatarLoadingOverlay}>
+                  <ActivityIndicator size="small" color="#ffffff" />
+                </View>
+              )}
+            </View>
             <View style={styles.avatarMeta}>
-              <Text style={styles.label}>Profile picture</Text>
-              <Text style={styles.mutedText}>JPG, PNG, WEBP, GIF</Text>
+              <Text style={styles.avatarTitle}>Ảnh đại diện</Text>
+              <Text style={styles.avatarDesc}>Hỗ trợ định dạng JPG, PNG, WEBP</Text>
             </View>
           </View>
-          <Pressable style={styles.secondaryButton} onPress={handlePickAvatar} disabled={isUploading}>
-            <Ionicons name="cloud-upload-outline" size={16} color="#334155" />
-            <Text style={styles.secondaryText}>{isUploading ? "Dang tai..." : "Upload avatar"}</Text>
-          </Pressable>
+          
+          <View style={styles.avatarBtnRow}>
+            <Pressable style={[styles.avatarButton, { flex: 1 }]} onPress={handlePickAvatar} disabled={isUploading}>
+              <Ionicons name="image-outline" size={16} color="#4f46e5" />
+              <Text style={styles.avatarButtonText}>{isUploading ? "Đang tải..." : "Chọn ảnh mới"}</Text>
+            </Pressable>
+            {Boolean(avatarUrl) && (
+              <Pressable
+                style={[styles.avatarButton, styles.deleteAvatarButton]}
+                onPress={() => {
+                  setAvatarUrl(null);
+                  if (user) setUser({ ...user, avatarUrl: null });
+                }}
+              >
+                <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                <Text style={[styles.avatarButtonText, { color: "#ef4444" }]}>Xoá ảnh</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput value={fullName} onChangeText={setFullName} style={styles.input} editable={!isLoading} />
+        {/* Institution Info Card (Read-Only) */}
+        <View style={styles.card}>
+          <Text style={styles.sectionHeader}>Đơn vị đào tạo</Text>
+          <View style={styles.lockedField}>
+            <View style={styles.lockedIconCircle}>
+              <Ionicons name="school" size={16} color="#94a3b8" />
+            </View>
+            <View style={styles.lockedFieldText}>
+              <Text style={styles.lockedLabel}>Trường học (Chỉ xem)</Text>
+              <Text style={styles.lockedValue}>{schoolName}</Text>
+            </View>
+            <Ionicons name="lock-closed" size={14} color="#cbd5e1" />
+          </View>
+        </View>
 
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput value={phone} onChangeText={setPhone} style={styles.input} editable={!isLoading} />
+        {/* Edit Form Fields */}
+        <View style={styles.card}>
+          <Text style={styles.sectionHeader}>Thông tin cơ bản</Text>
 
-          <Text style={styles.label}>Department</Text>
-          <Pressable style={styles.selectTrigger} onPress={() => setActiveSelect("department")}>
-            <Text style={styles.selectText}>
-              {departments.find((item) => String(item.id) === departmentId)?.name || "Select department"}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color="#64748b" />
-          </Pressable>
+          {/* Full Name */}
+          <View style={styles.inputGroup}>
+            <View style={styles.inputLabelRow}>
+              <Ionicons name="person-outline" size={14} color="#64748b" />
+              <Text style={styles.label}>Họ và tên</Text>
+            </View>
+            <TextInput
+              value={fullName}
+              onChangeText={setFullName}
+              style={styles.input}
+              placeholder="Nhập họ và tên của bạn"
+              placeholderTextColor="#94a3b8"
+            />
+          </View>
 
-          <Text style={styles.label}>About</Text>
-          <TextInput
-            value={about}
-            onChangeText={setAbout}
-            style={[styles.input, styles.textArea]}
-            multiline
-            numberOfLines={4}
-            editable={!isLoading}
-          />
+          {/* Department Selection */}
+          {departments.length > 0 && (
+            <View style={styles.inputGroup}>
+              <View style={styles.inputLabelRow}>
+                <Ionicons name="business-outline" size={14} color="#64748b" />
+                <Text style={styles.label}>Khoa / Phòng ban</Text>
+              </View>
+              <Pressable
+                style={styles.selectTrigger}
+                onPress={() => setActiveSelect("department")}
+              >
+                <Text style={styles.selectText} numberOfLines={1}>{selectedDeptName}</Text>
+                <Ionicons name="chevron-down" size={16} color="#64748b" />
+              </Pressable>
+            </View>
+          )}
 
-          <Pressable style={styles.primaryButton} onPress={handleSave} disabled={isSaving || isLoading}>
-            <Text style={styles.primaryText}>{isSaving ? "Saving..." : "Save Changes"}</Text>
+          {/* Phone */}
+          <View style={styles.inputGroup}>
+            <View style={styles.inputLabelRow}>
+              <Ionicons name="phone-portrait-outline" size={14} color="#64748b" />
+              <Text style={styles.label}>Số điện thoại</Text>
+            </View>
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              style={styles.input}
+              placeholder="Nhập số điện thoại liên lạc"
+              placeholderTextColor="#94a3b8"
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* Bio / About */}
+          <View style={styles.inputGroup}>
+            <View style={styles.inputLabelRow}>
+              <Ionicons name="document-text-outline" size={14} color="#64748b" />
+              <Text style={styles.label}>Lời giới thiệu (Bio)</Text>
+            </View>
+            <TextInput
+              value={about}
+              onChangeText={setAbout}
+              style={[styles.input, styles.textArea]}
+              placeholder="Viết một đoạn ngắn giới thiệu bản thân bạn..."
+              placeholderTextColor="#94a3b8"
+              multiline
+              numberOfLines={4}
+            />
+          </View>
+
+          {/* Primary Action Button */}
+          <Pressable style={styles.primaryButton} onPress={handleSave} disabled={isSaving}>
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 6 }} />
+            ) : (
+              <Ionicons name="checkmark-circle-outline" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+            )}
+            <Text style={styles.primaryText}>{isSaving ? "Đang lưu thay đổi..." : "Lưu hồ sơ"}</Text>
           </Pressable>
         </View>
       </ScrollView>
 
-      <SelectModal
-        visible={activeSelect === "department"}
-        title="Select department"
-        options={departmentOptions}
-        selectedValue={departmentId}
-        loading={false}
-        emptyText="No departments found"
-        onClose={() => setActiveSelect(null)}
-        onSelect={(value) => setDepartmentId(value)}
-      />
+      {/* Select Modal */}
+      {departments.length > 0 && (
+        <SelectModal
+          visible={activeSelect === "department"}
+          onClose={() => setActiveSelect(null)}
+          title="Chọn Khoa / Phòng ban"
+          options={departmentOptions}
+          selectedValue={departmentId}
+          onSelect={(val) => {
+            setDepartmentId(val);
+            setActiveSelect(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -226,100 +350,202 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#64748b",
+    fontWeight: "500",
+  },
   content: {
     paddingHorizontal: 16,
     paddingVertical: 18,
-    gap: 14,
+    gap: 16,
   },
-  section: {
-    gap: 10,
-    borderRadius: 16,
+  card: {
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#f1f5f9",
+    borderColor: "#e2e8f0",
     backgroundColor: "#ffffff",
     padding: 16,
+    gap: 14,
+    shadowColor: "#0f172a",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
   },
   avatarRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
+  },
+  avatarOutline: {
+    padding: 2,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    position: "relative",
+  },
+  avatarLoadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   avatarMeta: {
     flex: 1,
     gap: 2,
   },
-  label: {
-    fontSize: 13,
-    color: "#334155",
-    fontWeight: "600",
+  avatarTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
   },
-  mutedText: {
+  avatarDesc: {
     fontSize: 12,
     color: "#64748b",
   },
-  input: {
-    minHeight: 44,
+  avatarBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+  avatarButton: {
+    minHeight: 40,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: "#e2e8f0",
+    backgroundColor: "#f8fafc",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  avatarButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#334155",
+  },
+  deleteAvatarButton: {
+    borderColor: "#fecaca",
+    backgroundColor: "#fff5f5",
     paddingHorizontal: 12,
+  },
+  sectionHeader: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#4f46e5",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  lockedField: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+    padding: 12,
+    gap: 12,
+  },
+  lockedIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  lockedFieldText: {
+    flex: 1,
+    gap: 1,
+  },
+  lockedLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#94a3b8",
+  },
+  lockedValue: {
+    fontSize: 13.5,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  inputLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: 2,
+  },
+  label: {
+    fontSize: 13,
+    color: "#475569",
+    fontWeight: "600",
+  },
+  input: {
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    paddingHorizontal: 14,
+    fontSize: 14,
     color: "#0f172a",
     backgroundColor: "#ffffff",
   },
   textArea: {
-    minHeight: 88,
+    minHeight: 96,
     textAlignVertical: "top",
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   selectTrigger: {
-    minHeight: 44,
-    borderRadius: 10,
+    minHeight: 46,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#cbd5e1",
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     backgroundColor: "#ffffff",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   selectText: {
+    fontSize: 14,
     color: "#0f172a",
     flex: 1,
   },
-  chevron: {
-    color: "#64748b",
-    fontSize: 12,
-  },
   primaryButton: {
-    minHeight: 44,
-    borderRadius: 10,
+    minHeight: 46,
+    borderRadius: 12,
     backgroundColor: "#2563eb",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 6,
+    flexDirection: "row",
+    marginTop: 8,
+    shadowColor: "#2563eb",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   primaryText: {
     color: "#ffffff",
+    fontSize: 14.5,
     fontWeight: "700",
-  },
-  secondaryButton: {
-    minHeight: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ffffff",
-    flexDirection: "row",
-    gap: 8,
-  },
-  secondaryText: {
-    color: "#0f172a",
-    fontWeight: "600",
   },
 });

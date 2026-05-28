@@ -337,14 +337,24 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
         endedByUserId?: string;
         reason?: string;
       }) => {
-        if (!callConversationIdRef.current || callConversationIdRef.current !== conversationId) {
-          return;
+        // Real-time call history & messages fetch:
+        if (activeConversationIdRef.current === conversationId) {
+          fetchMessages(conversationId)
+            .then((messagesData) => setMessages(messagesData))
+            .catch((err) => console.error('[ChatLayout] handleCallEnded fetchMessages error:', err));
+
+          fetchCallHistory({ conversationId, limit: 50, page: 1 })
+            .then((callHistoryData) => setCallHistory(callHistoryData.items || []))
+            .catch((err) => console.error('[ChatLayout] handleCallEnded fetchCallHistory error:', err));
         }
-        setIsGroupCallActive(false);
-        setCallConversationId(null);
-        setCallInitiatorUserId(null);
-        setCallIsPrivate(false);
-        setCallMediaKind('video');
+
+        if (callConversationIdRef.current === conversationId) {
+          setIsGroupCallActive(false);
+          setCallConversationId(null);
+          setCallInitiatorUserId(null);
+          setCallIsPrivate(false);
+          setCallMediaKind('video');
+        }
       };
 
       socket.on('callEnded', handleCallEnded);
@@ -923,6 +933,15 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
                   setCallInitiatorUserId(null);
                   setCallIsPrivate(false);
                   setCallMediaKind('video');
+                  if (activeConversationId) {
+                    fetchMessages(activeConversationId)
+                      .then((messagesData) => setMessages(messagesData))
+                      .catch((err) => console.error('[ChatLayout] onLeave fetchMessages error:', err));
+
+                    fetchCallHistory({ conversationId: activeConversationId, limit: 50, page: 1 })
+                      .then((callHistoryData) => setCallHistory(callHistoryData.items || []))
+                      .catch((err) => console.error('[ChatLayout] onLeave fetchCallHistory error:', err));
+                  }
                 }}
               />
             )}
