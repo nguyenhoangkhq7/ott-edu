@@ -21,6 +21,8 @@ import DateTimePicker, {
 import { format } from "date-fns";
 
 import { assignmentApi } from "../assignment.api";
+import { uploadFileToS3 } from "../s3.service";
+import * as DocumentPicker from "expo-document-picker";
 import {
   AssignmentType,
   QuestionType,
@@ -256,17 +258,97 @@ export default function CreateAssignmentScreen({
     return d;
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<"date" | "time">("date");
   const [maxScore, setMaxScore] = useState("10");
   const [maxAttempts, setMaxAttempts] = useState("");
   const [timeLimit, setTimeLimit] = useState(""); // Duration in minutes for QUIZ
   const [questions, setQuestions] = useState<LocalQuestion[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadedMaterials, setUploadedMaterials] = useState<Array<{ name: string; url: string }>>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [fileUploadProgress, setFileUploadProgress] = useState(0);
+
+  const handlePickAndUploadMaterial = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "application/pdf",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "application/zip",
+          "image/*",
+          "*/*",
+        ],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      setUploadingFile(true);
+      setFileUploadProgress(0);
+
+      const fileUrl = await uploadFileToS3(
+        asset.uri,
+        asset.name,
+        asset.mimeType || "application/octet-stream",
+        teamId,
+        (progress) => setFileUploadProgress(progress)
+      );
+
+      setUploadedMaterials((prev) => [...prev, { name: asset.name, url: fileUrl }]);
+      Alert.alert("Thành công", `Đã tải lên tài liệu: ${asset.name}`);
+    } catch (err) {
+      Alert.alert("Lỗi tải lên", err instanceof Error ? err.message : "Không thể tải tài liệu lên.");
+    } finally {
+      setUploadingFile(false);
+      setFileUploadProgress(0);
+    }
+  };
+
+  const handleRemoveMaterial = (index: number) => {
+    setUploadedMaterials((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // ─── Date picker ──────────────────────────────────────────────────────────
 
-  const onDateChange = (_: DateTimePickerEvent, selected?: Date) => {
-    setShowDatePicker(Platform.OS === "ios"); // keep open on iOS
-    if (selected) setDueDate(selected);
+  const onDateChange = (event: DateTimePickerEvent, selected?: Date) => {
+    if (event.type === "dismissed") {
+      setShowDatePicker(false);
+      setPickerMode("date");
+      return;
+    }
+
+    if (selected) {
+      if (Platform.OS === "ios") {
+        setDueDate(selected);
+      } else {
+        // Android sequential picker
+        if (pickerMode === "date") {
+          const nextDate = new Date(dueDate);
+          nextDate.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+          setDueDate(nextDate);
+          setPickerMode("time");
+          // Close and reopen to prompt the time picker
+          setShowDatePicker(false);
+          setTimeout(() => {
+            setShowDatePicker(true);
+          }, 100);
+        } else {
+          // time picker mode
+          const nextDate = new Date(dueDate);
+          nextDate.setHours(selected.getHours(), selected.getMinutes());
+          setDueDate(nextDate);
+          setShowDatePicker(false);
+          setPickerMode("date"); // reset
+        }
+      }
+    } else {
+      setShowDatePicker(false);
+    }
   };
 
   // ─── Validation & Submit ──────────────────────────────────────────────────
@@ -304,6 +386,11 @@ export default function CreateAssignmentScreen({
   };
 
   const handleSubmit = async () => {
+    if (uploadingFile) {
+      Alert.alert("Đang tải tệp lên", "Vui lòng chờ tệp tải lên hoàn tất trước khi tạo bài tập.");
+      return;
+    }
+
     const err = validate();
     if (err) {
       Alert.alert("Kiểm tra lại", err);
@@ -326,6 +413,9 @@ export default function CreateAssignmentScreen({
       ...(type === AssignmentType.QUIZ
         ? { questions: buildQuestionsPayload() }
         : {}),
+      materialUrls: type === AssignmentType.ESSAY && uploadedMaterials.length > 0
+        ? uploadedMaterials.map((m) => m.url)
+        : undefined,
     };
 
     try {
@@ -387,6 +477,57 @@ export default function CreateAssignmentScreen({
             maxLength={2000}
           />
 
+          {/* Attach Materials Section - ESSAY only, styled with StyleSheet */}
+          {type === AssignmentType.ESSAY && (
+            <View style={styles.attachContainer}>
+              <View style={styles.attachHeader}>
+                <Text style={styles.attachTitleText}>
+                  Đính kèm tài liệu
+                </Text>
+                <Text style={styles.attachOptionalText}>
+                  (Tùy chọn)
+                </Text>
+              </View>
+
+              {/* List of uploaded materials */}
+              {uploadedMaterials.map((file, idx) => (
+                <View key={idx} style={styles.fileItemRow}>
+                  <View style={styles.fileItemLeft}>
+                    <Ionicons name="document-attach-outline" size={16} color="#4f46e5" />
+                    <Text style={styles.fileNameText} numberOfLines={1}>
+                      {file.name}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => handleRemoveMaterial(idx)}>
+                    <Ionicons name="close-circle" size={18} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {/* Loading/Uploading Progress */}
+              {uploadingFile && (
+                <View style={styles.uploadProgressWrap}>
+                  <ActivityIndicator size="small" color="#4f46e5" />
+                  <Text style={styles.uploadProgressText}>
+                    Đang tải lên... {fileUploadProgress}%
+                  </Text>
+                </View>
+              )}
+
+              {/* Upload Button */}
+              {!uploadingFile && (
+                <TouchableOpacity
+                  style={styles.uploadBtn}
+                  onPress={handlePickAndUploadMaterial}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="attach-outline" size={18} color="#4f46e5" />
+                  <Text style={styles.uploadBtnText}>Đính kèm tài liệu tham khảo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           {/* ─── Type picker ─── */}
           <FieldLabel label="Loại bài tập" required />
           <View style={styles.typeRow}>
@@ -421,49 +562,52 @@ export default function CreateAssignmentScreen({
           {/* ─── Scoring ─── */}
           <SectionHeader title="Điểm số & Thời hạn" />
 
-          <View style={styles.rowFields}>
-            <View style={styles.rowFieldItem}>
-              <FieldLabel label="Điểm tối đa" required />
-              <StyledInput
-                placeholder="10"
-                value={maxScore}
-                onChangeText={setMaxScore}
-                keyboardType="numeric"
-                maxLength={6}
-              />
-            </View>
-
-            {type === AssignmentType.QUIZ && (
-              <>
-                <View style={styles.rowFieldItem}>
-                  <FieldLabel label="Số lần làm (0=∞)" />
-                  <StyledInput
-                    placeholder="Không giới hạn"
-                    value={maxAttempts}
-                    onChangeText={setMaxAttempts}
-                    keyboardType="numeric"
-                    maxLength={3}
-                  />
-                </View>
-                <View style={styles.rowFieldItem}>
-                  <FieldLabel label="Thời gian làm (phút)" />
-                  <StyledInput
-                    placeholder="VD: 30, 60, 120"
-                    value={timeLimit}
-                    onChangeText={setTimeLimit}
-                    keyboardType="numeric"
-                    maxLength={3}
-                  />
-                </View>
-              </>
-            )}
+          {/* Row 1: Max Score (Full Width) */}
+          <View style={styles.scoringRowSingle}>
+            <FieldLabel label="Điểm tối đa" required />
+            <StyledInput
+              placeholder="10"
+              value={maxScore}
+              onChangeText={setMaxScore}
+              keyboardType="numeric"
+              maxLength={6}
+            />
           </View>
+
+          {/* Row 2: Attempts & Time limit (Quiz only) - Side by Side */}
+          {type === AssignmentType.QUIZ && (
+            <View style={styles.scoringRowDouble}>
+              <View style={styles.scoringFieldHalf}>
+                <FieldLabel label="Số lần làm (0=∞)" />
+                <StyledInput
+                  placeholder="Không giới hạn"
+                  value={maxAttempts}
+                  onChangeText={setMaxAttempts}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+              </View>
+              <View style={styles.scoringFieldHalf}>
+                <FieldLabel label="Thời gian làm (phút)" />
+                <StyledInput
+                  placeholder="VD: 30, 60, 120"
+                  value={timeLimit}
+                  onChangeText={setTimeLimit}
+                  keyboardType="numeric"
+                  maxLength={3}
+                />
+              </View>
+            </View>
+          )}
 
           {/* Due date */}
           <FieldLabel label="Hạn nộp bài" required />
           <TouchableOpacity
             style={styles.datePickerBtn}
-            onPress={() => setShowDatePicker(true)}
+            onPress={() => {
+              setPickerMode("date");
+              setShowDatePicker(true);
+            }}
             activeOpacity={0.8}
           >
             <Ionicons name="calendar-outline" size={18} color="#4f46e5" />
@@ -476,7 +620,7 @@ export default function CreateAssignmentScreen({
           {showDatePicker && (
             <DateTimePicker
               value={dueDate}
-              mode={Platform.OS === "ios" ? "datetime" : "date"}
+              mode={Platform.OS === "ios" ? "datetime" : pickerMode}
               display={Platform.OS === "ios" ? "spinner" : "default"}
               minimumDate={new Date()}
               onChange={onDateChange}
@@ -629,13 +773,97 @@ const styles = StyleSheet.create({
     color: "#4f46e5",
   },
 
-  // Row fields (side by side)
-  rowFields: {
+  // Scoring row layouts
+  scoringRowSingle: {
+    marginBottom: 12,
+  },
+  scoringRowDouble: {
     flexDirection: "row",
     gap: 12,
+    marginBottom: 12,
   },
-  rowFieldItem: {
+  scoringFieldHalf: {
     flex: 1,
+  },
+
+  // Attach Materials styles
+  attachContainer: {
+    marginTop: 16,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1.5,
+    borderColor: "#e2e8f0",
+    borderRadius: 16,
+    padding: 16,
+  },
+  attachHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  attachTitleText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#475569",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  attachOptionalText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#94a3b8",
+  },
+  fileItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    justifyContent: "space-between",
+  },
+  fileItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 12,
+  },
+  fileNameText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginLeft: 8,
+    flex: 1,
+  },
+  uploadProgressWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+  },
+  uploadProgressText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  uploadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#a5b4fc",
+    borderRadius: 12,
+    paddingVertical: 12,
+    backgroundColor: "#ffffff",
+  },
+  uploadBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#4f46e5",
   },
 
   // Date picker button

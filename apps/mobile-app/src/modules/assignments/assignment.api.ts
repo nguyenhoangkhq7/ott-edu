@@ -526,6 +526,19 @@ export const assignmentApi = {
   },
 
   /**
+   * GET /api/v1/submissions/{submissionId}/detail
+   * Get detailed submission view (TEACHER only, assignment creator check)
+   */
+  getSubmissionDetailForTeacher: async (
+    submissionId: number
+  ): Promise<ViewSubmission> => {
+    const response = await assignmentClient.get<ViewSubmission>(
+      `${SUBMISSIONS}/${submissionId}/detail`
+    );
+    return response.data;
+  },
+
+  /**
    * GET /api/v1/calendar/my-events?month=...&year=...
    * Returns student's aggregated calendar events.
    * STUDENT only.

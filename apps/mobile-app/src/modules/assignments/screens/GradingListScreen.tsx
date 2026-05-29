@@ -14,10 +14,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { format, isValid } from "date-fns";
 
-import { assignmentApi } from "../assignment.api";
-import { SubmissionStatus, type SubmissionGradingItem } from "../assignment.types";
+import { assignmentApi, type ViewSubmission } from "../assignment.api";
+import {
+  SubmissionStatus,
+  AssignmentType,
+  type SubmissionGradingItem,
+  type AssignmentDetail,
+} from "../assignment.types";
 import GradeSubmissionSheet from "../components/GradeSubmissionSheet";
 import { teamApi } from "../../teams/team.api";
+import QuizReviewScreen from "./QuizReviewScreen";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +42,21 @@ function formatSubmittedAt(value?: string): string {
   if (!value) return "—";
   const d = new Date(value);
   return isValid(d) ? format(d, "dd/MM HH:mm") : value;
+}
+
+function resolveStudentName(item: SubmissionGradingItem, studentNamesMap?: Record<number, string>): string {
+  if (item.studentCode && item.studentName) {
+    return `${item.studentCode} - ${item.studentName}`;
+  }
+  if (item.studentName) {
+    return item.studentCode
+      ? `${item.studentCode} - ${item.studentName}`
+      : item.studentName;
+  }
+  if (studentNamesMap && studentNamesMap[item.studentAccountId]) {
+    return studentNamesMap[item.studentAccountId];
+  }
+  return `Sinh viên #${item.studentAccountId}`;
 }
 
 // ─── Row component ────────────────────────────────────────────────────────────
@@ -117,12 +138,16 @@ export default function GradingListScreen({
   const [filterMode, setFilterMode] = useState<FilterMode>("pending");
   const [selectedItem, setSelectedItem] = useState<SubmissionGradingItem | null>(null);
   const [studentNamesMap, setStudentNamesMap] = useState<Record<number, string>>({});
+  const [assignmentDetail, setAssignmentDetail] = useState<AssignmentDetail | null>(null);
+  const [activeReviewSubmission, setActiveReviewSubmission] = useState<ViewSubmission | null>(null);
+  const [fetchingDetail, setFetchingDetail] = useState(false);
 
   // ─── Fetch Student Names ──────────────────────────────────────────────────
   useEffect(() => {
     const fetchStudentNames = async () => {
       try {
         const detail = await assignmentApi.getAssignmentDetail(assignmentId);
+        setAssignmentDetail(detail);
         if (detail && detail.teamIds && detail.teamIds.length > 0) {
           const namesMap: Record<number, string> = {};
           await Promise.all(
@@ -151,6 +176,19 @@ export default function GradingListScreen({
 
     void fetchStudentNames();
   }, [assignmentId]);
+
+  const handleViewAnswers = async (submissionId: number) => {
+    try {
+      setFetchingDetail(true);
+      const submissionDetail = await assignmentApi.getSubmissionDetailForTeacher(submissionId);
+      setSelectedItem(null); // Close the GradeSubmissionSheet modal
+      setActiveReviewSubmission(submissionDetail);
+    } catch (err) {
+      Alert.alert("Lỗi", err instanceof Error ? err.message : "Không thể tải chi tiết bài làm.");
+    } finally {
+      setFetchingDetail(false);
+    }
+  };
 
   // ─── Fetch Submissions ────────────────────────────────────────────────────
 
@@ -232,6 +270,36 @@ export default function GradingListScreen({
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────
+
+  if (activeReviewSubmission && assignmentDetail) {
+    return (
+      <QuizReviewScreen
+        detail={assignmentDetail}
+        submission={activeReviewSubmission}
+        onBack={() => {
+          // Re-open the grading modal for this submission
+          const found = submissions.find(
+            (s) => s.submissionId === activeReviewSubmission.submissionId
+          );
+          if (found) {
+            setSelectedItem(found);
+          }
+          setActiveReviewSubmission(null);
+        }}
+      />
+    );
+  }
+
+  if (fetchingDetail) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color="#4f46e5" />
+          <Text style={styles.loadingText}>Đang tải câu trả lời...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom", "left", "right"]}>
@@ -325,7 +393,7 @@ export default function GradingListScreen({
           renderItem={({ item }) => (
             <SubmissionRow
               item={item}
-              studentName={studentNamesMap[item.studentAccountId] || `Sinh viên #${item.studentAccountId}`}
+              studentName={resolveStudentName(item, studentNamesMap)}
               onGrade={setSelectedItem}
             />
           )}
@@ -357,10 +425,13 @@ export default function GradingListScreen({
         <GradeSubmissionSheet
           visible={!!selectedItem}
           submission={selectedItem}
-          studentName={selectedItem ? (studentNamesMap[selectedItem.studentAccountId] || `Sinh viên #${selectedItem.studentAccountId}`) : undefined}
+          studentName={selectedItem ? resolveStudentName(selectedItem, studentNamesMap) : undefined}
           maxScore={maxScore}
           onClose={() => setSelectedItem(null)}
           onSuccess={handleGradeSuccess}
+          onViewAnswers={
+            assignmentDetail?.type === AssignmentType.QUIZ ? handleViewAnswers : undefined
+          }
         />
       )}
     </SafeAreaView>
