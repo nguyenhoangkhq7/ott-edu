@@ -452,12 +452,18 @@ public class AdminUserServiceImpl implements AdminUserService {
 
                 School foundSchool = null;
                 if (!schoolName.isEmpty()) {
-                    foundSchool = schoolRepository.findByName(schoolName).orElse(null);
+                    foundSchool = schoolRepository.findFirstByNameContainingIgnoreCase(schoolName).orElse(null);
+                    if (foundSchool == null) {
+                        log.warn("Could not find School for name: {}", schoolName);
+                    }
                 }
 
                 Department foundDepartment = null;
                 if (!departmentName.isEmpty()) {
-                    foundDepartment = departmentRepository.findByDepartmentName(departmentName).orElse(null);
+                    foundDepartment = departmentRepository.findFirstByDepartmentNameContainingIgnoreCase(departmentName).orElse(null);
+                    if (foundDepartment == null) {
+                        log.warn("Could not find Department for name: {}", departmentName);
+                    }
                 }
 
                 Profile profile = Profile.builder()
