@@ -3,12 +3,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/shared/providers/AuthProvider';
-import { assignmentApi } from '@/services/api/assignment.service';
+import { assignmentApi, submissionApi } from '@/services/api/assignment.service';
 import { Assignment, AssignmentType } from '@/shared/types/quiz';
 import CreateAssignmentModal from './CreateAssignmentModal';
 import AssignmentDetail from './AssignmentDetail';
 
-type Tab = 'upcoming' | 'pastdue';
+type Tab = 'upcoming' | 'completed' | 'pastdue';
+
+interface ViewSubmission {
+  id: number;
+  assignmentId: number;
+  status: string;
+}
 
 export default function AssignmentsTab({
   teamId,
@@ -33,6 +39,7 @@ export default function AssignmentsTab({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<number | null>(initialAssignmentId || null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [completedAssignmentIds, setCompletedAssignmentIds] = useState<Set<number>>(new Set());
 
   // Sync initialAssignmentId prop when changed
   useEffect(() => {
@@ -51,15 +58,40 @@ export default function AssignmentsTab({
       setLoading(true);
       setError(null);
 
-      const response = await assignmentApi.getByTeam(resolvedTeamId) as { content?: Assignment[] } | Assignment[];
-      setAssignments(Array.isArray(response) ? response : (response.content || []));
+      if (isTeacher) {
+        const response = await assignmentApi.getByTeam(resolvedTeamId) as { content?: Assignment[] } | Assignment[];
+        setAssignments(Array.isArray(response) ? response : (response.content || []));
+      } else {
+        // Fetch both assignments and student submissions
+        const [assignmentRes, submissionRes] = await Promise.all([
+          assignmentApi.getByTeam(resolvedTeamId),
+          submissionApi.getMySubmissions(0, 100)
+        ]);
+
+        const assignmentPage = assignmentRes as { content?: Assignment[] } | Assignment[];
+        const assignmentList = Array.isArray(assignmentPage) ? assignmentPage : (assignmentPage.content || []);
+        
+        // Extract submissions list
+        const submissionPage = submissionRes as { content?: ViewSubmission[] } | ViewSubmission[];
+        const submissionList = Array.isArray(submissionPage) ? submissionPage : (submissionPage.content || []);
+
+        // Filter for completed/graded submissions
+        const completedIds = new Set<number>(
+          submissionList
+            .filter((sub) => sub.status === 'SUBMITTED' || sub.status === 'GRADED')
+            .map((sub) => sub.assignmentId)
+        );
+
+        setCompletedAssignmentIds(completedIds);
+        setAssignments(assignmentList);
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       setError(error.response?.data?.message || 'Failed to load assignments');
     } finally {
       setLoading(false);
     }
-  }, [resolvedTeamId]);
+  }, [resolvedTeamId, isTeacher]);
 
   // Fetch assignments when component mounts or refreshTrigger changes
   useEffect(() => {
@@ -79,11 +111,20 @@ export default function AssignmentsTab({
       filtered = filtered.filter((a) => a.type === filterType);
     }
 
-    // Filter by due date
-    if (activeTab === 'upcoming') {
-      return filtered.filter((a) => new Date(a.dueDate) > now);
+    if (isTeacher) {
+      if (activeTab === 'upcoming') {
+        return filtered.filter((a) => new Date(a.dueDate) > now);
+      } else {
+        return filtered.filter((a) => new Date(a.dueDate) <= now);
+      }
     } else {
-      return filtered.filter((a) => new Date(a.dueDate) <= now);
+      if (activeTab === 'upcoming') {
+        return filtered.filter((a) => !completedAssignmentIds.has(a.id) && new Date(a.dueDate) > now);
+      } else if (activeTab === 'completed') {
+        return filtered.filter((a) => completedAssignmentIds.has(a.id));
+      } else {
+        return filtered.filter((a) => !completedAssignmentIds.has(a.id) && new Date(a.dueDate) <= now);
+      }
     }
   };
 
@@ -92,10 +133,19 @@ export default function AssignmentsTab({
   const tabCount = {
     upcoming: assignments
       .filter((a) => !filterType || a.type === filterType)
-      .filter((a) => new Date(a.dueDate) > new Date()).length,
+      .filter((a) => {
+        const isUpcoming = new Date(a.dueDate) > new Date();
+        return isTeacher ? isUpcoming : (!completedAssignmentIds.has(a.id) && isUpcoming);
+      }).length,
+    completed: isTeacher ? 0 : assignments
+      .filter((a) => !filterType || a.type === filterType)
+      .filter((a) => completedAssignmentIds.has(a.id)).length,
     pastdue: assignments
       .filter((a) => !filterType || a.type === filterType)
-      .filter((a) => new Date(a.dueDate) <= new Date()).length,
+      .filter((a) => {
+        const isPastDue = new Date(a.dueDate) <= new Date();
+        return isTeacher ? isPastDue : (!completedAssignmentIds.has(a.id) && isPastDue);
+      }).length,
   };
 
   return (
@@ -135,6 +185,25 @@ export default function AssignmentsTab({
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-lg" />
             )}
           </button>
+
+          {!isTeacher && (
+            <button
+              onClick={() => setActiveTab('completed')}
+              className={`px-6 py-4 font-medium transition-colors relative ${activeTab === 'completed'
+                  ? 'text-blue-600'
+                  : 'text-slate-600 hover:text-slate-900'
+                }`}
+            >
+              Đã hoàn thành
+              <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700">
+                {tabCount.completed}
+              </span>
+              {activeTab === 'completed' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-lg" />
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => setActiveTab('pastdue')}
             className={`px-6 py-4 font-medium transition-colors relative ${activeTab === 'pastdue'
@@ -142,7 +211,7 @@ export default function AssignmentsTab({
                 : 'text-slate-600 hover:text-slate-900'
               }`}
           >
-            Đã qua hạn / Đã hoàn thành
+            Đã qua hạn
             <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-700">
               {tabCount.pastdue}
             </span>
@@ -180,6 +249,7 @@ export default function AssignmentsTab({
                 <AssignmentCard
                   key={assignment.id}
                   assignment={assignment}
+                  isCompleted={completedAssignmentIds.has(assignment.id)}
                   onClick={() => setSelectedAssignmentId(assignment.id)}
                 />
               ))}
@@ -218,10 +288,11 @@ export default function AssignmentsTab({
  */
 interface AssignmentCardProps {
   assignment: Assignment;
+  isCompleted?: boolean;
   onClick: () => void;
 }
 
-function AssignmentCard({ assignment, onClick }: AssignmentCardProps) {
+function AssignmentCard({ assignment, isCompleted, onClick }: AssignmentCardProps) {
   const isDueDate = new Date(assignment.dueDate) <= new Date();
   const daysUntilDue = Math.ceil(
     (new Date(assignment.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
@@ -230,12 +301,20 @@ function AssignmentCard({ assignment, onClick }: AssignmentCardProps) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left p-4 border border-slate-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all group"
+      className={`w-full text-left p-4 border rounded-lg hover:bg-slate-50 transition-all group ${
+        isCompleted 
+          ? 'border-green-200 bg-green-50/10 hover:border-green-300 hover:bg-green-50/20' 
+          : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/10'
+      }`}
     >
       <div className="flex items-start justify-between gap-4">
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors truncate">
+          <h3 className={`font-semibold transition-colors truncate ${
+            isCompleted 
+              ? 'text-slate-800 group-hover:text-green-700' 
+              : 'text-slate-900 group-hover:text-blue-600'
+          }`}>
             {assignment.title}
           </h3>
           <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-600">
@@ -257,21 +336,24 @@ function AssignmentCard({ assignment, onClick }: AssignmentCardProps) {
         {/* Status Badge */}
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           <span
-            className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${assignment.type === AssignmentType.QUIZ
-                ? 'bg-purple-100 text-purple-700'
-                : 'bg-blue-100 text-blue-700'
-              }`}
+            className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+              isCompleted
+                ? 'bg-green-100 text-green-700'
+                : assignment.type === AssignmentType.QUIZ
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-blue-100 text-blue-700'
+            }`}
           >
-            {assignment.type === AssignmentType.QUIZ ? 'Trắc nghiệm' : 'Luận'}
+            {isCompleted ? 'Đã hoàn thành' : assignment.type === AssignmentType.QUIZ ? 'Trắc nghiệm' : 'Luận'}
           </span>
 
-          {isDueDate && (
+          {!isCompleted && isDueDate && (
             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 whitespace-nowrap">
               Quá hạn
             </span>
           )}
 
-          {!isDueDate && daysUntilDue <= 3 && (
+          {!isCompleted && !isDueDate && daysUntilDue <= 3 && (
             <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 whitespace-nowrap">
               {daysUntilDue} ngày
             </span>
@@ -290,6 +372,32 @@ interface EmptyStateProps {
 }
 
 function EmptyState({ activeTab }: EmptyStateProps) {
+  const getTitle = () => {
+    switch (activeTab) {
+      case 'upcoming':
+        return 'Không có bài tập sắp đến hạn';
+      case 'completed':
+        return 'Chưa có bài tập hoàn thành';
+      case 'pastdue':
+        return 'Không có bài tập trễ hạn';
+      default:
+        return 'Không có bài tập';
+    }
+  };
+
+  const getSub = () => {
+    switch (activeTab) {
+      case 'upcoming':
+        return 'Hiện tại bạn không có bài tập nào sắp đến hạn. Quay lại sau để xem các bài tập mới.';
+      case 'completed':
+        return 'Hãy hoàn thành các bài tập sắp tới để xem chúng hiển thị ở đây.';
+      case 'pastdue':
+        return 'Tuyệt vời! Bạn không có bài tập nào bị quá hạn.';
+      default:
+        return '';
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center py-16 px-4">
       <svg className="w-24 h-24 text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,12 +409,10 @@ function EmptyState({ activeTab }: EmptyStateProps) {
         />
       </svg>
       <h3 className="text-lg font-semibold text-slate-900 mb-1">
-        {activeTab === 'upcoming' ? 'Không có bài tập sắp đến hạn' : 'Không có bài tập đã qua hạn'}
+        {getTitle()}
       </h3>
       <p className="text-slate-500 text-sm mb-6 text-center max-w-sm">
-        {activeTab === 'upcoming'
-          ? 'Hiện tại bạn không có bài tập nào sắp đến hạn. Quay lại sau để xem các bài tập mới.'
-          : 'Không có bài tập nào đã qua hạn hoặc đã hoàn thành.'}
+        {getSub()}
       </p>
       {/* {isTeacher && (
         <button
