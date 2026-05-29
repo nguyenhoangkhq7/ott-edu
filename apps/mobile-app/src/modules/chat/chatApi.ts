@@ -254,3 +254,10 @@ export async function updateConversationSettings(
   );
   return mapApiConversationToConversation(data.data, '');
 }
+
+export async function unfriendApi(targetId: string): Promise<void> {
+  await chatApiClient.post('unfriend', { targetId });
+}
+
+// 🚀 Thêm searchUsersApi để đồng bộ với Web
+export { searchUsers as searchUsersApi } from '../friends/friends.api';

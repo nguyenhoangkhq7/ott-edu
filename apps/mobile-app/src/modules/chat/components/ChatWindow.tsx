@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo } from "react";
 import {
   View, Text, TouchableOpacity, Image, FlatList,
-  KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet
+  KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Socket } from 'socket.io-client';
@@ -11,6 +11,8 @@ import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
 import { ChatInfoSidebar } from './ChatInfoSidebar';
 import AddMemberModal from './AddMemberModal';
+import { unfriendApi } from '../chatApi';
+import { sendFriendRequest } from '../../friends/friends.api';
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -73,6 +75,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const [friendStatus, setFriendStatus] = useState<"none" | "pending" | "friend">("none");
   const isLoadingTimeline = isLoadingMessages || _isLoadingCallHistory;
 
   const formatCallStatus = (item: CallHistoryItem): string => {
@@ -111,6 +114,36 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     setLocalMessages(messages);
   }, [messages]);
+
+  useEffect(() => {
+    if (conversation?.type !== "private" || !currentUser) return;
+
+    let finalStatus: "none" | "pending" | "friend" = "none";
+    const pList = conversation.participants || [];
+
+    for (const p of pList) {
+      const participantObj = p as unknown as {
+        friendStatus?: "none" | "pending" | "friend";
+      };
+      const status = participantObj.friendStatus;
+
+      if (status === "friend") {
+        finalStatus = "friend";
+        break;
+      } else if (status === "pending") {
+        finalStatus = "pending";
+      }
+    }
+
+    const convObj = conversation as unknown as {
+      otherParticipant?: { friendStatus?: "none" | "pending" | "friend" };
+    };
+    if (finalStatus === "none" && convObj?.otherParticipant?.friendStatus) {
+      finalStatus = convObj.otherParticipant.friendStatus;
+    }
+
+    setFriendStatus(finalStatus);
+  }, [conversation, currentUser]);
 
   useEffect(() => {
     if (!socket || !conversation) return;
@@ -332,6 +365,73 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             onPress={() => setShowAddMember(true)}
           >
             <Ionicons name="person-add" size={22} color="#10B981" />
+          </TouchableOpacity>
+        )}
+
+        {/* Nút Kết bạn (Chỉ hiện khi là Chat Private) */}
+        {isPrivate && otherParticipant && (
+          <TouchableOpacity
+            style={[
+              styles.callBtn,
+              friendStatus === "friend" && { backgroundColor: "rgba(16,185,129,0.12)" },
+              friendStatus === "pending" && { opacity: 0.5 }
+            ]}
+            disabled={friendStatus === "pending"}
+            onPress={async () => {
+              if (friendStatus === "friend") {
+                Alert.alert(
+                  "Hủy kết bạn",
+                  `Bạn có chắc chắn muốn hủy kết bạn với ${chatName}?`,
+                  [
+                    { text: "Hủy", style: "cancel" },
+                    { 
+                      text: "Đồng ý", 
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          await unfriendApi(otherParticipant.id);
+                          setFriendStatus("none");
+                          Alert.alert("Thành công", "Đã hủy kết bạn thành công.");
+                        } catch (error) {
+                          Alert.alert("Lỗi", "Không thể hủy kết bạn lúc này.");
+                        }
+                      }
+                    }
+                  ]
+                );
+                return;
+              }
+
+              if (friendStatus === "none") {
+                try {
+                  if (identity) {
+                    await sendFriendRequest(identity, otherParticipant.id);
+                    setFriendStatus("pending");
+                    Alert.alert("Thành công", `Đã gửi lời mời kết bạn đến ${chatName}!`);
+                  }
+                } catch (error: any) {
+                  Alert.alert("Lỗi", error.message || "Không thể gửi lời mời kết bạn.");
+                }
+              }
+            }}
+          >
+            <Ionicons
+              name={
+                friendStatus === "friend"
+                  ? "people"
+                  : friendStatus === "pending"
+                    ? "checkmark-circle"
+                    : "person-add-outline"
+              }
+              size={20}
+              color={
+                friendStatus === "friend"
+                  ? "#10B981"
+                  : friendStatus === "pending"
+                    ? "#94A3B8"
+                    : "#3B82F6"
+              }
+            />
           </TouchableOpacity>
         )}
 

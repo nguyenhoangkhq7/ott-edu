@@ -1345,6 +1345,32 @@ export class ChatService {
   // 1. TÌM KIẾM USER (Đã nâng cấp: Tự động Sync để lấy ID chuẩn cho Mobile)
   static async searchUsers(keyword: string, currentUserId: string, token?: string) {
     const safeKeyword = keyword ? keyword.trim() : "";
+
+    // 🚀 Lấy danh sách bạn bè và danh sách các request pending để check friendStatus
+    let friendIds = new Set<string>();
+    let pendingRequestIds = new Set<string>();
+    try {
+      const currentUser = await User.findById(currentUserId).select("friends").lean() as any;
+      if (currentUser && currentUser.friends) {
+        friendIds = new Set(currentUser.friends.map((f: any) => f.toString()));
+      }
+
+      const pendingRequests = await FriendRequest.find({
+        $or: [
+          { requesterId: currentUserId },
+          { recipientId: currentUserId }
+        ],
+        status: "pending"
+      }).lean();
+
+      pendingRequests.forEach((req: any) => {
+        pendingRequestIds.add(req.requesterId.toString());
+        pendingRequestIds.add(req.recipientId.toString());
+      });
+    } catch (err) {
+      console.error("[ChatService] Lỗi lấy thông tin quan hệ:", err);
+    }
+
     try {
       const CORE_API_URL = process.env.CORE_API_URL || "http://core-service:8080"; 
       
@@ -1383,14 +1409,23 @@ export class ChatService {
           const syncedUser = await this.syncAndResolveUser(targetId, targetEmail, token);
           
           if (syncedUser) {
+            const targetMongoId = syncedUser._id.toString();
+            let friendStatus = "none";
+            if (friendIds.has(targetMongoId)) {
+              friendStatus = "friend";
+            } else if (pendingRequestIds.has(targetMongoId)) {
+              friendStatus = "pending";
+            }
+
             // Trả về cho Mobile App cái Mongo _id chuẩn 24 ký tự
             resolvedUsers.push({
-              id: syncedUser._id.toString(), // Đánh lừa Mobile App ở dòng này
-              _id: syncedUser._id.toString(),
+              id: targetMongoId, // Đánh lừa Mobile App ở dòng này
+              _id: targetMongoId,
               fullName: syncedUser.fullName,
               email: syncedUser.email,
               avatarUrl: u.avatarUrl || syncedUser.avatarUrl,
-              code: u.code
+              code: u.code,
+              friendStatus: friendStatus
             });
           }
         }
@@ -1416,11 +1451,22 @@ export class ChatService {
       .limit(20)
       .lean();
 
-    return users.map((u: any) => ({
-      ...u,
-      id: u._id.toString(),
-      fullName: u.fullName || "Người dùng"
-    }));
+    return users.map((u: any) => {
+      const targetMongoId = u._id.toString();
+      let friendStatus = "none";
+      if (friendIds.has(targetMongoId)) {
+        friendStatus = "friend";
+      } else if (pendingRequestIds.has(targetMongoId)) {
+        friendStatus = "pending";
+      }
+
+      return {
+        ...u,
+        id: targetMongoId,
+        fullName: u.fullName || "Người dùng",
+        friendStatus: friendStatus
+      };
+    });
   }
 
   // 3. LẤY DANH SÁCH LỜI MỜI
@@ -1517,6 +1563,30 @@ console.log(`[DEBUG_REJECT] User ${userId} từ chối ${requesterId} -> Emit 'f
       "friend_request_rejected",
       { requesterId: requesterId.toString() },
     );
+
+    return { success: true };
+  }
+
+  // 6. HỦY KẾT BẠN
+  static async unfriend(userId: string, targetId: string) {
+    await User.findByIdAndUpdate(userId, {
+      $pull: { friends: new mongoose.Types.ObjectId(targetId) },
+    });
+    await User.findByIdAndUpdate(targetId, {
+      $pull: { friends: new mongoose.Types.ObjectId(userId) },
+    });
+
+    // Xóa tất cả lời mời kết bạn (kể cả đã chấp nhận) giữa hai người
+    await (FriendRequest as any).deleteMany({
+      $or: [
+        { requesterId: userId, recipientId: targetId },
+        { requesterId: targetId, recipientId: userId },
+      ],
+    });
+
+    // Phát sự kiện realtime cho cả hai người
+    socketManager.emitToUserTarget(userId, "unfriended", { targetId });
+    socketManager.emitToUserTarget(targetId, "unfriended", { userId });
 
     return { success: true };
   }
@@ -1642,6 +1712,12 @@ console.log(`[DEBUG_REJECT] User ${userId} từ chối ${requesterId} -> Emit 'f
     socketManager.emitToUserTarget(targetUserId, "new_friend_request", {
         requesterId: requesterId,
         requestId: newRequest._id
+    });
+
+    // 🚀 Báo cho chính người gửi để cập nhật UI (Realtime)
+    socketManager.emitToUserTarget(requesterId, "friend_status_updated", {
+        targetId: targetUserId,
+        status: "pending"
     });
 
     return newRequest;

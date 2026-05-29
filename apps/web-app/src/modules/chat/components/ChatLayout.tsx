@@ -532,6 +532,22 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       });
     });
 
+    nextSocket.on("unfriended", () => {
+      void loadConversationsList({
+        currentUserId,
+        setIsLoadingConversations,
+        setError,
+        setConversations,
+      });
+      void refreshConversationsAfterGroupChange({
+        currentUserId,
+        activeConversationId: activeConversationIdRef.current,
+        setConversations,
+        setActiveConversationId,
+        setMessages,
+      });
+    });
+
     nextSocket.on("conversation_settings_updated", (data: { conversationId: string; onlyAdminCanMessage: boolean }) => {
       setConversations((prev) =>
         prev.map((c) =>
@@ -559,6 +575,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       nextSocket.off("group_updated");
       nextSocket.off("friend_request_rejected");
       nextSocket.off("conversation_settings_updated");
+      nextSocket.off("unfriended");
 
       nextSocket.disconnect();
       socketRef.current = null;

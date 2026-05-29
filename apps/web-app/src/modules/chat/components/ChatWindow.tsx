@@ -35,7 +35,7 @@ import { Socket } from "socket.io-client";
 import ConversationInfoSidebar from "@/shared/components/ConversationInfoSidebar";
 import { AddMemberModal } from "./AddMemberModal";
 
-import { requestOrAddGroupMember, sendFriendRequestApi, searchUsersApi } from "../chatApi";
+import { requestOrAddGroupMember, sendFriendRequestApi, searchUsersApi, unfriendApi } from "../chatApi";
 import { VideoCallOverlay } from "./VideoCallOverlay";
 
 interface ChatWindowProps {
@@ -177,6 +177,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [friendStatus, setFriendStatus] = useState<
     "none" | "pending" | "friend"
   >("none");
+  const [isFriendBtnHovered, setIsFriendBtnHovered] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -706,13 +707,32 @@ if (conversation.type === "private" && currentUser) {
             {conversation.type === "private" && (
               <button
                 type="button"
-                // Disable nút nếu đã là bạn hoặc đã gửi lời mời
-                disabled={friendStatus !== "none"}
+                // Chỉ disable nút khi đang chờ duyệt
+                disabled={friendStatus === "pending"}
+                onMouseEnter={() => setIsFriendBtnHovered(true)}
+                onMouseLeave={() => setIsFriendBtnHovered(false)}
                 onClick={async () => {
                   const otherParticipant = conversation.participants.find(
                     (p) => p.id !== currentUser?.id,
                   );
                   if (!otherParticipant) return;
+
+                  if (friendStatus === "friend") {
+                    const confirmUnfriend = window.confirm(
+                      `Bạn có chắc chắn muốn hủy kết bạn với ${displayName}?`
+                    );
+                    if (confirmUnfriend) {
+                      try {
+                        await unfriendApi(otherParticipant.id);
+                        setFriendStatus("none");
+                        alert("Đã hủy kết bạn thành công.");
+                      } catch (error) {
+                        console.error("Lỗi khi hủy kết bạn:", error);
+                        alert("Không thể hủy kết bạn lúc này. Vui lòng thử lại sau.");
+                      }
+                    }
+                    return;
+                  }
 
                   try {
                     await sendFriendRequestApi(otherParticipant.id);
@@ -739,25 +759,37 @@ if (conversation.type === "private" && currentUser) {
                     }
                   }
                 }}
-                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition mr-2 ${friendStatus === "friend"
-                  ? "bg-emerald-50 text-emerald-600 cursor-default" // Bạn bè (Xanh ngọc)
-                  : friendStatus === "pending"
-                    ? "bg-slate-100 text-slate-500 cursor-not-allowed" // Đã gửi (Xám)
-                    : "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white" // Chưa gửi (Xanh dương)
-                  }`}
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition mr-2 ${
+                  friendStatus === "friend"
+                    ? isFriendBtnHovered
+                      ? "bg-rose-50 text-rose-600 cursor-pointer" // Hủy kết bạn khi hover (Đỏ nhạt)
+                      : "bg-emerald-50 text-emerald-600 cursor-pointer" // Bạn bè (Xanh ngọc)
+                    : friendStatus === "pending"
+                      ? "bg-slate-100 text-slate-500 cursor-not-allowed" // Đã gửi (Xám)
+                      : "bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white cursor-pointer" // Chưa gửi (Xanh dương)
+                }`}
                 title={
                   friendStatus === "friend"
-                    ? "Hai bạn đã là bạn bè"
+                    ? isFriendBtnHovered
+                      ? "Hủy kết bạn"
+                      : "Hai bạn đã là bạn bè"
                     : friendStatus === "pending"
                       ? "Đã gửi lời mời"
                       : "Gửi lời mời kết bạn"
                 }
               >
                 {friendStatus === "friend" ? (
-                  <>
-                    <UserCheck size={18} />{" "}
-                    <span className="hidden sm:inline">Bạn bè</span>
-                  </>
+                  isFriendBtnHovered ? (
+                    <>
+                      <X size={18} />{" "}
+                      <span className="hidden sm:inline">Hủy kết bạn</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck size={18} />{" "}
+                      <span className="hidden sm:inline">Bạn bè</span>
+                    </>
+                  )
                 ) : friendStatus === "pending" ? (
                   <>
                     <Check size={18} />{" "}

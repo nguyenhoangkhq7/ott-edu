@@ -971,6 +971,23 @@ export class ChatController {
     }
   }
 
+  // API: POST /api/unfriend
+  static async unfriend(req: Request, res: Response) {
+    try {
+      const userId = (req as any).user?._id;
+      const { targetId } = req.body;
+
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      if (!targetId) return res.status(400).json({ error: "Thiếu targetId" });
+
+      await ChatService.unfriend(userId.toString(), targetId.toString());
+      return res.status(200).json({ success: true, message: "Đã hủy kết bạn thành công" });
+    } catch (error: any) {
+      console.error("[ChatController] unfriend error:", error);
+      return res.status(error.statusCode || 500).json({ error: error.message });
+    }
+  }
+
   // API: POST /api/socket-events/emit
   // ✨ REALTIME EVENTS ENDPOINT - Nhận sự kiện từ Core Service
   static async emitSocketEvent(req: Request, res: Response) {
