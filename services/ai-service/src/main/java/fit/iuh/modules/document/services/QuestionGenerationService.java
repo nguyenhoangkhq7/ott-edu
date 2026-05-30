@@ -31,7 +31,8 @@ public class QuestionGenerationService {
             === KẾT THÚC NỘI DUNG ===
 
             YÊU CẦU TỐI THƯỢNG (VI PHẠM SẼ BỊ LOẠI BỎ KẾT QUẢ):
-            1. ĐỒNG BỘ NGÔN NGỮ: Nếu tài liệu trên là TIẾNG ANH, toàn bộ JSON (câu hỏi, đáp án, giải thích) PHẢI là TIẾNG ANH. Nếu tài liệu TIẾNG VIỆT, toàn bộ PHẢI là TIẾNG VIỆT.
+            1. ĐỒNG BỘ NGÔN NGỮ (QUAN TRỌNG NHẤT): Phân tích ngôn ngữ của đoạn tài liệu trên. Nếu tài liệu viết bằng TIẾNG ANH, toàn bộ JSON PHẢI được viết bằng TIẾNG ANH (TUYỆT ĐỐI KHÔNG ĐƯỢC DỊCH SANG TIẾNG VIỆT, DÙ PROMPT NÀY VIẾT BẰNG TIẾNG VIỆT).
+            Nếu tài liệu bằng TIẾNG VIỆT, dùng TIẾNG VIỆT cho câu hỏi và đáp án. KHÔNG được phép tạo câu hỏi bằng ngôn ngữ khác với ngôn ngữ của tài liệu.
             2. CHỐNG LẶP LẠI (QUAN TRỌNG NHẤT): Mỗi câu hỏi phải khai thác một khái niệm HOÀN TOÀN KHÁC NHAU trong tài liệu. TUYỆT ĐỐI KHÔNG sử dụng lại bộ đáp án của câu trước cho câu sau. TUYỆT ĐỐI KHÔNG hỏi lại một ý đã hỏi.
             3. ĐỘ DÀI ĐÁP ÁN: Các đáp án (options) PHẢI LÀ CỤM TỪ NGẮN (tối đa 10 từ). TUYỆT ĐỐI KHÔNG copy nguyên câu văn dài làm đáp án.
                - MẪU ĐÁP ÁN TỐT: "A. Virtual teams", "B. Outsourcing", "C. Globalization".

@@ -221,6 +221,7 @@ services:
     image: ollama/ollama:latest
     container_name: ai-engine-init
     restart: "no"
+    env_file: .env
     depends_on:
       - ai-engine-cpu
       - ai-engine-gpu
@@ -246,8 +247,8 @@ services:
           fi
         }
         
-        wait_and_pull "ai-engine-cpu:11434" "hf.co/doof-ferb/AITeamVN-Vietnamese_Embedding-gguf:Q8_0"
-        wait_and_pull "ai-engine-gpu:11434" "qwen2.5:3b-instruct"
+        wait_and_pull "ai-engine-cpu:11434" "$$OLLAMA_EMBEDDING_MODEL"
+        wait_and_pull "ai-engine-gpu:11434" "$$OLLAMA_CHAT_MODEL"
         echo "All models ready!"
     networks:
       - app-network
