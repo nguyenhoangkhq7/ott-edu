@@ -2,7 +2,7 @@ import React from "react";
 import { Conversation, ChatMode, User } from "../types";
 import { SidebarTabs } from "./SidebarTabs";
 import { ConversationItem } from "./ConversationItem";
-import { RefreshCw, Users, UserPlus } from "lucide-react";
+import { RefreshCw, Users, UserPlus, UserCheck, Check } from "lucide-react";
 import Image from "next/image";
 import { CreateGroupModal } from "./CreateGroupModal";
 import { FriendRequestsModal } from "./FriendRequestsModal";
@@ -55,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // 🚀 THÊM 2 STATE MỚI CHO TÌM KIẾM TOÀN HỆ THỐNG
   const [globalUsers, setGlobalUsers] = useState<User[]>([]);
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [searchTrigger, setSearchTrigger] = useState(0);
 
   // Fetch so luong loi moi ket ban
   const fetchPendingCount = async () => {
@@ -80,25 +81,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, []);
 
   // Lang nghe su kien socket de update realtime
- // Lang nghe su kien socket de update realtime
   useEffect(() => {
     if (!socket) return;
 
-    // THÊM CÁI NÀY VÀO ĐỂ BẮT SỰ KIỆN KẾT BẠN MỚI
     const handleNewFriendRequest = () => {
       console.log("🔥 [FRONTEND] Đã nhận event new_friend_request -> Cập nhật chấm đỏ");
       fetchPendingCount();
+      setSearchTrigger((prev) => prev + 1);
     };
 
-    const handleFriendStatusUpdated = () => { fetchPendingCount(); };
-    const handleFriendRequestAccepted = () => { fetchPendingCount(); };
-    const handleFriendRequestRejected = () => { fetchPendingCount(); };
+    const handleFriendStatusUpdated = () => {
+      fetchPendingCount();
+      setSearchTrigger((prev) => prev + 1);
+    };
+    const handleFriendRequestAccepted = () => {
+      fetchPendingCount();
+      setSearchTrigger((prev) => prev + 1);
+    };
+    const handleFriendRequestRejected = () => {
+      fetchPendingCount();
+      setSearchTrigger((prev) => prev + 1);
+    };
 
     // ĐĂNG KÝ CÁC EVENT
     socket.on("new_friend_request", handleNewFriendRequest); // 🚀 THIẾU DÒNG NÀY
     socket.on("friend_status_updated", handleFriendStatusUpdated);
     socket.on("friend_request_accepted", handleFriendRequestAccepted);
     socket.on("friend_request_rejected", handleFriendRequestRejected);
+    socket.on("unfriended", handleFriendStatusUpdated);
 
     return () => {
       // GỠ CÁC EVENT
@@ -106,6 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       socket.off("friend_status_updated", handleFriendStatusUpdated);
       socket.off("friend_request_accepted", handleFriendRequestAccepted);
       socket.off("friend_request_rejected", handleFriendRequestRejected);
+      socket.off("unfriended", handleFriendStatusUpdated);
     };
   }, [socket]);
 
@@ -129,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, 500); // Trễ 0.5s để chống spam API khi đang gõ liên tục
 
     return () => clearTimeout(timer);
-  }, [searchQuery, currentMode]);
+  }, [searchQuery, currentMode, searchTrigger]);
 
   const handleCreateGroup = async (name: string, selectedIds: string[]) => {
     try {
@@ -181,6 +192,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     return searchable.includes(normalizedQuery);
   });
+
+  // Helper to resolve the latest friendship status for a given user from global/local state
+  const getFriendStatus = (u: User) => {
+    const uId = (u as User & { _id?: string })._id || u.id;
+    // 1. Cross reference with existing private conversations (highly reliable and real-time updated)
+    const privateConv = conversations.find(
+      (c) =>
+        c.type === "private" &&
+        c.participants.some((p) => p.id === uId)
+    );
+    if (privateConv) {
+      const other = privateConv.participants.find((p) => p.id === uId);
+      if (other && other.friendStatus) {
+        return other.friendStatus;
+      }
+    }
+    return u.friendStatus || "none";
+  };
 
   // 🚀 QUYẾT ĐỊNH XEM ĐANG HIỂN THỊ SUGGEST HAY KẾT QUẢ GLOBAL
   const isSearchingText = normalizedQuery.length > 0;
@@ -343,34 +372,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </button>
 
                         {/* NÚT KẾT BẠN */}
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation(); // Ngăn click nhầm qua khung chat
-                            try {
-                              if (sendFriendRequestApi) {
-                                await sendFriendRequestApi(uniqueId);
-                                alert(
-                                  `Đã gửi lời mời kết bạn đến ${displayName}! Hãy chờ họ chấp nhận nhé!`,
-                                );
-                              } else {
-                                alert(
-                                  `Chưa cấu hình API gửi lời mời cho ${displayName}`,
-                                );
-                              }
-                            } catch (err: unknown) {
-                              const errorMessage =
-                                err instanceof Error
-                                  ? err.message
-                                  : "Lỗi gửi lời mời kết bạn";
-                              alert(errorMessage);
-                            }
-                          }}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 opacity-0 transition-all hover:bg-blue-500 hover:text-white group-hover:opacity-100"
-                          title="Gửi kết bạn"
-                        >
-                          <UserPlus size={16} />
-                        </button>
+                        {(() => {
+                          const status = getFriendStatus(user);
+                          if (status === "friend") {
+                            return (
+                              <div
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"
+                                title="Bạn bè"
+                              >
+                                <UserCheck size={16} />
+                              </div>
+                            );
+                          }
+                          if (status === "pending") {
+                            return (
+                              <div
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                                title="Đã gửi lời mời"
+                              >
+                                <Check size={16} />
+                              </div>
+                            );
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation(); // Ngăn click nhầm qua khung chat
+                                try {
+                                  if (sendFriendRequestApi) {
+                                    await sendFriendRequestApi(uniqueId);
+                                    // Update local state immediately for instant feedback
+                                    setGlobalUsers((prev) =>
+                                      prev.map((u) => {
+                                        const uId = (u as User & { _id?: string })._id || u.id;
+                                        if (uId === uniqueId) {
+                                          return { ...u, friendStatus: "pending" };
+                                        }
+                                        return u;
+                                      })
+                                    );
+                                    alert(
+                                      `Đã gửi lời mời kết bạn đến ${displayName}! Hãy chờ họ chấp nhận nhé!`,
+                                    );
+                                    setSearchTrigger((prev) => prev + 1);
+                                  } else {
+                                    alert(
+                                      `Chưa cấu hình API gửi lời mời cho ${displayName}`,
+                                    );
+                                  }
+                                } catch (err: unknown) {
+                                  const errorMessage =
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Lỗi gửi lời mời kết bạn";
+                                  alert(errorMessage);
+                                }
+                              }}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 opacity-0 transition-all hover:bg-blue-500 hover:text-white group-hover:opacity-100"
+                              title="Gửi kết bạn"
+                            >
+                              <UserPlus size={16} />
+                            </button>
+                          );
+                        })()}
                       </div>
                     );
                   })}

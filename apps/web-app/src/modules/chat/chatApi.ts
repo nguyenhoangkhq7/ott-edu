@@ -572,7 +572,7 @@ export const searchUsersApi = async (keyword: string = "") => {
     userList = response.data.data;
   }
 
-  return { data: userList }; 
+  return { data: userList.map(mapApiUserToUser) }; 
 };
 
 export async function updateConversationSettings(
@@ -600,4 +600,8 @@ export async function joinGroupApi(
     conversation: mapApiConversationToConversation(data.data.conversation, ""),
     mode: data.data.mode,
   };
+}
+
+export async function unfriendApi(targetId: string): Promise<void> {
+  await chatHttpService.post("/unfriend", { targetId });
 }

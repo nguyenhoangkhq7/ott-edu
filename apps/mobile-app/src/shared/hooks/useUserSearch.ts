@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 // Import đúng đường dẫn API của ông
 import { searchUsers } from '../../modules/friends/friends.api'; 
 
-export const useUserSearch = (identity: any, isVisible: boolean = true) => {
+export const useUserSearch = (identity: any, isVisible: boolean = true, searchTrigger: number = 0) => {
   const [keyword, setKeyword] = useState('');
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +21,7 @@ export const useUserSearch = (identity: any, isVisible: boolean = true) => {
     }, 500); 
 
     return () => clearTimeout(delayDebounceFn);
-  }, [keyword, isVisible, identity]);
+  }, [keyword, isVisible, identity, searchTrigger]);
 
   const resetSearch = () => {
     setKeyword('');

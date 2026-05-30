@@ -73,7 +73,7 @@ export const searchUsers = async (
     userList = response.data.data;
   }
 
-  return userList; 
+  return userList.map(mapApiUserToUser); 
 };
 
 export async function fetchFriendRequests(identity: ChatAuthIdentity): Promise<any[]> {
