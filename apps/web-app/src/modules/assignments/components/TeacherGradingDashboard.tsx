@@ -50,6 +50,8 @@ interface PendingSubmission {
   isGraded: boolean;
   currentScore?: number;
   gradeRevision?: number;
+  studentCode?: string;
+  studentName?: string;
   // File attachment — backend field name is `fileUrl`
   fileUrl?: string;
   attachmentUrl?: string;
@@ -63,6 +65,15 @@ interface PendingSubmission {
  * We try every possible field name so it works when the backend is enriched.
  */
 function resolveStudentName(submission: PendingSubmission, studentNamesMap?: Record<number, string>): string {
+  if (submission.studentCode && submission.studentName) {
+    return `${submission.studentCode} - ${submission.studentName}`;
+  }
+  if (submission.studentName) {
+    return submission.studentCode
+      ? `${submission.studentCode} - ${submission.studentName}`
+      : (submission.studentName as string);
+  }
+
   if (studentNamesMap && studentNamesMap[submission.studentAccountId]) {
     return studentNamesMap[submission.studentAccountId];
   }
@@ -482,7 +493,7 @@ export default function TeacherGradingDashboard({
                   <p>
                     <span className="text-slate-600">Mã học sinh:</span>
                     <span className="ml-2 font-medium text-slate-900">
-                      #{selectedSubmission.studentAccountId}
+                      {selectedSubmission.studentCode || `#${selectedSubmission.studentAccountId}`}
                     </span>
                   </p>
                   <p>

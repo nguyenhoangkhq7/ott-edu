@@ -70,6 +70,21 @@ jobs:
             sleep 2
           done
 
+          echo "Waiting for assignment-service OpenAPI endpoint..."
+          for i in {1..150}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/v3/api-docs || true)
+            if [ "$code" = "200" ]; then
+              echo "Assignment service is ready (HTTP $code)."
+              break
+            fi
+            if [ "$i" -eq 150 ]; then
+              echo "Assignment service did not become ready in time."
+              docker compose logs assignment-service
+              exit 1
+            fi
+            sleep 2
+          done
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

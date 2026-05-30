@@ -62,6 +62,11 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.otp.max-attempts:5}")
     private int otpMaxAttempts;
 
+    @Value("${app.chat-service.base-url:http://localhost:3001/api}")
+    private String chatServiceBaseUrl;
+
+    private final java.util.concurrent.ConcurrentHashMap<String, LocalDateTime> qrSessions = new java.util.concurrent.ConcurrentHashMap<>();
+
     @Override
     @Transactional
     public String register(RegisterRequest request) {
@@ -495,5 +500,97 @@ public class AuthServiceImpl implements AuthService {
             token.setRevoked(true);
         }
         refreshTokenRepository.saveAll(activeTokens);
+    }
+
+    @Override
+    public fit.iuh.modules.auth.dtos.auth.QrInitResponse initQrSession() {
+        String sessionId = java.util.UUID.randomUUID().toString();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(3);
+        qrSessions.put(sessionId, expiresAt);
+
+        System.out.println("🆕 [QR Login] Initiated QR Session: " + sessionId + ", expires at: " + expiresAt);
+
+        return fit.iuh.modules.auth.dtos.auth.QrInitResponse.builder()
+                .qrSessionId(sessionId)
+                .expiresIn(180) // 3 minutes in seconds
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public fit.iuh.modules.auth.dtos.auth.LoginResponse confirmQrSession(String email, fit.iuh.modules.auth.dtos.auth.QrConfirmRequest request) {
+        String sessionId = request.getSessionId();
+        LocalDateTime expiresAt = qrSessions.get(sessionId);
+
+        if (expiresAt == null) {
+            throw new RuntimeException("Mã QR không hợp lệ hoặc không tồn tại.");
+        }
+
+        if (LocalDateTime.now().isAfter(expiresAt)) {
+            qrSessions.remove(sessionId);
+            throw new RuntimeException("Mã QR đã hết hạn (TTL: 3 phút).");
+        }
+
+        // Hợp lệ, tiến hành xóa session để tránh reuse
+        qrSessions.remove(sessionId);
+
+        System.out.println("✅ [QR Login] QR Session: " + sessionId + " confirmed by user: " + email);
+
+        Account account = accountRepository.findByEmail(email)
+                .orElseThrow(() -> new BadCredentialsException("Email hoặc mật khẩu không đúng."));
+
+        String accessToken = jwtService.generateAccessToken(account);
+        String refreshToken = jwtService.generateRefreshToken(account);
+
+        RefreshToken refreshTokenEntity = RefreshToken.builder()
+                .account(account)
+                .tokenValue(refreshToken)
+                .expiresAt(LocalDateTime.now().plusSeconds(jwtService.getRefreshTokenExpirationMs() / 1000))
+                .revoked(false)
+                .build();
+        refreshTokenRepository.save(refreshTokenEntity);
+
+        fit.iuh.modules.auth.dtos.auth.LoginResponse loginResponse = fit.iuh.modules.auth.dtos.auth.LoginResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .expiresIn(jwtService.getAccessTokenExpirationMs() / 1000)
+                .user(buildUserResponse(account))
+                .build();
+
+        // Gửi thông báo realtime sang chat-service
+        sendQrSuccessToChatService(sessionId, loginResponse);
+
+        return loginResponse;
+    }
+
+    private void sendQrSuccessToChatService(String sessionId, fit.iuh.modules.auth.dtos.auth.LoginResponse loginResponse) {
+        try {
+            String url = chatServiceBaseUrl + "/socket-events/qr-success";
+            System.out.println("📡 [QR Login] Sending real-time notification to chat-service: " + url);
+
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+
+            java.util.Map<String, Object> payload = java.util.Map.of(
+                    "sessionId", sessionId,
+                    "loginData", loginResponse
+            );
+            String json = mapper.writeValueAsString(payload);
+
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .version(java.net.http.HttpClient.Version.HTTP_1_1)
+                    .build();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json, java.nio.charset.StandardCharsets.UTF_8))
+                    .build();
+
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+            System.out.println("📬 [QR Login] chat-service response status: " + response.statusCode() + ", body: " + response.body());
+        } catch (Exception e) {
+            System.err.println("❌ [QR Login] Failed to notify chat-service for QR Login Success: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

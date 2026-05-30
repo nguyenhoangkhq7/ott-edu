@@ -354,7 +354,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               user.avatarUrl ||
                               `https://i.pravatar.cc/150?u=${user.email}`
                             }
-                            alt={user.name}
+                            alt={displayName}
                             width={36}
                             height={36}
                             className="h-9 w-9 shrink-0 rounded-full object-cover"

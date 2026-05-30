@@ -1013,6 +1013,27 @@ export class ChatController {
     }
   }
 
+  // API: POST /api/socket-events/qr-success
+  static async broadcastQrLoginSuccess(req: Request, res: Response) {
+    try {
+      const { sessionId, loginData } = req.body;
+
+      if (!sessionId || !loginData) {
+        return res.status(400).json({ error: "Thiếu sessionId hoặc loginData" });
+      }
+
+      socketManager.broadcastQrLoginSuccess(sessionId, loginData);
+
+      return res.status(200).json({
+        success: true,
+        message: `QR login success event broadcasted to qr_room_${sessionId}`,
+      });
+    } catch (error: any) {
+      console.error("[ChatController] broadcastQrLoginSuccess error:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
   // API: GET /api/admin/stats/messages
   static async getMessageStats(req: Request, res: Response) {
     try {

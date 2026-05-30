@@ -44,38 +44,125 @@ export default function QuizReviewScreen({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {answers.map((answer, index: number) => (
-          <View key={index} style={styles.questionCard}>
-            <View style={styles.questionHeader}>
-              <View style={styles.indexBadge}>
-                <Text style={styles.indexText}>Câu {index + 1}</Text>
-              </View>
-              <View style={styles.pointsBadge}>
-                <Text style={styles.pointsText}>
-                  {answer.earnedPoints ?? 0} / {answer.questionPoints} điểm
-                </Text>
-              </View>
-            </View>
+        {(detail.questions ?? []).map((question, index: number) => {
+          // Find student answer for this specific question
+          const studentAnswer = answers.find(sa => sa.questionId === question.id);
+          const selectedOptionIds = studentAnswer?.selectedOptionIds ?? [];
+          const earnedPoints = studentAnswer?.earnedPoints ?? 0;
+          const isCorrect = earnedPoints > 0;
+          const hasAnswered = !!studentAnswer;
 
-            <Text style={styles.questionContent}>{answer.questionContent}</Text>
-
-            <View style={styles.answerSection}>
-              <Text style={styles.answerLabel}>Lựa chọn của bạn:</Text>
-              <View style={styles.optionsList}>
-                {/* Note: In this view, we only see the selected options from the backend */}
-                {answer.selectedOptionIds.map((optId: number, optIdx: number) => (
-                  <View key={optIdx} style={styles.selectedOption}>
-                    <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-                    <Text style={styles.optionText}>Lựa chọn ID: {optId}</Text>
+          return (
+            <View key={question.id} style={styles.questionCard}>
+              <View style={styles.questionHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View style={styles.indexBadge}>
+                    <Text style={styles.indexText}>Câu {index + 1}</Text>
                   </View>
-                ))}
-                {answer.selectedOptionIds.length === 0 && (
-                  <Text style={styles.noAnswerText}>Không có câu trả lời</Text>
-                )}
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: !hasAnswered ? "#f1f5f9" : isCorrect ? "#dcfce7" : "#fee2e2" }
+                  ]}>
+                    <Text style={[
+                      styles.statusText,
+                      { color: !hasAnswered ? "#64748b" : isCorrect ? "#15803d" : "#b91c1c" }
+                    ]}>
+                      {!hasAnswered ? "Chưa trả lời" : isCorrect ? "Đúng" : "Sai"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.pointsBadge}>
+                  <Text style={styles.pointsText}>
+                    {earnedPoints} / {question.points} điểm
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.questionContent}>{question.content}</Text>
+
+              <View style={styles.answerSection}>
+                <Text style={styles.answerLabel}>Đáp án đã chọn:</Text>
+                <View style={styles.optionsList}>
+                  {question.options && question.options.length > 0 ? (
+                    question.options.map((opt) => {
+                      const isSelected = selectedOptionIds.includes(opt.id);
+
+                      let iconName: "ellipse-outline" | "checkmark-circle" | "close-circle" = "ellipse-outline";
+                      let iconColor = "#94a3b8";
+                      let textColor = "#475569";
+                      let fontWeight: "normal" | "600" = "normal";
+                      let bgColor = "transparent";
+
+                      if (isSelected) {
+                        fontWeight = "600";
+                        if (isCorrect) {
+                          iconName = "checkmark-circle";
+                          iconColor = "#10b981";
+                          textColor = "#15803d";
+                          bgColor = "#e6f4ea";
+                        } else {
+                          iconName = "close-circle";
+                          iconColor = "#ef4444";
+                          textColor = "#b91c1c";
+                          bgColor = "#fce8e6";
+                        }
+                      }
+
+                      return (
+                        <View
+                          key={opt.id}
+                          style={[
+                            styles.optionRowReview,
+                            bgColor !== "transparent" && {
+                              backgroundColor: bgColor,
+                              borderRadius: 8,
+                              paddingHorizontal: 8,
+                              paddingVertical: 6,
+                            },
+                          ]}
+                        >
+                          <Ionicons name={iconName} size={16} color={iconColor} />
+                          <Text
+                            style={[
+                              styles.optionText,
+                              { color: textColor, fontWeight, flex: 1, marginLeft: 6 },
+                            ]}
+                          >
+                            {opt.content}
+                          </Text>
+                        </View>
+                      );
+                    })
+                  ) : (
+                    // Fallback: If options are missing in detail, display selected IDs
+                    selectedOptionIds.map((optId: number, optIdx: number) => {
+                      return (
+                        <View key={optIdx} style={styles.selectedOption}>
+                          <Ionicons
+                            name={isCorrect ? "checkmark-circle" : "close-circle"}
+                            size={16}
+                            color={isCorrect ? "#10b981" : "#ef4444"}
+                          />
+                          <Text
+                            style={[
+                              styles.optionText,
+                              { color: isCorrect ? "#166534" : "#991b1b", fontWeight: "600", marginLeft: 6 }
+                            ]}
+                          >
+                            Lựa chọn ID: {optId}
+                          </Text>
+                        </View>
+                      );
+                    })
+                  )}
+                  {selectedOptionIds.length === 0 && (
+                    <Text style={styles.noAnswerText}>Không có câu trả lời</Text>
+                  )}
+                </View>
               </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
@@ -125,6 +212,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#eef2ff",
   },
   indexText: { fontSize: 12, fontWeight: "700", color: "#4f46e5" },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: { fontSize: 11, fontWeight: "800" },
   pointsBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -159,4 +252,10 @@ const styles = StyleSheet.create({
   },
   optionText: { fontSize: 14, color: "#334155" },
   noAnswerText: { fontSize: 14, color: "#94a3b8", fontStyle: "italic" },
+  optionRowReview: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 2,
+  },
 });

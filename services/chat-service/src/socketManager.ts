@@ -799,6 +799,18 @@ class SocketManager {
         }
       });
 
+      // 🔐 JOIN QR LOGIN ROOM for QR authentication sequence
+      socket.on("join_qr_login_room", (data: any) => {
+        const sessionId = typeof data === "string" ? data : data?.sessionId;
+        if (sessionId) {
+          const roomName = `qr_room_${sessionId}`;
+          socket.join(roomName);
+          console.log(
+            `[SocketManager] Socket ${socket.id} joined QR login room: ${roomName}`,
+          );
+        }
+      });
+
       // ✨ LEAVE TEAM/CLASS ROOM
       socket.on("leave_room", (data: { roomId: string }) => {
         const { roomId } = data;
@@ -1877,6 +1889,17 @@ class SocketManager {
     payload: any,
   ): void {
     this.emitToUser(userId, eventName, payload);
+  }
+
+  // 📡 Broadcast QR Code login success details to Web client room
+  public broadcastQrLoginSuccess(sessionId: string, loginData: any): void {
+    if (!this.io) {
+      console.error("[SocketManager] broadcastQrLoginSuccess: io not initialized");
+      return;
+    }
+    const roomName = `qr_room_${sessionId}`;
+    this.io.to(roomName).emit("qr_login_success", loginData);
+    console.log(`[SocketManager] 📡 Broadcasted 'qr_login_success' to room '${roomName}'`);
   }
 }
 

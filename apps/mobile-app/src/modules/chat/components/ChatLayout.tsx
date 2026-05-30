@@ -99,6 +99,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   const [typingUsers, setTypingUsers] = useState<Record<string, Record<string, string>>>({});
 
   const socketRef = useRef<Socket | null>(null);
+  const typingTimeoutsRef = useRef<Record<string, any>>({});
   const activeConversationIdRef = useRef<string | null>(null);
   const isCallActiveRef = useRef(false);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -255,18 +256,41 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       });
 
       // --- KẾT HỢP: LOGIC TYPING CỦA TEAM ---
-      const handleTypingStart = (data: { conversationId: string; userId: string; userName: string }) => {
+      const handleTypingStart = (data: { conversationId: string; userId: string; userName?: string }) => {
         if (data.userId === chatMongoId) return;
+
+        // Clear existing timeout for this user in this conversation
+        const timeoutKey = `${data.conversationId}_${data.userId}`;
+        if (typingTimeoutsRef.current[timeoutKey]) {
+          clearTimeout(typingTimeoutsRef.current[timeoutKey]);
+        }
+
+        const conv = conversationsRef.current.find((c) => c.id === data.conversationId);
+        const participant = conv?.participants.find((p) => p.id === data.userId);
+        const displayName = participant?.name || data.userName || 'Người dùng';
+
         setTypingUsers((prev) => ({
           ...prev,
           [data.conversationId]: {
             ...(prev[data.conversationId] || {}),
-            [data.userId]: data.userName || 'Người dùng',
+            [data.userId]: displayName,
           },
         }));
+
+        // Automatically stop typing indicator after 3 seconds of inactivity
+        typingTimeoutsRef.current[timeoutKey] = setTimeout(() => {
+          handleTypingStop({ conversationId: data.conversationId, userId: data.userId });
+          delete typingTimeoutsRef.current[timeoutKey];
+        }, 3000);
       };
 
       const handleTypingStop = (data: { conversationId: string; userId: string }) => {
+        const timeoutKey = `${data.conversationId}_${data.userId}`;
+        if (typingTimeoutsRef.current[timeoutKey]) {
+          clearTimeout(typingTimeoutsRef.current[timeoutKey]);
+          delete typingTimeoutsRef.current[timeoutKey];
+        }
+
         setTypingUsers((prev) => {
           if (!prev[data.conversationId] || !prev[data.conversationId][data.userId]) return prev;
           const nextConvTyping = { ...prev[data.conversationId] };
@@ -428,6 +452,10 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setupSocket();
 
     return () => {
+      // Clear typing timeouts
+      Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
+      typingTimeoutsRef.current = {};
+
       if (socket) {
         socket.off("newMessage");
         socket.off("messageRevoked");
@@ -871,6 +899,18 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setIncomingCallRequest(null);
   }, [activeConversation, conversations, incomingCallRequest]);
 
+  // 20-second timeout to auto-decline unanswered incoming calls on mobile
+  useEffect(() => {
+    if (!incomingCallRequest) return;
+
+    const timer = setTimeout(() => {
+      console.log("[ChatLayout] Incoming call unanswered for 20s. Auto declining...");
+      handleDeclineIncomingCall();
+    }, 20_000);
+
+    return () => clearTimeout(timer);
+  }, [incomingCallRequest, handleDeclineIncomingCall]);
+
   const handleRequestLeaveCall = useCallback(() => {
     if (!isGroupCallActive) return;
     setLeaveSignal((prev) => prev + 1);
@@ -925,6 +965,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
               onStartVideoCall={isPrivateConversation ? handleStartVideoCall : undefined}
               onStartGroupCall={!isPrivateConversation ? handleStartGroupCall : undefined}
               isCallActive={isGroupCallActive}
+              typingUsers={activeConversationId ? typingUsers[activeConversationId] || {} : {}}
+              onTyping={handleTyping}
             />
           </Modal>
 

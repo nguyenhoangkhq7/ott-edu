@@ -70,12 +70,13 @@ public class SubmissionController {
                         @Parameter(description = "Assignment ID") @PathVariable Long assignmentId,
                         @Parameter(description = "Page number (0-indexed)") @RequestParam(defaultValue = "0") int page,
                         @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
+                        @RequestHeader(value = "Authorization", required = false) String authHeader,
                         Authentication authentication) {
 
                 Long creatorId = AuthUtil.extractUserId(authentication);
                 Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
                 Page<SubmissionGradingListDto> submissions = submissionService
-                                .getPendingGradesForAssignment(assignmentId, creatorId, pageable);
+                                .getPendingGradesForAssignment(assignmentId, creatorId, pageable, authHeader);
 
                 return new ResponseEntity<>(submissions, HttpStatus.OK);
         }
@@ -99,12 +100,13 @@ public class SubmissionController {
                         @Parameter(description = "Assignment ID") @PathVariable Long assignmentId,
                         @Parameter(description = "Page number (0-indexed)") @RequestParam(defaultValue = "0") int page,
                         @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
+                        @RequestHeader(value = "Authorization", required = false) String authHeader,
                         Authentication authentication) {
 
                 Long creatorId = AuthUtil.extractUserId(authentication);
                 Pageable pageable = PageRequest.of(page, size, Sort.by("submittedAt").descending());
                 Page<SubmissionGradingListDto> submissions = submissionService
-                                .getSubmissionsForAssignment(assignmentId, creatorId, pageable);
+                                .getSubmissionsForAssignment(assignmentId, creatorId, pageable, authHeader);
 
                 return new ResponseEntity<>(submissions, HttpStatus.OK);
         }

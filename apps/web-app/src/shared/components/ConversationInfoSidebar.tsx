@@ -17,6 +17,7 @@ import {
   File,
   Link as LinkIcon,
   Lock,
+  Key,
 } from "lucide-react";
 import AddTeamMemberModal from "@/modules/teams/AddTeamMemberModal";
 import {
@@ -197,12 +198,6 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
   // Determine if this is a private or class conversation
   const isPrivateChat =
     conversationInfo?.type === "private" || conversationType === "private";
-  const ownerParticipant = conversationInfo?.participants?.find(
-    (participant) => participant._id === conversationInfo?.ownerId,
-  );
-  const memberParticipants = conversationInfo?.participants?.filter(
-    (participant) => participant._id !== conversationInfo?.ownerId,
-  );
   const deputyParticipant = conversationInfo?.participants?.find(
     (participant) => participant._id === conversationInfo?.deputyId,
   );
@@ -374,6 +369,23 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
       ? populateSenderNames(linkItems, conversationInfo.participants)
       : linkItems;
   }, [linkItems, conversationInfo?.participants]);
+
+  const sortedParticipants = React.useMemo(() => {
+    if (!conversationInfo?.participants) return [];
+    return [...conversationInfo.participants].sort((a, b) => {
+      const aIsOwner = a._id === conversationInfo.ownerId;
+      const bIsOwner = b._id === conversationInfo.ownerId;
+      if (aIsOwner && !bIsOwner) return -1;
+      if (!aIsOwner && bIsOwner) return 1;
+
+      const aIsDeputy = a._id === conversationInfo.deputyId;
+      const bIsDeputy = b._id === conversationInfo.deputyId;
+      if (aIsDeputy && !bIsDeputy) return -1;
+      if (!aIsDeputy && bIsDeputy) return 1;
+
+      return (a.fullName || "").localeCompare(b.fullName || "");
+    });
+  }, [conversationInfo?.participants, conversationInfo?.ownerId, conversationInfo?.deputyId]);
 
   // const fetchCommonGroups = useCallback(async () => {
   //   try {
@@ -680,86 +692,68 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
               onToggle={() => toggleAccordion("members")}
               count={conversationInfo?.totalMembers}
             >
-              <div className="space-y-4 max-h-48 overflow-y-auto">
-                {ownerParticipant && (
-                  <div>
-                    <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                      Trưởng nhóm
-                    </div>
-                    <div className="flex items-center gap-2 rounded-lg p-2 hover:bg-white transition">
-                      {isSafeAvatarUrl(ownerParticipant.avatarUrl) ? (
-                        <Image
-                          src={ownerParticipant.avatarUrl}
-                          alt={ownerParticipant.fullName}
-                          width={32}
-                          height={32}
-                          className="w-8 h-8 rounded-full object-cover shrink-0"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-400 to-purple-600 flex items-center justify-center shrink-0">
-                          <span className="text-white text-xs font-semibold">
-                            {ownerParticipant.fullName
-                              ?.charAt(0)
-                              ?.toUpperCase() || "U"}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                        <p className="truncate text-xs font-medium text-gray-800">
-                          {ownerParticipant.fullName}
-                        </p>
-                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                          Trưởng nhóm
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              <div className="max-h-[350px] overflow-y-auto -mx-4 -my-3 bg-white divide-y divide-gray-100">
+                {sortedParticipants.map((participant) => {
+                  const isOwner = participant._id === conversationInfo?.ownerId;
+                  const isDeputy = participant._id === conversationInfo?.deputyId;
+                  const isSelf = participant._id === currentUserId;
+                  const roleLabel = getParticipantRoleLabel(
+                    conversationInfo?.ownerId,
+                    conversationInfo?.deputyId,
+                    participant._id,
+                  );
+                  const displayName = isSelf ? "Bạn" : participant.fullName;
 
-                <div>
-                  <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-                    Thành viên
-                  </div>
-                  <div className="space-y-2">
-                    {memberParticipants?.map((participant) => (
-                      <div
-                        key={participant._id}
-                        className="flex items-center gap-2 p-2 hover:bg-white rounded transition"
-                      >
-                        {isSafeAvatarUrl(participant.avatarUrl) ? (
-                          <Image
-                            src={participant.avatarUrl}
-                            alt={participant.fullName}
-                            width={32}
-                            height={32}
-                            className="w-8 h-8 rounded-full object-cover shrink-0"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-400 to-purple-600 flex items-center justify-center shrink-0">
-                            <span className="text-white text-xs font-semibold">
-                              {participant.fullName?.charAt(0)?.toUpperCase() ||
-                                "U"}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                          <p className="text-xs font-medium text-gray-800 truncate">
-                            {participant.fullName}
-                          </p>
-                          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                            {getParticipantRoleLabel(
-                              conversationInfo?.ownerId,
-                              conversationInfo?.deputyId,
-                              participant._id,
-                            )}
+                  return (
+                    <div
+                      key={participant._id}
+                      className="flex items-center justify-between p-4 hover:bg-gray-50 transition duration-200 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        {/* Round Avatar with absolute badge overlay */}
+                        <div className="relative shrink-0">
+                          {isSafeAvatarUrl(participant.avatarUrl) ? (
+                            <Image
+                              src={participant.avatarUrl}
+                              alt={participant.fullName}
+                              width={44}
+                              height={44}
+                              className="w-11 h-11 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-linear-to-br from-blue-400 to-purple-600 flex items-center justify-center">
+                              <span className="text-white text-sm font-semibold">
+                                {participant.fullName?.charAt(0)?.toUpperCase() || "U"}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Role Badge Overlay on Avatar */}
+                          {isOwner && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-slate-800 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                              <Key size={11} className="text-amber-400" />
+                            </div>
+                          )}
+                          {isDeputy && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-slate-800 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                              <Key size={11} className="text-slate-300" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Name and stacked Subtitle */}
+                        <div className="min-w-0 flex flex-col justify-center">
+                          <span className="text-sm font-bold text-gray-900 truncate">
+                            {displayName}
+                          </span>
+                          <span className="text-xs text-gray-500 truncate mt-0.5">
+                            {roleLabel}
                           </span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  );
+                })}
               </div>
             </Accordion>
           )}

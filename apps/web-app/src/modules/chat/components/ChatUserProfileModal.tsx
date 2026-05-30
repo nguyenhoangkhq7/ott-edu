@@ -29,7 +29,7 @@ export function ChatUserProfileModal({ user, onClose }: ChatUserProfileModalProp
             <div className="rounded-full bg-white p-1 shadow-lg ring-4 ring-white/70">
               <Image
                 src={user.avatarUrl}
-                alt={user.name}
+                alt={user.name || "User Avatar"}
                 width={104}
                 height={104}
                 className="h-24 w-24 rounded-full object-cover"

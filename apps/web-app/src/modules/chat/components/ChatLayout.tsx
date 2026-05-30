@@ -395,22 +395,23 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     }) => {
       setTypingUsers((prev) => {
         const newMap = new Map(prev);
-        const conversationTypingUsers =
-          newMap.get(data.conversationId) || new Set<string>();
-        conversationTypingUsers.add(data.userId);
-        newMap.set(data.conversationId, conversationTypingUsers);
+        const currentSet = newMap.get(data.conversationId) || new Set<string>();
+        const updatedSet = new Set(currentSet);
+        updatedSet.add(data.userId);
+        newMap.set(data.conversationId, updatedSet);
 
         // Auto remove after 3 seconds of inactivity
         setTimeout(() => {
           setTypingUsers((current) => {
             const updated = new Map(current);
-            const users = updated.get(data.conversationId);
-            if (users) {
-              users.delete(data.userId);
-              if (users.size === 0) {
+            const currentSet = updated.get(data.conversationId);
+            if (currentSet) {
+              const updatedSet = new Set(currentSet);
+              updatedSet.delete(data.userId);
+              if (updatedSet.size === 0) {
                 updated.delete(data.conversationId);
               } else {
-                updated.set(data.conversationId, users);
+                updated.set(data.conversationId, updatedSet);
               }
             }
             return updated;
@@ -427,14 +428,14 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     }) => {
       setTypingUsers((prev) => {
         const newMap = new Map(prev);
-        const conversationTypingUsers =
-          newMap.get(data.conversationId);
-        if (conversationTypingUsers) {
-          conversationTypingUsers.delete(data.userId);
-          if (conversationTypingUsers.size === 0) {
+        const currentSet = newMap.get(data.conversationId);
+        if (currentSet) {
+          const updatedSet = new Set(currentSet);
+          updatedSet.delete(data.userId);
+          if (updatedSet.size === 0) {
             newMap.delete(data.conversationId);
           } else {
-            newMap.set(data.conversationId, conversationTypingUsers);
+            newMap.set(data.conversationId, updatedSet);
           }
         }
         return newMap;
@@ -582,6 +583,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       setSocket(null);
     };
   }, [currentUserId]);
+
+  // Join the active conversation room on the socket dynamically
+  useEffect(() => {
+    if (!socket || !activeConversationId) return;
+    socket.emit("joinRoom", activeConversationId);
+  }, [socket, activeConversationId]);
 
   useEffect(() => {
     if (!incomingCall) {
@@ -995,12 +1002,16 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       activeConversation?.participants.find((p) => p.id !== currentUserId) ||
       null;
 
-    if (!activeConversation && !targetReceiver) return;
-    if (!activeConversationId && !targetReceiver) return;
-    if (activeConversation?.type === "private" && !targetReceiver) return;
+    const targetReceiverId = targetReceiver
+      ? targetReceiver.id || targetReceiver._id
+      : undefined;
+
+    if (!activeConversation && !targetReceiverId) return;
+    if (!activeConversationId && !targetReceiverId) return;
+    if (activeConversation?.type === "private" && !targetReceiverId) return;
 
     const optimisticConversationId =
-      activeConversationId || `draft_${targetReceiver?.id || "unknown"}`;
+      activeConversationId || `draft_${targetReceiverId || "unknown"}`;
 
     // Optimistic UI: hiển thị ngay không chờ server
     const optimisticMessage: Message = {
@@ -1033,7 +1044,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       } else {
         savedMessage = await sendMessage(
           text,
-          targetReceiver?.id,
+          targetReceiverId,
           undefined,
           attachments,
           replyToId,
@@ -1077,7 +1088,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           (conv) =>
             conv.type === "private" &&
             conv.participants.some((p) => p.id === currentUserId) &&
-            conv.participants.some((p) => p.id === targetReceiver.id),
+            conv.participants.some((p) => p.id === targetReceiverId),
         );
         if (createdConversation) {
           setActiveConversationId(createdConversation.id);

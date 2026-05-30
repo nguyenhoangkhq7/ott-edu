@@ -42,4 +42,8 @@ public interface AuthService {
     AuthUserResponse updateCurrentUser(String email, UpdateProfileRequest request);
 
     String uploadAvatar(String email, MultipartFile file);
+
+    fit.iuh.modules.auth.dtos.auth.QrInitResponse initQrSession();
+
+    fit.iuh.modules.auth.dtos.auth.LoginResponse confirmQrSession(String email, fit.iuh.modules.auth.dtos.auth.QrConfirmRequest request);
 }

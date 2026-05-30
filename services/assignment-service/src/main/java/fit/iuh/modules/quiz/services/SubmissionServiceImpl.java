@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -38,11 +40,14 @@ public class SubmissionServiceImpl implements SubmissionService {
     @Autowired
     private AssignmentRepository assignmentRepository;
 
+    @Autowired
+    private CoreServiceClient coreServiceClient;
+
     // ============== TEACHER Operations ==============
 
     @Override
     public Page<SubmissionGradingListDto> getPendingGradesForAssignment(Long assignmentId, Long creatorId,
-            Pageable pageable) {
+            Pageable pageable, String authHeader) {
         // Verify teacher is the creator of this assignment
         var assignment = assignmentRepository.findByIdAndCreatorId(assignmentId, creatorId)
                 .orElseThrow(() -> {
@@ -55,12 +60,12 @@ public class SubmissionServiceImpl implements SubmissionService {
                 });
 
         Page<Submission> submissions = submissionRepository.findPendingGradesByAssignmentId(assignmentId, pageable);
-        return submissions.map(this::toGradingListDto);
+        return enrichSubmissionsWithProfiles(submissions, authHeader);
     }
 
     @Override
     public Page<SubmissionGradingListDto> getSubmissionsForAssignment(Long assignmentId, Long creatorId,
-            Pageable pageable) {
+            Pageable pageable, String authHeader) {
         // Verify teacher is the creator of this assignment
         var assignment = assignmentRepository.findByIdAndCreatorId(assignmentId, creatorId)
                 .orElseThrow(() -> {
@@ -73,7 +78,28 @@ public class SubmissionServiceImpl implements SubmissionService {
                 });
 
         Page<Submission> submissions = submissionRepository.findByAssignmentId(assignmentId, pageable);
-        return submissions.map(this::toGradingListDto);
+        return enrichSubmissionsWithProfiles(submissions, authHeader);
+    }
+
+    private Page<SubmissionGradingListDto> enrichSubmissionsWithProfiles(Page<Submission> submissions, String authHeader) {
+        List<Long> studentAccountIds = submissions.getContent().stream()
+                .map(Submission::getAccountId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        List<ProfileResponseDto> profiles = coreServiceClient.getProfilesByAccounts(studentAccountIds, authHeader);
+        Map<Long, ProfileResponseDto> profileMap = profiles.stream()
+                .collect(Collectors.toMap(ProfileResponseDto::getAccountId, p -> p, (p1, p2) -> p1));
+
+        return submissions.map(submission -> {
+            SubmissionGradingListDto dto = toGradingListDto(submission);
+            ProfileResponseDto profile = profileMap.get(submission.getAccountId());
+            if (profile != null) {
+                dto.setStudentCode(profile.getCode());
+                dto.setStudentName(profile.getFullName());
+            }
+            return dto;
+        });
     }
 
     @Override

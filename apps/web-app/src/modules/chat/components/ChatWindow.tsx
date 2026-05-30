@@ -897,23 +897,32 @@ if (conversation.type === "private" && currentUser) {
           </div>
 
           {/* ==================== TYPING INDICATOR ==================== */}
-          {typingUsers && typingUsers.size > 0 && (
-            <div
-              className="px-4 py-2 text-xs font-medium flex items-center gap-1 bg-white/80 backdrop-blur-sm border-t border-slate-100"
-              style={{ color: "#072D84" }}
-            >
-              <span>
-                {Array.from(typingUsers)
-                  .map((userId) => {
-                    const typingUser = conversation?.participants?.find(
-                      (p) => p.id === userId,
-                    );
-                    return typingUser?.name || userId;
-                  })
-                  .join(", ")}
-              </span>
+          {(() => {
+            const activeTypingUsers = Array.from(typingUsers).filter(
+              (userId) =>
+                userId !== currentUser?.id &&
+                userId !== currentUser?._id,
+            );
 
-              <span>đang soạn tin nhắn</span>
+            if (activeTypingUsers.length === 0) return null;
+
+            return (
+              <div
+                className="px-4 py-2 text-xs font-medium flex items-center gap-1 bg-white/80 backdrop-blur-sm border-t border-slate-100"
+                style={{ color: "#072D84" }}
+              >
+                <span>
+                  {activeTypingUsers
+                    .map((userId) => {
+                      const typingUser = conversation?.participants?.find(
+                        (p) => p.id === userId || p._id === userId,
+                      );
+                      return typingUser?.name || userId;
+                    })
+                    .join(", ")}
+                </span>
+
+                <span>đang soạn tin nhắn</span>
 
               <span className="flex items-end ml-1" style={{ gap: "3px" }}>
                 {[0, 0.15, 0.3].map((delay, i) => (
@@ -948,7 +957,8 @@ if (conversation.type === "private" && currentUser) {
               `}
               </style>
             </div>
-          )}
+          );
+        })()}
 
           {/* ==================== MESSAGE INPUT ==================== */}
           <MessageInput

@@ -272,6 +272,7 @@ export default function useWebRTCMediasoup({
   const localStreamRef = useRef<MediaStream | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const requestedCallTypeRef = useRef<MediaCallKind>("video");
+  const wasAnsweredRef = useRef<boolean>(false);
 
   const clearCallError = useCallback(() => {
     setCallError(null);
@@ -280,6 +281,18 @@ export default function useWebRTCMediasoup({
   useEffect(() => {
     localStreamRef.current = localStream;
   }, [localStream]);
+
+  useEffect(() => {
+    if (remoteStreams.size > 0) {
+      wasAnsweredRef.current = true;
+    }
+  }, [remoteStreams.size]);
+
+  useEffect(() => {
+    if (callStatus === "idle") {
+      wasAnsweredRef.current = false;
+    }
+  }, [callStatus]);
 
   const stopMediaStream = useCallback((stream: MediaStream | null) => {
     if (!stream) {
@@ -984,6 +997,33 @@ export default function useWebRTCMediasoup({
     setIncomingCall(null);
     setCallStatus("idle");
   }, [incomingCall, socket]);
+
+  // 20-second timeout to auto-decline unanswered incoming calls on web
+  useEffect(() => {
+    if (!incomingCall || callStatus !== "receiving") return;
+
+    const timer = setTimeout(() => {
+      console.log("[useWebRTCMediasoup] Incoming call unanswered for 20s. Auto declining...");
+      declineIncomingCall();
+    }, 20_000);
+
+    return () => clearTimeout(timer);
+  }, [incomingCall, callStatus, declineIncomingCall]);
+
+  // 20-second timeout if outgoing/group call is unanswered (no remote participants join) on web
+  useEffect(() => {
+    if (!activeCall || callStatus !== "connected" || wasAnsweredRef.current) return;
+
+    if (remoteStreams.size === 0) {
+      const timer = setTimeout(() => {
+        if (wasAnsweredRef.current) return;
+        console.log("[useWebRTCMediasoup] Call unanswered after 20s. Auto terminating...");
+        endCall("timeout-no-answer");
+      }, 20_000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [activeCall, callStatus, remoteStreams.size, endCall]);
 
   // Listen for new producers from other peers
   useEffect(() => {

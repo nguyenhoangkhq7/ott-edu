@@ -18,7 +18,7 @@ export default function DashboardLayout({
   const { user, logout, isInitializing } = useAuth();
   const [searchValue, setSearchValue] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [schoolName, setSchoolName] = useState("");
+  const [schoolName, setSchoolName] = useState(user?.schoolName || "");
   const pathname = usePathname();
 
   useEffect(() => {
@@ -73,6 +73,11 @@ export default function DashboardLayout({
   );
 
   useEffect(() => {
+    if (user?.schoolName) {
+      setSchoolName(user.schoolName);
+      return;
+    }
+
     async function fetchSchoolName() {
       try {
         const schools = await getSchools();
@@ -82,7 +87,7 @@ export default function DashboardLayout({
           setSchoolName(school.name);
         }
       } catch (err) {
-        console.error("Failed to load school name from DB:", err);
+        console.warn("Failed to load school name fallback from DB:", err);
       }
     }
     if (user && !isAdmin) {

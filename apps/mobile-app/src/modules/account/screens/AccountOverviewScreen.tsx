@@ -237,6 +237,14 @@ export default function AccountOverviewScreen() {
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </Pressable>
 
+          <Pressable style={styles.menuItem} onPress={() => router.push("/(dashboard)/account/qr-scanner")}>
+            <View style={[styles.menuIconBg, { backgroundColor: "#e0f2fe" }]}>
+              <Ionicons name="qr-code" size={18} color="#0284c7" />
+            </View>
+            <Text style={styles.menuItemText}>Đăng nhập QR Web</Text>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </Pressable>
+
           <View style={styles.menuItemDivider} />
 
           <Pressable style={[styles.menuItem]} onPress={handleLogout}>

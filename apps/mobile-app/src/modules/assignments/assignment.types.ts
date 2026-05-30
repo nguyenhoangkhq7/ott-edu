@@ -126,6 +126,7 @@ export type CreateAssignmentPayload = {
   timeLimit?: number;
   /** QUIZ only – list of questions with options */
   questions?: QuestionRequest[];
+  materialUrls?: string[];
 };
 
 export type GradeSubmissionPayload = {
@@ -167,6 +168,8 @@ export type SubmissionGradingItem = {
   isGraded: boolean;
   currentScore: number | null;
   gradeRevision: number;
+  studentCode?: string;
+  studentName?: string;
 };
 
 /** Maps to GradeDetailsDto.java */

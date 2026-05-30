@@ -58,7 +58,7 @@ export const FriendRequestsModal: React.FC<FriendRequestsModalProps> = ({ isOpen
            requests.map((user) => (
             <div key={user.id} className="flex items-center justify-between p-3 border-b border-slate-100 last:border-0">
               <div className="flex items-center gap-3">
-                <Image src={user.avatarUrl} alt={user.name} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                <Image src={user.avatarUrl} alt={user.name || "User"} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
                 <div>
                   <p className="font-semibold text-sm text-slate-800">{user.name}</p>
                   <p className="text-xs text-slate-500">{user.email || user.code}</p>

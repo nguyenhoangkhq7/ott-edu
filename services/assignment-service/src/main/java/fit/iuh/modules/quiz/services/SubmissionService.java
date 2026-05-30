@@ -23,9 +23,10 @@ public interface SubmissionService {
      * @param assignmentId The assignment ID
      * @param creatorId    The teacher's account ID (for authorization check)
      * @param pageable     Pagination info
+     * @param authHeader   The Authorization header for internal API calls
      * @return Page of submissions pending grading
      */
-    Page<SubmissionGradingListDto> getPendingGradesForAssignment(Long assignmentId, Long creatorId, Pageable pageable);
+    Page<SubmissionGradingListDto> getPendingGradesForAssignment(Long assignmentId, Long creatorId, Pageable pageable, String authHeader);
 
     /**
      * Get all submissions for an assignment (TEACHER only, with pagination)
@@ -34,9 +35,10 @@ public interface SubmissionService {
      * @param assignmentId The assignment ID
      * @param creatorId    The teacher's account ID (for authorization check)
      * @param pageable     Pagination info
+     * @param authHeader   The Authorization header for internal API calls
      * @return Page of all submissions for the assignment
      */
-    Page<SubmissionGradingListDto> getSubmissionsForAssignment(Long assignmentId, Long creatorId, Pageable pageable);
+    Page<SubmissionGradingListDto> getSubmissionsForAssignment(Long assignmentId, Long creatorId, Pageable pageable, String authHeader);
 
     /**
      * Grade a submission (TEACHER only)

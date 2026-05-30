@@ -290,3 +290,13 @@ export async function uploadAvatar(file: { uri: string; name: string; type: stri
     throw new Error(toErrorMessage(error));
   }
 }
+
+export async function confirmQrSession(sessionId: string): Promise<any> {
+  try {
+    return await apiClient.post<any, { sessionId: string }>("/auth/qr/confirm", {
+      sessionId,
+    });
+  } catch (error) {
+    throw new Error(toErrorMessage(error));
+  }
+}

@@ -30,6 +30,7 @@ export type GradeSubmissionSheetProps = {
   maxScore: number;
   onClose: () => void;
   onSuccess: () => void;
+  onViewAnswers?: (submissionId: number) => void;
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ export default function GradeSubmissionSheet({
   maxScore,
   onClose,
   onSuccess,
+  onViewAnswers,
 }: GradeSubmissionSheetProps) {
   const [score, setScore] = useState(
     submission.currentScore !== null ? String(submission.currentScore) : ""
@@ -136,13 +138,32 @@ export default function GradeSubmissionSheet({
           <View style={styles.sheetHeader}>
             <View>
               <Text style={styles.sheetTitle}>Chấm điểm</Text>
-              <Text style={styles.sheetSub}>
-                {studentName || `Sinh viên #${submission.studentAccountId}`}
-              </Text>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
               <Ionicons name="close" size={20} color="#64748b" />
             </TouchableOpacity>
+          </View>
+
+          {/* Student Info Card (Nativewind) */}
+          <View className="bg-indigo-50/70 border border-indigo-100/85 rounded-2xl p-4 mb-4 flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider mb-1">
+                Học sinh
+              </Text>
+              <Text className="text-base font-bold text-slate-900 leading-tight">
+                {submission.studentName || studentName || `Sinh viên #${submission.studentAccountId}`}
+              </Text>
+              {submission.studentCode && (
+                <Text className="text-xs font-semibold text-slate-500 mt-1">
+                  MSSV: {submission.studentCode}
+                </Text>
+              )}
+            </View>
+            <View className="bg-indigo-600/10 px-3 py-1.5 rounded-full">
+              <Text className="text-xs font-extrabold text-indigo-700">
+                {submission.studentCode ? `ID: #${submission.studentAccountId}` : `#${submission.studentAccountId}`}
+              </Text>
+            </View>
           </View>
 
           {/* ── Info chips ── */}
@@ -165,8 +186,25 @@ export default function GradeSubmissionSheet({
             )}
           </View>
 
-          {/* ── Essay file link ── */}
-          {submission.fileUrl ? (
+          {/* ── Essay file link or Quiz review button ── */}
+          {onViewAnswers ? (
+            <TouchableOpacity
+              style={styles.viewAnswersBtn}
+              onPress={() => onViewAnswers(submission.submissionId)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.viewAnswersIconWrap}>
+                <Ionicons name="help-circle-outline" size={20} color="#4f46e5" />
+              </View>
+              <View style={styles.fileInfo}>
+                <Text style={styles.viewAnswersLabel}>Bài làm trắc nghiệm</Text>
+                <Text style={styles.viewAnswersSub} numberOfLines={1}>
+                  Xem chi tiết câu trả lời của học sinh
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#4f46e5" />
+            </TouchableOpacity>
+          ) : submission.fileUrl ? (
             <TouchableOpacity
               style={styles.fileRow}
               onPress={handleOpenFile}
@@ -187,7 +225,7 @@ export default function GradeSubmissionSheet({
             <View style={styles.noFileRow}>
               <Ionicons name="alert-circle-outline" size={16} color="#94a3b8" />
               <Text style={styles.noFileText}>
-                Không có file đính kèm (QUIZ hoặc chưa tải lên)
+                Không có file đính kèm (chưa tải lên)
               </Text>
             </View>
           )}
@@ -442,4 +480,27 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { opacity: 0.65 },
   saveBtnText: { fontSize: 16, fontWeight: "800", color: "#ffffff" },
+
+  // View Quiz Answers Button
+  viewAnswersBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#eef2ff",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
+  },
+  viewAnswersIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewAnswersLabel: { fontSize: 12, fontWeight: "700", color: "#4f46e5" },
+  viewAnswersSub: { fontSize: 11, color: "#64748b", marginTop: 2 },
 });

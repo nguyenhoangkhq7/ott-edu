@@ -19,6 +19,8 @@ public class SubmissionGradingListDto {
 
     private Long submissionId;
     private Long studentAccountId; // Student who submitted (minimal - no personal details)
+    private String studentCode;
+    private String studentName;
     private Long assignmentId;
     private SubmissionStatus status;
     private LocalDateTime submittedAt;

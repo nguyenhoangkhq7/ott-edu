@@ -270,6 +270,25 @@ public class AuthController {
         }
     }
 
+    @GetMapping("/qr/init")
+    public ResponseEntity<ApiSuccessResponse<fit.iuh.modules.auth.dtos.auth.QrInitResponse>> initQrSession() {
+        fit.iuh.modules.auth.dtos.auth.QrInitResponse response = authService.initQrSession();
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Khởi tạo phiên đăng nhập QR thành công.", response));
+    }
+
+    @PostMapping("/qr/confirm")
+    public ResponseEntity<ApiSuccessResponse<LoginResponse>> confirmQrSession(
+            Authentication authentication,
+            @Valid @RequestBody fit.iuh.modules.auth.dtos.auth.QrConfirmRequest request
+    ) {
+        if (authentication == null || authentication.getName() == null) {
+            throw new BadCredentialsException("Không tìm thấy phiên đăng nhập hợp lệ.");
+        }
+
+        LoginResponse response = authService.confirmQrSession(authentication.getName(), request);
+        return ResponseEntity.ok(ApiResponseFactory.success(HttpStatus.OK, "Xác nhận đăng nhập QR thành công.", response));
+    }
+
     private String extractRefreshToken(RefreshTokenRequest request, String refreshTokenCookie) {
         if (refreshTokenCookie != null && !refreshTokenCookie.isBlank()) {
             return refreshTokenCookie;

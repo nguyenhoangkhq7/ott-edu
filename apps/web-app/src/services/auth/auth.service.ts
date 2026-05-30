@@ -172,3 +172,12 @@ export async function uploadAvatar(file: File): Promise<UploadAvatarResult> {
     },
   });
 }
+
+export type QrInitResponse = {
+  qrSessionId: string;
+  expiresIn: number;
+};
+
+export async function initQrSession(): Promise<QrInitResponse> {
+  return httpService.get<QrInitResponse>("/auth/qr/init");
+}

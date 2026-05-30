@@ -225,4 +225,14 @@ export const submissionApi = {
       throw error;
     }
   },
+
+  /**
+   * Get all submissions by the current student
+   */
+  getMySubmissions: async (page = 0, size = 100): Promise<unknown> => {
+    const response = await axiosV1.get(
+      `/api/v1/submissions/my-submissions?page=${page}&size=${size}`
+    );
+    return response.data;
+  },
 };

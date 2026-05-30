@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   Animated,
   Dimensions,
@@ -61,6 +61,23 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
   const isOwner = info?.ownerId === currentChatUserId || info?.myRole === 'owner';
   const isDeputy = info?.deputyId === currentChatUserId;
   const isAdmin = isOwner || isDeputy;
+
+  const sortedParticipants = useMemo(() => {
+    if (!info?.participants) return [];
+    return [...info.participants].sort((a, b) => {
+      const aIsOwner = a._id === info.ownerId;
+      const bIsOwner = b._id === info.ownerId;
+      if (aIsOwner && !bIsOwner) return -1;
+      if (!aIsOwner && bIsOwner) return 1;
+
+      const aIsDeputy = a._id === info.deputyId;
+      const bIsDeputy = b._id === info.deputyId;
+      if (aIsDeputy && !bIsDeputy) return -1;
+      if (!aIsDeputy && bIsDeputy) return 1;
+
+      return (a.fullName || "").localeCompare(b.fullName || "");
+    });
+  }, [info?.participants, info?.ownerId, info?.deputyId]);
 
   const handleToggleOnlyAdminCanMessage = async (value: boolean) => {
     if (!info) return;
@@ -361,19 +378,70 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({
                 <>
                   {renderSectionHeader("Thành viên nhóm", "people-outline", "members")}
                   {expandedSection === "members" && (
-                    <View style={styles.sectionContent}>
-                      {info?.participants?.map((p) => (
-                        <View key={p._id} style={styles.memberRow}>
-                          <Image
-                            source={{ uri: p.avatarUrl || `https://i.pravatar.cc/150?u=${p._id}` }}
-                            style={styles.memberAvatar}
-                          />
-                          <Text style={styles.memberName}>{p.fullName}</Text>
-                          {info.ownerId === p._id && (
-                            <Text style={styles.ownerBadge}>Chủ nhóm</Text>
-                          )}
-                        </View>
-                      ))}
+                    <View className="bg-white px-2">
+                      {sortedParticipants.map((p) => {
+                        const pIsOwner = info?.ownerId === p._id;
+                        const pIsDeputy = info?.deputyId === p._id;
+                        const isSelf = p._id === currentChatUserId;
+                        const displayName = isSelf ? "Bạn" : p.fullName;
+                        const roleLabel = pIsOwner
+                          ? "Trưởng nhóm"
+                          : pIsDeputy
+                          ? "Phó nhóm"
+                          : "Thành viên";
+
+                        return (
+                          <View
+                            key={p._id}
+                            className="flex-row items-center justify-between p-4 border-b border-slate-100"
+                          >
+                            <View className="flex-row items-center flex-1 mr-2">
+                              {/* Round Avatar with absolute badge overlay */}
+                              <View className="relative mr-4">
+                                <Image
+                                  source={{
+                                    uri:
+                                      p.avatarUrl && p.avatarUrl.trim() !== ""
+                                        ? p.avatarUrl
+                                        : `https://i.pravatar.cc/150?u=${p._id}`,
+                                  }}
+                                  className="w-11 h-11 rounded-full"
+                                />
+
+                                {/* Role Badge Overlay on Avatar */}
+                                {pIsOwner && (
+                                  <View className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-slate-800 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                                    <Ionicons
+                                      name="key-outline"
+                                      size={11}
+                                      color="#FBBF24"
+                                    />
+                                  </View>
+                                )}
+                                {pIsDeputy && (
+                                  <View className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-slate-800 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                                    <Ionicons
+                                      name="key-outline"
+                                      size={11}
+                                      color="#CBD5E1"
+                                    />
+                                  </View>
+                                )}
+                              </View>
+
+                              {/* Text Stacking (Name & Subtitle) */}
+                              <View className="flex-1 justify-center">
+                                <Text className="text-sm font-bold text-slate-800">
+                                  {displayName}
+                                </Text>
+                                <Text className="text-xs text-slate-500 mt-1">
+                                  {roleLabel}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })}
                     </View>
                   )}
                   <View style={styles.dividerSmall} />

@@ -21,6 +21,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Submission {
 
     @Id
@@ -51,7 +52,13 @@ public class Submission {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assignment_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Assignment assignment;
+
+    @com.fasterxml.jackson.annotation.JsonGetter("assignmentId")
+    public Long getAssignmentIdVal() {
+        return assignment != null ? assignment.getId() : null;
+    }
 
     @OneToOne(mappedBy = "submission", cascade = CascadeType.ALL, orphanRemoval = true)
     private Grade grade;
