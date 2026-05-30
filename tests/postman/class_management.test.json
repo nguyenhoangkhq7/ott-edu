@@ -72,7 +72,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"Lớp Học Test CI\",\n  \"description\": \"Mô tả lớp học\",\n  \"joinCode\": \"CLASS_CI_TEST_\" + Date.now(),\n  \"departmentId\": 1,\n  \"isApprovalRequired\": false\n}"
+          "raw": "{\n  \"name\": \"Lớp Học Test CI\",\n  \"description\": \"Mô tả lớp học\",\n  \"joinCode\": \"CLASS_CI_{{$timestamp}}\",\n  \"departmentId\": 1,\n  \"isApprovalRequired\": false\n}"
         },
         "url": "{{baseUrl}}/api/core/teams"
       },
