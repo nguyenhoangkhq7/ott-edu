@@ -4,9 +4,13 @@ on:
   push:
     paths:
       - "services/chat-service/**"
+  pull_request:
+    branches: ["main", "develop"]
+    paths:
+      - "services/chat-service/**"
 
 jobs:
-  build-and-lint:
+  build-lint-and-test:
     runs-on: ubuntu-latest
 
     defaults:
@@ -31,4 +35,14 @@ jobs:
         run: npm run lint --if-present
 
       - name: Run Build Check
-        cd services/chat-service && npm run build
+        run: npm run build
+
+      - name: Run Unit Tests
+        run: npm run test
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-service-coverage-report
+          path: services/chat-service/coverage/lcov-report

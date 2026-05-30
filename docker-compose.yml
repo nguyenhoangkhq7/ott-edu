@@ -101,7 +101,7 @@ services:
       MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP}
       MEDIASOUP_RTC_MIN_PORT: ${MEDIASOUP_RTC_MIN_PORT:-40000}
       MEDIASOUP_RTC_MAX_PORT: ${MEDIASOUP_RTC_MAX_PORT:-40050}
-      MEDIASOUP_WORKER_COUNT: ${MEDIASOUP_WORKER_COUNT}
+      MEDIASOUP_WORKER_COUNT: 1
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
@@ -120,10 +120,8 @@ services:
       target: deps
     container_name: web-app
     restart: always
-    command: npm run dev -- --webpack
+    command: npm run dev
     env_file: .env
-    environment:
-      - WATCHPACK_POLLING=true
     volumes:
       - ./apps/web-app:/app
       - /app/node_modules

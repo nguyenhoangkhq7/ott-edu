@@ -1,13 +1,13 @@
-name: Core Service CI
+name: Assignment Service CI
 
 on:
   push:
     paths:
-      - "services/core-service/**"
+      - "services/assignment-service/**"
   pull_request:
     branches: ["main", "develop"]
     paths:
-      - "services/core-service/**"
+      - "services/assignment-service/**"
 
 jobs:
   build-and-test:
@@ -15,7 +15,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: services/core-service
+        working-directory: services/assignment-service
 
     steps:
       - name: Checkout code
@@ -35,5 +35,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: core-service-coverage-report
-          path: services/core-service/target/site/jacoco
+          name: assignment-service-coverage-report
+          path: services/assignment-service/target/site/jacoco
