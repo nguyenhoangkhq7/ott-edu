@@ -1,0 +1,148 @@
+{
+  "info": {
+    "_postman_id": "auth-integration-test-id",
+    "name": "Auth Integration Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register - Failure Missing OTP Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 400 Bad Request', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Response contains OTP verification error message', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.message).to.include('Vui lòng xác thực email bằng OTP trước khi đăng ký!');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"integration-test-user@example.com\",\n  \"password\": \"Password@123\",\n  \"firstName\": \"Integration\",\n  \"lastName\": \"User\",\n  \"roleName\": \"ROLE_STUDENT\",\n  \"code\": \"TESTING123\",\n  \"schoolId\": 1,\n  \"departmentId\": 1,\n  \"verifiedToken\": \"\"\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/register"
+      },
+      "response": []
+    },
+    {
+      "name": "Register - Failure Invalid OTP Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 400 Bad Request', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Response contains expired/invalid OTP error message', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.message).to.include('Phiên xác thực email không hợp lệ hoặc đã hết hạn!');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"integration-test-user@example.com\",\n  \"password\": \"Password@123\",\n  \"firstName\": \"Integration\",\n  \"lastName\": \"User\",\n  \"roleName\": \"ROLE_STUDENT\",\n  \"code\": \"TESTING123\",\n  \"schoolId\": 1,\n  \"departmentId\": 1,\n  \"verifiedToken\": \"some-invalid-token-12345\"\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/register"
+      },
+      "response": []
+    },
+    {
+      "name": "Login - Failure Non-existent User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 401 Unauthorized', function () {",
+              "    pm.response.to.have.status(401);",
+              "});",
+              "",
+              "pm.test('Response contains wrong credentials error message', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.message).to.include('Email hoặc mật khẩu không đúng.');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"nonexistent-user-12345@example.com\",\n  \"password\": \"WrongPassword123\"\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/login"
+      },
+      "response": []
+    },
+    {
+      "name": "Login - Failure Empty Credentials",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 401 Unauthorized', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"\",\n  \"password\": \"\"\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/login"
+      },
+      "response": []
+    }
+  ]
+}
