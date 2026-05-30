@@ -6,17 +6,6 @@
  * - PIP (Picture-in-Picture) cho local stream ở góc dưới phải.
  * - Thanh điều khiển: Mic, Camera, Đổi Camera, Rời phòng.
  * - Hiển thị userId (hoặc tên) bên dưới mỗi video tile.
- *
- * Sử dụng:
- *   import { GroupCallScreen } from './components/GroupCallScreen';
- *
- *   <GroupCallScreen
- *     conversationId={activeConversationId}
- *     currentUserId={chatUser.id}
- *     socket={socket}
- *     participantNames={participantNameMap} // optional
- *     onLeave={() => navigation.goBack()}
- *   />
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -71,7 +60,6 @@ function loadRTCView(): React.ComponentType<RTCViewProps> | null {
   try {
     const module = require("react-native-webrtc") as typeof import("react-native-webrtc");
     if (ENABLE_WEBRTC) return module.RTCView as React.ComponentType<RTCViewProps>;
-    // Allow dev builds to proceed if native module exists, even when env flag is missing.
     return module.RTCView as React.ComponentType<RTCViewProps>;
   } catch {
     return null;
@@ -93,6 +81,13 @@ interface VideoTileProps {
 }
 
 function VideoTile({ streamURL, label, isMirror, style, isMuted, isAudioOnly, isCameraEnabled = true }: VideoTileProps) {
+  // Generate a premium gradient color based on user name
+  const gradientColor = useMemo(() => {
+    const colors = ["#4f46e5", "#06b6d4", "#0d9488", "#2563eb", "#db2777", "#7c3aed"];
+    const charCodeSum = label.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[charCodeSum % colors.length];
+  }, [label]);
+
   return (
     <View style={[styles.tile, style]}>
       {streamURL && RTCView && !isAudioOnly && isCameraEnabled ? (
@@ -105,18 +100,24 @@ function VideoTile({ streamURL, label, isMirror, style, isMuted, isAudioOnly, is
         />
       ) : (
         <View style={styles.tileVideoPlaceholder}>
-          <Text style={styles.tileAvatarText}>
-            {label.charAt(0).toUpperCase()}
-          </Text>
+          <View style={[styles.tileAvatarCircle, { backgroundColor: gradientColor }]}>
+            <Text style={styles.tileAvatarText}>
+              {label.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+          <Text style={styles.placeholderLabelText}>Camera tắt</Text>
         </View>
       )}
+
+      {/* Label Row */}
       <View style={styles.tileLabelRow}>
+        <View style={styles.activeSpeakerDot} />
         <Text style={styles.tileLabelText} numberOfLines={1}>
           {label}
         </Text>
         {isMuted && (
           <View style={styles.mutedBadge}>
-            <Text style={styles.mutedBadgeText}>🔇</Text>
+            <Ionicons name="mic-off" size={10} color="#fda4af" />
           </View>
         )}
       </View>
@@ -132,6 +133,7 @@ interface ControlButtonProps {
   onPress: () => void;
   isActive?: boolean;
   isDanger?: boolean;
+  isPrimary?: boolean;
   disabled?: boolean;
 }
 
@@ -141,12 +143,13 @@ function ControlButton({
   onPress,
   isActive = true,
   isDanger = false,
+  isPrimary = false,
   disabled = false,
 }: ControlButtonProps) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = useCallback(() => {
-    Animated.spring(scale, { toValue: 0.92, useNativeDriver: true }).start();
+    Animated.spring(scale, { toValue: 0.88, useNativeDriver: true }).start();
   }, [scale]);
 
   const handlePressOut = useCallback(() => {
@@ -159,20 +162,24 @@ function ControlButton({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={disabled}
-      style={({ pressed }) => [{ opacity: pressed || disabled ? 0.6 : 1 }]}
+      style={({ pressed }) => [
+        styles.controlBtnWrapper,
+        { opacity: pressed || disabled ? 0.75 : 1 }
+      ]}
     >
       <Animated.View
         style={[
           styles.controlBtn,
           isDanger && styles.controlBtnDanger,
+          isPrimary && styles.controlBtnPrimary,
           !isActive && styles.controlBtnInactive,
           { transform: [{ scale }] },
         ]}
       >
         <Ionicons
           name={icon}
-          size={22}
-          color="#f8fafc"
+          size={24}
+          color="#ffffff"
         />
       </Animated.View>
       <Text style={styles.controlBtnLabel}>{label}</Text>
@@ -182,11 +189,36 @@ function ControlButton({
 
 // ─── Grid layout calculator ───────────────────────────────────────────────────
 
-function calcGridLayout(count: number, screenWidth: number) {
-  if (count === 1) return { columns: 1, tileWidth: screenWidth, tileHeight: 560 };
-  if (count === 2) return { columns: 1, tileWidth: screenWidth, tileHeight: 260 };
-  if (count <= 4) return { columns: 2, tileWidth: screenWidth / 2, tileHeight: 220 };
-  return { columns: 2, tileWidth: screenWidth / 2, tileHeight: 180 };
+function calcGridLayout(count: number, screenWidth: number, screenHeight: number) {
+  const padding = 12;
+  const gap = 10;
+  
+  if (count <= 1) {
+    return { 
+      columns: 1, 
+      tileWidth: screenWidth - padding * 2, 
+      tileHeight: Math.min(screenHeight - 340, 520) 
+    };
+  }
+  if (count === 2) {
+    return { 
+      columns: 1, 
+      tileWidth: screenWidth - padding * 2, 
+      tileHeight: (screenHeight - 360) / 2 
+    };
+  }
+  if (count <= 4) {
+    return { 
+      columns: 2, 
+      tileWidth: (screenWidth - padding * 2 - gap) / 2, 
+      tileHeight: 220 
+    };
+  }
+  return { 
+    columns: 2, 
+    tileWidth: (screenWidth - padding * 2 - gap) / 2, 
+    tileHeight: 170 
+  };
 }
 
 // ─── GroupCallScreen ──────────────────────────────────────────────────────────
@@ -203,6 +235,7 @@ export function GroupCallScreen({
   onLeave,
 }: GroupCallScreenProps) {
   const screenWidth = useMemo(() => Dimensions.get("window").width, []);
+  const screenHeight = useMemo(() => Dimensions.get("window").height, []);
 
   const {
     localStream,
@@ -265,7 +298,7 @@ export function GroupCallScreen({
 
   const getDisplayName = useCallback(
     (userId: string) => {
-      return participantNames[userId] ?? `User…${userId.slice(-4)}`;
+      return participantNames[userId] ?? `Thành viên…${userId.slice(-4)}`;
     },
     [participantNames],
   );
@@ -276,8 +309,8 @@ export function GroupCallScreen({
   }, [localStream]);
 
   const grid = useMemo(
-    () => calcGridLayout(remoteParticipants.length, screenWidth),
-    [remoteParticipants.length, screenWidth],
+    () => calcGridLayout(remoteParticipants.length, screenWidth, screenHeight),
+    [remoteParticipants.length, screenWidth, screenHeight],
   );
 
   const isJoining = callStatus === "joining";
@@ -286,22 +319,27 @@ export function GroupCallScreen({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <View style={styles.backdropTop} />
-      <View style={styles.backdropBottom} />
+      {/* Premium Ambient Background */}
+      <View style={styles.backdropTop} pointerEvents="none" />
+      <View style={styles.backdropBottom} pointerEvents="none" />
 
+      {/* ── Header ── */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>
             {callType === "audio"
-              ? (isPrivateCall ? "Cuộc gọi thoại" : (isOneToOne ? "Cuộc gọi thoại" : "Cuộc gọi thoại nhóm"))
-              : (isPrivateCall ? "Cuộc gọi video" : (isOneToOne ? "Cuộc gọi video" : "Cuộc gọi nhóm"))}
+              ? (isPrivateCall ? "Cuộc thoại 1-1" : "Cuộc thoại nhóm")
+              : (isPrivateCall ? "Cuộc gọi video" : "Cuộc gọi video nhóm")}
           </Text>
           <Text style={styles.headerSubTitle}>
             {remoteParticipants.length + 1} người tham gia
           </Text>
         </View>
         <View style={styles.headerBadge}>
-          <Text style={styles.headerBadgeText}>{callStatus === "connected" ? "Đang gọi" : "Đang kết nối"}</Text>
+          <View style={styles.greenPulseDot} />
+          <Text style={styles.headerBadgeText}>
+            {callStatus === "connected" ? "Đang gọi" : "Đang nối"}
+          </Text>
         </View>
       </View>
 
@@ -309,15 +347,18 @@ export function GroupCallScreen({
       {isJoining && (
         <View style={styles.centerOverlay}>
           <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.joiningText}>Đang kết nối SFU…</Text>
+          <Text style={styles.joiningText}>Đang khởi tạo kênh truyền...</Text>
         </View>
       )}
 
       {/* ── Error banner ── */}
       {callError && (
         <Pressable style={styles.errorBanner} onPress={clearCallError}>
-          <Text style={styles.errorBannerText}>⚠️ {callError}</Text>
-          <Text style={styles.errorDismiss}>Nhấn để đóng</Text>
+          <View style={styles.errorHeader}>
+            <Ionicons name="warning" size={16} color="#fda4af" />
+            <Text style={styles.errorBannerText}> Lỗi: {callError}</Text>
+          </View>
+          <Text style={styles.errorDismiss}>Nhấn để tắt cảnh báo này</Text>
         </Pressable>
       )}
 
@@ -325,10 +366,13 @@ export function GroupCallScreen({
       <View style={styles.grid}>
         {remoteParticipants.length === 0 && !isJoining ? (
           <View style={styles.emptyGrid}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="people-outline" size={44} color="#475569" />
+            </View>
             <Text style={styles.emptyGridText}>
               {callStatus === "ready"
-                ? "Bạn đã vào phòng. Chờ thành viên khác tham gia…"
-                : "Chưa có ai trong phòng."}
+                ? "Bạn đã tham gia cuộc gọi.\nĐang đợi các thành viên khác kết nối..."
+                : "Đang tải phòng thoại..."}
             </Text>
           </View>
         ) : (
@@ -346,6 +390,7 @@ export function GroupCallScreen({
                   style={{
                     width: grid.tileWidth,
                     height: grid.tileHeight,
+                    margin: 5,
                   }}
                 />
               );
@@ -354,9 +399,9 @@ export function GroupCallScreen({
         )}
       </View>
 
-      {/* ── Local PIP ── */}
+      {/* ── Local PIP (FaceTime-like Floating Window) ── */}
       {localStreamURL && callType !== "audio" && (
-        <View style={styles.pip} pointerEvents="none">
+        <View style={styles.pip}>
           {RTCView ? (
             <RTCView
               streamURL={localStreamURL}
@@ -367,12 +412,12 @@ export function GroupCallScreen({
             />
           ) : (
             <View style={styles.pipPlaceholder}>
-              <Text style={styles.pipPlaceholderText}>CAM</Text>
+              <Ionicons name="person" size={24} color="#6366f1" />
             </View>
           )}
           {!isCameraEnabled && (
             <View style={styles.pipCamOff}>
-              <Ionicons name="videocam-off" size={18} color="#fff" />
+              <Ionicons name="videocam-off" size={22} color="#94a3b8" />
             </View>
           )}
         </View>
@@ -389,11 +434,11 @@ export function GroupCallScreen({
           ]}
         />
         <Text style={styles.statusText}>
-          {callStatus === "joining" && "Đang kết nối…"}
-          {callStatus === "ready" && "Đã vào phòng – chờ người khác"}
-          {callStatus === "connected" && "Đang kết nối nhóm"}
-          {callStatus === "error" && "Lỗi kết nối"}
-          {callStatus === "idle" && "—"}
+          {callStatus === "joining" && "Đang thiết lập cổng..."}
+          {callStatus === "ready" && "Đã sẵn sàng - Chờ mọi người"}
+          {callStatus === "connected" && "Đường truyền bảo mật đã kết nối"}
+          {callStatus === "error" && "Không thể kết nối máy chủ SFU"}
+          {callStatus === "idle" && "Mở kết nối"}
         </Text>
       </View>
 
@@ -404,6 +449,7 @@ export function GroupCallScreen({
           label={isMicrophoneEnabled ? "Tắt Mic" : "Bật Mic"}
           onPress={toggleMicrophone}
           isActive={isMicrophoneEnabled}
+          isPrimary={isMicrophoneEnabled}
           disabled={!localStreamURL}
         />
         {callType !== "audio" && (
@@ -413,18 +459,19 @@ export function GroupCallScreen({
               label={isCameraEnabled ? "Tắt Cam" : "Bật Cam"}
               onPress={toggleCamera}
               isActive={isCameraEnabled}
+              isPrimary={isCameraEnabled}
               disabled={!localStreamURL}
             />
             <ControlButton
               icon="camera-reverse"
-              label={cameraFacing === "front" ? "Đổi Cam" : "Cam trước"}
+              label="Đổi Cam"
               onPress={switchCamera}
               disabled={!localStreamURL}
             />
           </>
         )}
         <ControlButton
-          icon="call"
+          icon="close"
           label="Kết thúc"
           onPress={conversationType === "private" ? handleLeave : () => setConfirmLeave(true)}
           isDanger
@@ -440,19 +487,30 @@ export function GroupCallScreen({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Rời cuộc gọi?</Text>
+            <View style={styles.modalWarningIcon}>
+              <Ionicons name="log-out" size={28} color="#ef4444" />
+            </View>
+            <Text style={styles.modalTitle}>Rời khỏi phòng họp?</Text>
             <Text style={styles.modalDesc}>
-              Bạn có chắc muốn rời khỏi cuộc gọi nhóm này không?
+              Bạn có chắc chắn muốn rời khỏi cuộc gọi nhóm đang diễn ra không?
             </Text>
             <View style={styles.modalActions}>
               <Pressable
-                style={[styles.modalBtn, styles.modalBtnCancel]}
+                style={({ pressed }) => [
+                  styles.modalBtn, 
+                  styles.modalBtnCancel,
+                  pressed && styles.buttonPressed
+                ]}
                 onPress={() => setConfirmLeave(false)}
               >
-                <Text style={styles.modalBtnText}>Ở lại</Text>
+                <Text style={styles.modalBtnTextCancel}>Quay lại</Text>
               </Pressable>
               <Pressable
-                style={[styles.modalBtn, styles.modalBtnLeave]}
+                style={({ pressed }) => [
+                  styles.modalBtn, 
+                  styles.modalBtnLeave,
+                  pressed && styles.buttonPressed
+                ]}
                 onPress={() => {
                   setConfirmLeave(false);
                   handleLeave();
@@ -470,66 +528,82 @@ export function GroupCallScreen({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const PIP_WIDTH = 100;
-const PIP_HEIGHT = 140;
+const PIP_WIDTH = 110;
+const PIP_HEIGHT = 160;
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#0b1220",
+    backgroundColor: "#020617", // Modern deep black-blue
   },
   backdropTop: {
     position: "absolute",
-    top: -120,
-    left: -60,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: "rgba(96,165,250,0.20)",
+    top: -100,
+    left: -50,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: "rgba(99,102,241,0.12)",
   },
   backdropBottom: {
     position: "absolute",
-    bottom: -150,
-    right: -80,
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: "rgba(14,165,233,0.12)",
+    bottom: -100,
+    right: -50,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: "rgba(14,165,233,0.08)",
   },
   // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    marginHorizontal: 10,
-    marginTop: 4,
-    borderRadius: 16,
-    backgroundColor: "rgba(15,23,42,0.55)",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    marginHorizontal: 12,
+    marginTop: 8,
+    borderRadius: 24,
+    backgroundColor: "rgba(15,23,42,0.45)",
     borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.2)",
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  headerInfo: {
+    flex: 1,
   },
   headerTitle: {
-    color: "#e2e8f0",
-    fontSize: 17,
-    fontWeight: "700",
+    color: "#f8fafc",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.15,
   },
   headerSubTitle: {
     marginTop: 2,
     color: "#94a3b8",
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: "500",
   },
   headerBadge: {
-    backgroundColor: "rgba(34,197,94,0.18)",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16,185,129,0.12)",
     borderRadius: 99,
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(16,185,129,0.2)",
+    gap: 6,
+  },
+  greenPulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10b981",
   },
   headerBadgeText: {
-    color: "#86efac",
-    fontSize: 12,
-    fontWeight: "600",
+    color: "#34d399",
+    fontSize: 11,
+    fontWeight: "700",
   },
   // Loading overlay
   centerOverlay: {
@@ -543,40 +617,48 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   joiningText: {
-    marginTop: 12,
-    color: "#a5b4fc",
-    fontSize: 15,
+    marginTop: 14,
+    color: "#818cf8",
+    fontSize: 14,
+    fontWeight: "600",
   },
   // Error
   errorBanner: {
     marginHorizontal: 12,
-    marginBottom: 8,
-    backgroundColor: "#450a0a",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    marginTop: 10,
+    backgroundColor: "rgba(239,68,68,0.1)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderColor: "#7f1d1d",
+    borderColor: "rgba(239,68,68,0.25)",
+  },
+  errorHeader: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   errorBannerText: {
     color: "#fca5a5",
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   errorDismiss: {
     color: "#f87171",
     fontSize: 11,
-    marginTop: 3,
+    fontWeight: "500",
+    marginTop: 4,
+    marginLeft: 20,
   },
   // Grid
   grid: {
     flex: 1,
-    overflow: "hidden",
-    marginTop: 10,
+    paddingHorizontal: 7,
+    marginTop: 12,
   },
   gridRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "center",
   },
   emptyGrid: {
     flex: 1,
@@ -584,19 +666,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 24,
   },
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   emptyGridText: {
     color: "#64748b",
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: "500",
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 20,
   },
   // Tile
   tile: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0f172a",
     overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "rgba(148,163,184,0.18)",
-    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.05)",
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   tileVideo: {
     width: "100%",
@@ -606,59 +703,81 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#1f2937",
+    backgroundColor: "#0b0f19",
+  },
+  tileAvatarCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
   },
   tileAvatarText: {
-    fontSize: 40,
-    color: "#a5b4fc",
+    fontSize: 34,
+    color: "#ffffff",
+    fontWeight: "800",
+  },
+  placeholderLabelText: {
+    color: "#475569",
+    fontSize: 11,
     fontWeight: "700",
+    marginTop: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   tileLabelRow: {
     position: "absolute",
-    bottom: 10,
-    left: 10,
+    bottom: 12,
+    left: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(15,23,42,0.68)",
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    backgroundColor: "rgba(15,23,42,0.85)",
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  activeSpeakerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#818cf8",
   },
   tileLabelText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-    maxWidth: 110,
+    color: "#f1f5f9",
+    fontSize: 11,
+    fontWeight: "700",
+    maxWidth: 90,
   },
   mutedBadge: {
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(239,68,68,0.15)",
     borderRadius: 99,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    padding: 3,
+    marginLeft: 2,
   },
-  mutedBadgeText: {
-    fontSize: 10,
-  },
-  // PIP
+  // PIP (FaceTime Floating Window)
   pip: {
     position: "absolute",
-    bottom: Platform.OS === "android" ? 120 : 138,
-    right: 16,
+    bottom: Platform.OS === "android" ? 130 : 148,
+    right: 18,
     width: PIP_WIDTH,
     height: PIP_HEIGHT,
-    borderRadius: 18,
+    borderRadius: 24,
     overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.75)",
-    elevation: 6,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.15)",
+    elevation: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
   },
   pipVideo: {
     width: "100%",
@@ -666,18 +785,13 @@ const styles = StyleSheet.create({
   },
   pipPlaceholder: {
     flex: 1,
-    backgroundColor: "#1e1b2e",
+    backgroundColor: "#0f172a",
     justifyContent: "center",
     alignItems: "center",
   },
-  pipPlaceholderText: {
-    color: "#6366f1",
-    fontSize: 12,
-    fontWeight: "700",
-  },
   pipCamOff: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#000000",
+    backgroundColor: "#070a13",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -687,7 +801,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   statusDot: {
     width: 8,
@@ -695,95 +809,128 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#475569",
   },
-  statusDotConnected: { backgroundColor: "#22c55e" },
+  statusDotConnected: { backgroundColor: "#10b981" },
   statusDotReady: { backgroundColor: "#f59e0b" },
   statusDotError: { backgroundColor: "#ef4444" },
   statusText: {
-    color: "#94a3b8",
-    fontSize: 12,
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "600",
   },
   // Controls
   controls: {
     flexDirection: "row",
     justifyContent: "space-evenly",
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 18,
     paddingHorizontal: 16,
-    backgroundColor: "rgba(15,23,42,0.84)",
+    backgroundColor: "rgba(15,23,42,0.92)",
     borderTopWidth: 1,
-    borderTopColor: "rgba(148,163,184,0.2)",
+    borderTopColor: "rgba(255,255,255,0.04)",
+  },
+  controlBtnWrapper: {
+    alignItems: "center",
   },
   controlBtn: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: "rgba(30,41,59,0.95)",
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#312e55",
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  controlBtnPrimary: {
+    backgroundColor: "#3b82f6",
+    borderColor: "#60a5fa",
   },
   controlBtnDanger: {
-    backgroundColor: "#dc2626",
-    borderColor: "#ef4444",
+    backgroundColor: "#ef4444",
+    borderColor: "#fca5a5",
   },
   controlBtnInactive: {
-    backgroundColor: "#374151",
-    borderColor: "#4b5563",
+    backgroundColor: "rgba(239,68,68,0.2)",
+    borderColor: "rgba(239,68,68,0.3)",
   },
   controlBtnLabel: {
-    color: "#94a3b8",
+    color: "#64748b",
     fontSize: 10,
-    marginTop: 4,
+    fontWeight: "700",
+    marginTop: 6,
     textAlign: "center",
+  },
+  buttonPressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.9,
   },
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.65)",
+    backgroundColor: "rgba(2,6,23,0.85)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
   },
   modalCard: {
     width: "100%",
-    backgroundColor: "#1e1b2e",
-    borderRadius: 18,
-    padding: 20,
+    backgroundColor: "#0f172a",
+    borderRadius: 32,
+    padding: 24,
     borderWidth: 1,
-    borderColor: "#312e55",
+    borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+  },
+  modalWarningIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: "rgba(239,68,68,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
   },
   modalTitle: {
-    color: "#f0f0f0",
-    fontSize: 17,
-    fontWeight: "700",
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "800",
     marginBottom: 8,
+    textAlign: "center",
   },
   modalDesc: {
     color: "#94a3b8",
-    fontSize: 14,
-    lineHeight: 22,
-    marginBottom: 16,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 24,
   },
   modalActions: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
   },
   modalBtn: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
+    height: 48,
+    borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
   },
   modalBtnCancel: {
-    backgroundColor: "#374151",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
   modalBtnLeave: {
-    backgroundColor: "#b91c1c",
+    backgroundColor: "#ef4444",
   },
   modalBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "700",
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  modalBtnTextCancel: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });
