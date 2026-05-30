@@ -6,49 +6,6 @@
   },
   "item": [
     {
-      "name": "0. Register Admin",
-      "event": [
-        {
-          "listen": "prerequest",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "var suffix = Date.now();",
-              "pm.environment.set('registerEmail', 'admin+' + suffix + '@example.com');",
-              "pm.environment.set('registerPassword', 'Password@123');",
-              "pm.environment.set('registerCode', 'ADM' + suffix);"
-            ]
-          }
-        },
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Register Success', function () {",
-              "    pm.expect([200, 201]).to.include(pm.response.code);",
-              "});"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"{{registerPassword}}\",\n  \"firstName\": \"Admin\",\n  \"lastName\": \"Test\",\n  \"roleName\": \"ROLE_ADMIN\",\n  \"code\": \"{{registerCode}}\",\n  \"departmentId\": 1,\n  \"schoolId\": 1,\n  \"verifiedToken\": \"\"\n}"
-        },
-        "url": "{{baseUrl}}/api/core/auth/register"
-      },
-      "response": []
-    },
-    {
       "name": "1. Admin Login",
       "event": [
         {
@@ -75,7 +32,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"{{registerPassword}}\"\n}"
+          "raw": "{\n  \"email\": \"admin@otteducation.local\",\n  \"password\": \"Password@123\"\n}"
         },
         "url": "{{baseUrl}}/api/core/auth/login"
       },
