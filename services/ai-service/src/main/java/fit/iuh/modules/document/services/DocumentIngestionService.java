@@ -9,7 +9,6 @@ import fit.iuh.modules.document.repositories.DocumentRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,7 +26,6 @@ public class DocumentIngestionService {
     private final DocumentChunkRepository chunkRepository;
     private final DocumentReaderFactory readerFactory;
     private final SemanticChunker semanticChunker;
-    private final VectorStore vectorStore;
 
     private static final List<String> SUPPORTED_TYPES = List.of(
             "application/pdf",
@@ -56,7 +54,7 @@ public class DocumentIngestionService {
             List<String> textChunks = semanticChunker.chunk(rawText);
             log.info("Created {} chunks from {}", textChunks.size(), file.getOriginalFilename());
 
-            // 4. Save chunks + embeddings
+            // 4. Save chunks
             for (int i = 0; i < textChunks.size(); i++) {
                 String chunkContent = textChunks.get(i);
 
@@ -67,18 +65,6 @@ public class DocumentIngestionService {
                         .content(chunkContent)
                         .build();
                 chunkRepository.save(chunk);
-
-                // Save to VectorStore (computes embedding via CPU model automatically)
-                var aiDoc = new org.springframework.ai.document.Document(
-                        chunk.getId().toString(),
-                        chunkContent,
-                        Map.of(
-                                "documentId", document.getId().toString(),
-                                "chunkIndex", String.valueOf(i),
-                                "source", file.getOriginalFilename()
-                        )
-                );
-                vectorStore.add(List.of(aiDoc));
             }
 
             // 5. Update document status
@@ -110,15 +96,7 @@ public class DocumentIngestionService {
 
     @Transactional
     public void deleteDocument(UUID documentId) {
-        // VectorStore cleanup: delete by metadata filter
-        // Note: PgVectorStore supports delete by ID list
         List<DocumentChunk> chunks = chunkRepository.findByDocumentIdOrderByChunkIndex(documentId);
-        List<String> vectorIds = chunks.stream()
-                .map(c -> c.getId().toString())
-                .toList();
-        if (!vectorIds.isEmpty()) {
-            vectorStore.delete(vectorIds);
-        }
         chunkRepository.deleteByDocumentId(documentId);
         documentRepository.deleteById(documentId);
         log.info("Document {} and {} chunks deleted", documentId, chunks.size());

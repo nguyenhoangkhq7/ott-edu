@@ -1,5 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS hstore;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Document metadata
@@ -13,19 +11,14 @@ CREATE TABLE IF NOT EXISTS documents (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Document chunks with embedding vectors
+-- Document chunks
 CREATE TABLE IF NOT EXISTS document_chunks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     chunk_index INTEGER NOT NULL,
     content TEXT NOT NULL,
-    embedding vector(1024),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- HNSW index for cosine similarity search
-CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding
-    ON document_chunks USING hnsw (embedding vector_cosine_ops);
 
 -- Index for document_id lookups
 CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id

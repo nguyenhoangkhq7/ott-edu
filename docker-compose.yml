@@ -100,9 +100,7 @@ services:
     depends_on:
       ai-postgres-db:
         condition: service_healthy
-      ai-engine-cpu:
-        condition: service_started
-      ai-engine-gpu:
+      ollama-server:
         condition: service_started
     ports:
       - "${AI_PORT:-8082}:8080"
@@ -110,7 +108,7 @@ services:
       - app-network
 
   ai-postgres-db:
-    image: pgvector/pgvector:pg16
+    image: postgres:16-alpine
     container_name: ai-postgres-db
     restart: always
     environment:
@@ -188,32 +186,21 @@ services:
     networks:
       - app-network
 
-  ai-engine-cpu:
+  ollama-server:
     image: ollama/ollama:latest
-    container_name: ai-engine-cpu
+    container_name: ollama-server
     restart: always
     volumes:
-      - ollama_cpu_data:/root/.ollama
-    expose:
-      - "11434"
-    networks:
-      - app-network
-
-  ai-engine-gpu:
-    image: ollama/ollama:latest
-    container_name: ai-engine-gpu
-    restart: always
-    volumes:
-      - ollama_gpu_data:/root/.ollama
+      - ollama_data:/root/.ollama
     deploy:
       resources:
         reservations:
           devices:
-            - driver: nvidia
-              count: 1
+            - driver: ${GPU_DRIVER:-}
+              count: all
               capabilities: [gpu]
-    expose:
-      - "11434"
+    ports:
+      - "11434:11434"
     networks:
       - app-network
 
@@ -223,8 +210,7 @@ services:
     restart: "no"
     env_file: .env
     depends_on:
-      - ai-engine-cpu
-      - ai-engine-gpu
+      - ollama-server
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
@@ -247,8 +233,7 @@ services:
           fi
         }
         
-        wait_and_pull "ai-engine-cpu:11434" "$$OLLAMA_EMBEDDING_MODEL"
-        wait_and_pull "ai-engine-gpu:11434" "$$OLLAMA_CHAT_MODEL"
+        wait_and_pull "ollama-server:11434" "$$OLLAMA_CHAT_MODEL"
         echo "All models ready!"
     networks:
       - app-network
@@ -257,8 +242,7 @@ volumes:
   db_data:
   mongo_data:
   ai_pg_data:
-  ollama_cpu_data:
-  ollama_gpu_data:
+  ollama_data:
 
 networks:
   app-network:

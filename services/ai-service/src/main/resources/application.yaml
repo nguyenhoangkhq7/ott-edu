@@ -36,14 +36,9 @@ spring:
 app:
   ai:
     ollama:
-      cpu:
-        base-url: ${OLLAMA_CPU_BASE_URL:http://ai-engine-cpu:11434}
-        model: ${OLLAMA_EMBEDDING_MODEL:hf.co/doof-ferb/AITeamVN-Vietnamese_Embedding-gguf:Q8_0}
-        keep-alive: ${OLLAMA_CPU_KEEP_ALIVE:1h}
-      gpu:
-        base-url: ${OLLAMA_GPU_BASE_URL:http://ai-engine-gpu:11434}
-        model: ${OLLAMA_CHAT_MODEL:qwen2.5:3b-instruct}
-        keep-alive: ${OLLAMA_GPU_KEEP_ALIVE:-1m}
+      base-url: ${OLLAMA_BASE_URL:http://ollama-server:11434}
+      model: ${OLLAMA_CHAT_MODEL:qwen2.5:7b-instruct}
+      keep-alive: ${OLLAMA_KEEP_ALIVE:-1m}
     chunking:
       min-chunk-size: 300
       max-chunk-size: 500
