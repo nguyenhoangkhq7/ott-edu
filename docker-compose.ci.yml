@@ -2,7 +2,4 @@ services:
   chat-service:
     ports: !reset []
   ollama-server:
-    deploy:
-      resources:
-        reservations:
-          devices: []
+    deploy: !reset {}
