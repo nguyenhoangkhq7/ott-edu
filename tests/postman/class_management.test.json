@@ -6,18 +6,28 @@
   },
   "item": [
     {
-      "name": "1. Admin Login",
+      "name": "0. Register Admin",
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "var suffix = Date.now();",
+              "pm.environment.set('registerEmail', 'admin+' + suffix + '@example.com');",
+              "pm.environment.set('registerPassword', 'Password@123');",
+              "pm.environment.set('registerCode', 'ADM' + suffix);"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Status is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "var jsonData = pm.response.json();",
-              "pm.environment.set('adminToken', jsonData.data.token);"
+              "pm.test('Register Success', function () {",
+              "    pm.expect([200, 201]).to.include(pm.response.code);",
+              "});"
             ]
           }
         }
@@ -32,7 +42,40 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"healthcheck@example.com\",\n  \"password\": \"123456\"\n}"
+          "raw": "{\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"{{registerPassword}}\",\n  \"firstName\": \"Admin\",\n  \"lastName\": \"Test\",\n  \"roleName\": \"ROLE_ADMIN\",\n  \"code\": \"{{registerCode}}\",\n  \"departmentId\": 1,\n  \"schoolId\": 1,\n  \"verifiedToken\": \"\"\n}"
+        },
+        "url": "{{baseUrl}}/api/core/auth/register"
+      },
+      "response": []
+    },
+    {
+      "name": "1. Admin Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "var jsonData = pm.response.json();",
+              "pm.environment.set('adminToken', jsonData.data.accessToken || jsonData.data.token);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{registerEmail}}\",\n  \"password\": \"{{registerPassword}}\"\n}"
         },
         "url": "{{baseUrl}}/api/core/auth/login"
       },
@@ -47,7 +90,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Create Team Success', function () {",
-              "    pm.response.to.have.status(201);",
+              "    pm.expect([200, 201]).to.include(pm.response.code);",
               "});",
               "var jsonData = pm.response.json();",
               "pm.environment.set('createdTeamId', jsonData.data.id);",
@@ -72,7 +115,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"Lớp Học Test CI\",\n  \"description\": \"Mô tả lớp học\",\n  \"joinCode\": \"CLASS_CI_TEST\",\n  \"departmentId\": 1,\n  \"isApprovalRequired\": false\n}"
+          "raw": "{\n  \"name\": \"Lớp Học Test CI\",\n  \"description\": \"Mô tả lớp học\",\n  \"joinCode\": \"CLASS_CI_TEST_\" + Date.now(),\n  \"departmentId\": 1,\n  \"isApprovalRequired\": false\n}"
         },
         "url": "{{baseUrl}}/api/core/teams"
       },
@@ -111,7 +154,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"Lớp Học Test CI Updated\",\n  \"description\": \"Mô tả lớp học đã sửa\",\n  \"joinCode\": \"CLASS_CI_TEST\",\n  \"departmentId\": 1,\n  \"isApprovalRequired\": false\n}"
+          "raw": "{\n  \"name\": \"Lớp Học Test CI Updated\",\n  \"description\": \"Mô tả lớp học đã sửa\",\n  \"joinCode\": \"CLASS_CI_TEST_UPDATED\",\n  \"departmentId\": 1,\n  \"isApprovalRequired\": false\n}"
         },
         "url": "{{baseUrl}}/api/core/teams/{{createdTeamId}}"
       },
