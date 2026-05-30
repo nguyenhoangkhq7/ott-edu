@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: ai-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ai-postgres-db:5432/ai_service_db}
+    username: ${SPRING_DATASOURCE_USERNAME:ai_service}
+    password: ${SPRING_DATASOURCE_PASSWORD:ai_service}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          lob:
+            non_contextual_creation: true
+  ai:
+    ollama:
+      chat:
+        enabled: false
+      embedding:
+        enabled: false
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 8
+        queue-capacity: 50
+      thread-name-prefix: ai-async-
+
+app:
+  ai:
+    ollama:
+      cpu:
+        base-url: ${OLLAMA_CPU_BASE_URL:http://ai-engine-cpu:11434}
+        model: ${OLLAMA_EMBEDDING_MODEL:hf.co/doof-ferb/AITeamVN-Vietnamese_Embedding-gguf:Q8_0}
+        keep-alive: ${OLLAMA_CPU_KEEP_ALIVE:1h}
+      gpu:
+        base-url: ${OLLAMA_GPU_BASE_URL:http://ai-engine-gpu:11434}
+        model: ${OLLAMA_CHAT_MODEL:qwen2.5:3b-instruct}
+        keep-alive: ${OLLAMA_GPU_KEEP_ALIVE:-1m}
+    chunking:
+      min-chunk-size: 300
+      max-chunk-size: 500
+    http:
+      pool:
+        max-total: 50
+        max-per-route: 25
+        connection-ttl-seconds: 300
+
+server:
+  port: 8080
+  servlet:
+    async:
+      timeout: 300000

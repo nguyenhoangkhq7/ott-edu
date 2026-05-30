@@ -87,6 +87,50 @@ services:
     networks:
       - app-network
 
+  ai-service:
+    build: ./services/ai-service
+    container_name: ai-service
+    restart: on-failure
+    env_file: .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://ai-postgres-db:5432/${AI_POSTGRES_DB:-ai_service_db}
+      SPRING_DATASOURCE_USERNAME: ${AI_POSTGRES_USER:-ai_service}
+      SPRING_DATASOURCE_PASSWORD: ${AI_POSTGRES_PASSWORD:-ai_service}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    depends_on:
+      ai-postgres-db:
+        condition: service_healthy
+      ai-engine-cpu:
+        condition: service_started
+      ai-engine-gpu:
+        condition: service_started
+    ports:
+      - "${AI_PORT:-8082}:8080"
+    networks:
+      - app-network
+
+  ai-postgres-db:
+    image: pgvector/pgvector:pg16
+    container_name: ai-postgres-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_service_db}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-ai_service}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-ai_service}
+    volumes:
+      - ai_pg_data:/var/lib/postgresql/data
+      - ./services/ai-service/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "${AI_POSTGRES_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AI_POSTGRES_USER:-ai_service} -d ${AI_POSTGRES_DB:-ai_service_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks:
+      - app-network
+
   chat-service:
     build:
       context: ./services/chat-service
@@ -144,9 +188,76 @@ services:
     networks:
       - app-network
 
+  ai-engine-cpu:
+    image: ollama/ollama:latest
+    container_name: ai-engine-cpu
+    restart: always
+    volumes:
+      - ollama_cpu_data:/root/.ollama
+    expose:
+      - "11434"
+    networks:
+      - app-network
+
+  ai-engine-gpu:
+    image: ollama/ollama:latest
+    container_name: ai-engine-gpu
+    restart: always
+    volumes:
+      - ollama_gpu_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    expose:
+      - "11434"
+    networks:
+      - app-network
+
+  ai-engine-init:
+    image: ollama/ollama:latest
+    container_name: ai-engine-init
+    restart: "no"
+    depends_on:
+      - ai-engine-cpu
+      - ai-engine-gpu
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        wait_and_pull() {
+          local host=$$1 model=$$2
+          
+          # Trỏ lệnh ollama xuống host của CPU hoặc GPU thay vì localhost
+          export OLLAMA_HOST=http://$$host
+          
+          echo "Waiting for $$host..."
+          # Dùng ollama list để kiểm tra kết nối thay vì curl
+          until ollama list >/dev/null 2>&1; do sleep 2; done
+          echo "$$host is ready"
+          
+          if ollama list | grep -q "$$(echo $$model | cut -d: -f1)"; then
+            echo "Model '$$model' already exists on $$host"
+          else
+            echo "Pulling '$$model' on $$host... (This may take a while)"
+            ollama pull $$model
+          fi
+        }
+        
+        wait_and_pull "ai-engine-cpu:11434" "hf.co/doof-ferb/AITeamVN-Vietnamese_Embedding-gguf:Q8_0"
+        wait_and_pull "ai-engine-gpu:11434" "qwen2.5:3b-instruct"
+        echo "All models ready!"
+    networks:
+      - app-network
+
 volumes:
   db_data:
   mongo_data:
+  ai_pg_data:
+  ollama_cpu_data:
+  ollama_gpu_data:
 
 networks:
   app-network:
