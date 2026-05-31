@@ -92,7 +92,7 @@ public class QuestionGenerationService {
     @Async
     public void generateQuestionsAsync(QuestionGenerationRequest request, SseEmitter emitter) {
         try {
-            sendSseEvent(emitter, "started", Map.of("message", "Bắt đầu khởi tạo ngân hàng câu hỏi..."));
+            sendSseEvent(emitter, "progress", Map.of("message", "Bắt đầu khởi tạo ngân hàng câu hỏi..."));
 
             UUID docId = request.getDocumentId();
             List<DocumentChunk> allChunks = chunkRepository.findByDocumentIdOrderByChunkIndex(docId);
@@ -166,7 +166,13 @@ public class QuestionGenerationService {
                         }
                     } catch (Exception parseException) {
                         attempts++;
-                        System.err.println("AI sinh lỗi JSON ở iteration " + iteration + ", đang thử lại... (Lần " + attempts + ")");
+                        String retryMsg = String.format(
+                            "AI sinh lỗi JSON ở đoạn %d, đang thử lại... (Lần %d/%d)",
+                            iteration + 1, attempts, maxRetries);
+                        System.err.println(retryMsg);
+                        try {
+                            sendSseEvent(emitter, "progress", Map.of("message", retryMsg));
+                        } catch (IOException ignored) {}
                     }
                 }
 
@@ -177,6 +183,11 @@ public class QuestionGenerationService {
                             "questions", batchResult
                     ));
                     generatedCount += questionsToAskForThisChunk;
+                } else {
+                    // All retries exhausted for this chunk — notify the client and continue
+                    sendSseEvent(emitter, "progress", Map.of(
+                        "message", String.format("Bỏ qua đoạn %d sau %d lần thử (AI trả JSON không hợp lệ).",
+                                                iteration + 1, maxRetries)));
                 }
 
                 iteration++;

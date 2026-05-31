@@ -2,12 +2,13 @@
 
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { CreateAssignmentFormData } from '@/shared/types/assignment';
+import { CreateAssignmentFormData, QuestionFormData } from '@/shared/types/assignment';
 import { AssignmentType } from '@/shared/types/quiz';
 import { assignmentApi } from '@/services/api/assignment.service';
 import RichTextEditorWrapper from '@/shared/components/editors/RichTextEditorWrapper';
 import QuizQuestionBuilder from '@/shared/components/forms/QuizQuestionBuilder';
 import MaterialUploadZone from './MaterialUploadZone';
+import AiQuizGenerator from './AiQuizGenerator';
 
 interface CreateAssignmentModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export default function CreateAssignmentModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isQuizValid, setIsQuizValid] = useState(true);
+  const [aiQuestionsApplied, setAiQuestionsApplied] = useState(false);
 
   const {
     register,
@@ -176,8 +178,8 @@ export default function CreateAssignmentModal({
               {...register('title', { required: 'Nhập tiêu đề' })}
               placeholder="Nhập tiêu đề bài tập..."
               className={`w-full px-4 py-2.5 rounded-lg border text-sm transition-colors ${errors.title
-                  ? 'border-red-300 bg-red-50 focus:border-red-500 focus:outline-none'
-                  : 'border-slate-300 bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
+                ? 'border-red-300 bg-red-50 focus:border-red-500 focus:outline-none'
+                : 'border-slate-300 bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
                 }`}
             />
             {errors.title && <p className="mt-1 text-xs text-red-600">{errors.title.message}</p>}
@@ -218,8 +220,8 @@ export default function CreateAssignmentModal({
                 min={1}
                 max={1000}
                 className={`w-full px-4 py-2.5 rounded-lg border text-sm transition-colors ${errors.maxScore
-                    ? 'border-red-300 bg-red-50 focus:border-red-500 focus:outline-none'
-                    : 'border-slate-300 bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
+                  ? 'border-red-300 bg-red-50 focus:border-red-500 focus:outline-none'
+                  : 'border-slate-300 bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
                   }`}
               />
               {errors.maxScore && <p className="mt-1 text-xs text-red-600">{errors.maxScore.message}</p>}
@@ -235,8 +237,8 @@ export default function CreateAssignmentModal({
               type="datetime-local"
               {...register('dueDate', { required: 'Chọn hạn nộp' })}
               className={`w-full px-4 py-2.5 rounded-lg border text-sm transition-colors ${errors.dueDate
-                  ? 'border-red-300 bg-red-50 focus:border-red-500 focus:outline-none'
-                  : 'border-slate-300 bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
+                ? 'border-red-300 bg-red-50 focus:border-red-500 focus:outline-none'
+                : 'border-slate-300 bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
                 }`}
             />
             {errors.dueDate && <p className="mt-1 text-xs text-red-600">{errors.dueDate.message}</p>}
@@ -285,15 +287,50 @@ export default function CreateAssignmentModal({
             />
           )}
 
-          {/* QUIZ-Specific: Question Builder */}
+          {/* QUIZ-Specific: AI Generator + Manual Question Builder */}
           {assignmentType === AssignmentType.QUIZ && (
-            <QuizQuestionBuilder
-              control={control}
-              register={register}
-              errors={errors}
-              setValue={setValue}
-              onValidationChange={setIsQuizValid}
-            />
+            <div className="space-y-6">
+              {/* ✨ AI-Assisted Quiz Generator */}
+              <AiQuizGenerator
+                teamId={teamId}
+                totalScore={Number(watch('maxScore')) || 100}
+                onQuestionsReady={(generatedQuestions: QuestionFormData[]) => {
+                  setValue('questions', generatedQuestions);
+                  setAiQuestionsApplied(true);
+                }}
+              />
+
+              {/* Banner when AI questions are loaded */}
+              {aiQuestionsApplied && (
+                <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-emerald-700 font-medium">
+                    Câu hỏi từ AI đã được nạp vào bộ câu hỏi bên dưới. Bạn có thể chỉnh sửa thêm.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValue('questions', []);
+                      setAiQuestionsApplied(false);
+                    }}
+                    className="ml-auto text-xs text-slate-500 hover:text-slate-700 underline whitespace-nowrap"
+                  >
+                    Xóa tất cả
+                  </button>
+                </div>
+              )}
+
+              {/* Manual Question Builder — always visible for fine-tuning */}
+              <QuizQuestionBuilder
+                control={control}
+                register={register}
+                errors={errors}
+                setValue={setValue}
+                onValidationChange={setIsQuizValid}
+              />
+            </div>
           )}
 
           {/* Action Buttons */}

@@ -164,6 +164,8 @@ services:
     restart: always
     command: npm run dev
     env_file: .env
+    environment:
+      AI_SERVICE_INTERNAL_URL: http://ai-service:8080
     volumes:
       - ./apps/web-app:/app
       - /app/node_modules

@@ -7,11 +7,15 @@ import { useRouter } from 'next/navigation';
 interface QuizResultScreenProps {
   result: SubmissionResult;
   assignmentTitle: string;
+  assignmentId?: number;
+  teamId?: number | null;
 }
 
 export const QuizResultScreen: React.FC<QuizResultScreenProps> = ({
   result,
   assignmentTitle,
+  assignmentId,
+  teamId,
 }) => {
   const router = useRouter();
   const percentage = result.maxScore > 0 ? Math.round((result.score / result.maxScore) * 100) : 0;
@@ -90,7 +94,13 @@ export const QuizResultScreen: React.FC<QuizResultScreenProps> = ({
 
           {/* Back button */}
           <button
-            onClick={() => router.push('/online-quizzes')}
+            onClick={() => {
+              if (teamId && assignmentId) {
+                router.push(`/teams/${teamId}?assignmentId=${assignmentId}&type=QUIZ`);
+              } else {
+                router.push('/online-quizzes');
+              }
+            }}
             className="w-full py-3.5 rounded-2xl bg-indigo-600 text-white font-bold text-base
               hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
           >

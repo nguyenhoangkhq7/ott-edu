@@ -266,7 +266,10 @@ export default function AssignmentsPage({
                     </button>
                   ) : (
                     <Link
-                      href={`/online-quizzes/${assignment.id}/quiz`}
+                      href={teamId 
+                        ? `/online-quizzes/${assignment.id}/quiz?teamId=${teamId}`
+                        : `/online-quizzes/${assignment.id}/quiz`
+                      }
                       className="w-full py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold
                         hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
                     >

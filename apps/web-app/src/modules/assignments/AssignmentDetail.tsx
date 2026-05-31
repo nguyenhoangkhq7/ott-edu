@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/shared/providers/AuthProvider';
 import { assignmentApi, submissionApi } from '@/services/api/assignment.service';
 import { AttemptHistory, AttemptStatus } from '@/shared/types/assignment';
@@ -34,6 +34,8 @@ export default function AssignmentDetail({
   onRefresh,
 }: AssignmentDetailProps) {
   const router = useRouter();
+  const params = useParams();
+  const teamId = params.id;
   const { user } = useAuth();
   const isTeacher = user?.roles?.includes('ROLE_TEACHER') ?? false;
   const [assignment, setAssignment] = useState<AssignmentDetailType | null>(null);
@@ -339,7 +341,12 @@ export default function AssignmentDetail({
               {/* Start Quiz Button */}
               {attemptStatus?.canAttempt && (
                 <button
-                  onClick={() => router.push(`/assignments/${assignmentId}/quiz`)}
+                  onClick={() => {
+                    const url = teamId 
+                      ? `/assignments/${assignmentId}/quiz?teamId=${teamId}` 
+                      : `/assignments/${assignmentId}/quiz`;
+                    router.push(url);
+                  }}
                   disabled={isDueDate}
                   className={`w-full py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 mb-6 ${isDueDate
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed'

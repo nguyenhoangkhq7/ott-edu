@@ -65,7 +65,7 @@ public class OllamaConfig {
                 .ollamaApi(ollamaApi)
                 .defaultOptions(OllamaChatOptions.builder()
                         .model(model)
-                        .temperature(0.1)
+                        .temperature(0.0)
                         .numCtx(2048)
                         .numPredict(2048)
                         .keepAlive(keepAlive)

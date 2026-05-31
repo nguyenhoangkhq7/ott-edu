@@ -9,6 +9,7 @@ import { QuestionMap } from '@/shared/components/quiz/QuestionMap';
 import { SubmitConfirmModal } from '@/shared/components/quiz/SubmitConfirmModal';
 import { QuizResultScreen } from '@/shared/components/quiz/QuizResultScreen';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 interface TakeQuizEngineProps {
   assignment: AssignmentDetail;
@@ -21,6 +22,10 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
   assignment,
   submission,
 }) => {
+  const searchParams = useSearchParams();
+  const teamIdParam = searchParams.get('teamId');
+  const teamId = teamIdParam ? Number(teamIdParam) : (assignment.teamIds?.[0] ?? null);
+
   const questions = assignment.questions ?? [];
   // Derive duration from assignment.timeLimit (minutes) -> seconds. Null = unlimited.
   const totalSeconds = assignment.timeLimit ? assignment.timeLimit * 60 : DEFAULT_DURATION_SECONDS;
@@ -33,6 +38,100 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<SubmissionResult | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+
+  // Anti-cheat mechanism: Disable text selection, context menu, clipboard, developer shortcuts
+  useEffect(() => {
+    // Add select-none to body
+    document.body.classList.add('select-none');
+
+    const triggerWarning = () => {
+      setShowWarning(true);
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      triggerWarning();
+    };
+
+    const handleClipboard = (e: ClipboardEvent) => {
+      e.preventDefault();
+      triggerWarning();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      const isShift = e.shiftKey;
+      const isAltOrOption = e.altKey;
+
+      // F12
+      if (e.key === 'F12') {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + Shift + I or Cmd + Option + I (DevTools)
+      if (isCtrlOrCmd && (isShift || isAltOrOption) && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + Shift + J or Cmd + Option + J (Console)
+      if (isCtrlOrCmd && (isShift || isAltOrOption) && (e.key === 'j' || e.key === 'J')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + C / Cmd + C (Copy)
+      if (isCtrlOrCmd && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + P / Cmd + P (Print)
+      if (isCtrlOrCmd && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + S / Cmd + S (Save)
+      if (isCtrlOrCmd && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('copy', handleClipboard);
+    document.addEventListener('cut', handleClipboard);
+    document.addEventListener('paste', handleClipboard);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.classList.remove('select-none');
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('copy', handleClipboard);
+      document.removeEventListener('cut', handleClipboard);
+      document.removeEventListener('paste', handleClipboard);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // Warning toast auto-dismiss timer
+  useEffect(() => {
+    if (showWarning) {
+      const timer = setTimeout(() => {
+        setShowWarning(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showWarning]);
 
   const saveDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const pendingAnswerRef = useRef<{ questionId: number; selectedOptionIds: number[] } | null>(null);
@@ -135,11 +234,30 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
 
   // Show result screen if submitted
   if (result) {
-    return <QuizResultScreen result={result} assignmentTitle={assignment.title} />;
+    return (
+      <QuizResultScreen
+        result={result}
+        assignmentTitle={assignment.title}
+        assignmentId={assignment.id}
+        teamId={teamId}
+      />
+    );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-slate-100 select-none">
+      {/* Anti-cheat Warning Toast */}
+      {showWarning && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] bg-red-600 text-white font-bold px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce border border-red-500">
+          <svg className="w-6 h-6 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="text-sm md:text-base">
+            Cảnh báo: Thao tác này không được phép trong lúc làm bài thi!
+          </span>
+        </div>
+      )}
+
       {/* Submit modal overlay */}
       {showSubmitModal && (
         <SubmitConfirmModal
