@@ -1,0 +1,1606 @@
+{
+  "info": {
+    "name": "OTT-EDU Assignment Service",
+    "description": "Collection of APIs for testing fit.iuh assignment-service (including both Quiz and Essay assignment management, submissions, and grading for Teachers and Students).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login as Teacher",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Login via core-service to obtain JWT Token for Teacher role.",
+            "url": {
+              "raw": "https://localhost:8000/api/core/auth/login",
+              "protocol": "https",
+              "host": [
+                "localhost:8000"
+              ],
+              "path": [
+                "api",
+                "core",
+                "auth",
+                "login"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"teacher@example.com\",\n    \"password\": \"Password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {},
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.accessToken) {",
+                  "    pm.collectionVariables.set(\"accessToken\", jsonData.data.accessToken);",
+                  "    pm.collectionVariables.set(\"teacherToken\", jsonData.data.accessToken);",
+                  "    console.log(\"Teacher Token saved to accessToken and teacherToken variables!\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Student",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Login via core-service to obtain JWT Token for Student role.",
+            "url": {
+              "raw": "https://localhost:8000/api/core/auth/login",
+              "protocol": "https",
+              "host": [
+                "localhost:8000"
+              ],
+              "path": [
+                "api",
+                "core",
+                "auth",
+                "login"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"caothanhdong.41118@gmail.com\",\n    \"password\": \"Password123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {},
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.data && jsonData.data.accessToken) {",
+                  "    pm.collectionVariables.set(\"accessToken\", jsonData.data.accessToken);",
+                  "    pm.collectionVariables.set(\"studentToken\", jsonData.data.accessToken);",
+                  "    console.log(\"Student Token saved to accessToken and studentToken variables!\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Current Account Details (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Check current authenticated account details.",
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Teacher - Assignment Management",
+      "item": [
+        {
+          "name": "Create QUIZ Assignment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{teacherToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Create a new QUIZ assignment containing sample questions. Only accessible for TEACHER role.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assignments/create",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "create"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Kiểm tra trắc nghiệm OOP Java\",\n  \"instructions\": \"Hãy trả lời các câu hỏi trắc nghiệm dưới đây. Giới hạn 2 lượt làm bài.\",\n  \"type\": \"QUIZ\",\n  \"dueDate\": \"2026-12-31T23:59:59\",\n  \"maxScore\": 10.0,\n  \"teamIds\": [{{teamId}}],\n  \"maxAttempts\": 2,\n  \"timeLimit\": 45,\n  \"questions\": [\n    {\n      \"content\": \"Java có hỗ trợ đa kế thừa lớp hay không?\",\n      \"type\": \"TRUE_FALSE\",\n      \"points\": 5.0,\n      \"displayOrder\": 1,\n      \"options\": [\n        { \"content\": \"Đúng (True)\", \"isCorrect\": false, \"displayOrder\": 1 },\n        { \"content\": \"Sai (False)\", \"isCorrect\": true, \"displayOrder\": 2 }\n      ]\n    },\n    {\n      \"content\": \"Những từ khóa hoặc chú thích nào liên quan đến tính đa hình trong Java? (Chọn tất cả các đáp án đúng)\",\n      \"type\": \"MULTI_CHOICE\",\n      \"points\": 5.0,\n      \"displayOrder\": 2,\n      \"options\": [\n        { \"content\": \"@Override\", \"isCorrect\": true, \"displayOrder\": 1 },\n        { \"content\": \"extends\", \"isCorrect\": true, \"displayOrder\": 2 },\n        { \"content\": \"implements\", \"isCorrect\": true, \"displayOrder\": 3 },\n        { \"content\": \"static\", \"isCorrect\": false, \"displayOrder\": 4 }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {},
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.id) {",
+                  "    pm.collectionVariables.set(\"assignmentId\", jsonData.id);",
+                  "    pm.collectionVariables.set(\"quizAssignmentId\", jsonData.id);",
+                  "    console.log(\"New quiz assignmentId saved: \" + jsonData.id);",
+                  "    ",
+                  "    if (jsonData.questions && jsonData.questions.length > 0) {",
+                  "        var firstQuestion = jsonData.questions[0];",
+                  "        pm.collectionVariables.set(\"questionId\", firstQuestion.id);",
+                  "        console.log(\"Saved questionId variable: \" + firstQuestion.id);",
+                  "        ",
+                  "        if (firstQuestion.options && firstQuestion.options.length > 0) {",
+                  "            pm.collectionVariables.set(\"optionId\", firstQuestion.options[0].id);",
+                  "            console.log(\"Saved optionId variable: \" + firstQuestion.options[0].id);",
+                  "        }",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create ESSAY Assignment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{teacherToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Create a new ESSAY assignment. Only accessible for TEACHER role.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assignments/create",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "create"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Bài luận về Spring Boot Dependency Injection\",\n  \"instructions\": \"Viết bài luận phân tích cơ chế Dependency Injection (DI) và vòng đời của Spring Bean.\",\n  \"type\": \"ESSAY\",\n  \"dueDate\": \"2026-12-31T23:59:59\",\n  \"maxScore\": 100.0,\n  \"teamIds\": [{{teamId}}],\n  \"materialUrls\": [\n    \"https://product-images-hau.s3.ap-southeast-1.amazonaws.com/materials/spring-di-guide.pdf\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {},
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.id) {",
+                  "    pm.collectionVariables.set(\"assignmentId\", jsonData.id);\n    pm.collectionVariables.set(\"essayAssignmentId\", jsonData.id);",
+                  "    console.log(\"New essay assignmentId saved: \" + jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Assignments (Teacher View)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{teacherToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get all assignments created by the current teacher account.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assignments/my-assignments?page=0&size=20&sortBy=createdAt",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "my-assignments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                }
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Archive Assignment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{teacherToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Soft-delete / Archive an assignment. Only the creator teacher can perform this.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assignments/{{assignmentId}}/archive",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}",
+                "archive"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Teacher - Grading Management",
+      "item": [
+        {
+          "name": "Get All Submissions for Assignment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{teacherToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get all student submissions for a specific assignment.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/assignment/{{assignmentId}}?page=0&size=20",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "assignment",
+                "{{assignmentId}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Pending Grading Submissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{teacherToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get submissions that are pending grading (for Essay type assignments).",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/assignment/{{assignmentId}}/pending?page=0&size=20",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "assignment",
+                "{{assignmentId}}",
+                "pending"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "View Submission Detail (Teacher Mode)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{teacherToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Retrieve the full detail of a student's submission (Answers, Essay contents, files) for a teacher to grade.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/{{submissionId}}/detail",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "{{submissionId}}",
+                "detail"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Grade & Feedback Submission",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{teacherToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Submit a grade score and written feedback for a student's submission.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/{{submissionId}}/grade",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "{{submissionId}}",
+                "grade"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"score\": 8.5,\n  \"feedback\": \"Bài luận viết mạch lạc, thể hiện sự hiểu biết sâu sắc về DI. Điểm trừ nhỏ là cần làm rõ hơn về khác biệt giữa BeanFactory và ApplicationContext.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Student - View Assignments",
+      "item": [
+        {
+          "name": "Get Assignments for My Team",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Fetch all assignments active for the student's team class.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assignments/team/{{teamId}}?page=0&size=20&sortBy=dueDate",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "team",
+                "{{teamId}}"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "dueDate"
+                }
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Assignment Details (Safe View)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get detailed assignment structure. Correct answers are hidden to prevent cheating.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assignments/{{assignmentId}}",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assignments",
+                "{{assignmentId}}"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Remaining Attempt Limits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Check if student has remaining attempt count for a Quiz assignment.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/can-attempt/{{assignmentId}}",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "can-attempt",
+                "{{assignmentId}}"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Attempt History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get list of all previous submissions made by student for this assignment.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/attempt-history/{{assignmentId}}",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "attempt-history",
+                "{{assignmentId}}"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Student - Submission & Essay Work",
+      "item": [
+        {
+          "name": "Start Assignment (Create Draft)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Initialize a new submission record (status DRAFT) for the student.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/assignment/{{assignmentId}}/start",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "assignment",
+                "{{assignmentId}}",
+                "start"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {},
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.id) {",
+                  "    pm.collectionVariables.set(\"submissionId\", jsonData.id);",
+                  "    console.log(\"submissionId saved: \" + jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Current Submission Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get active draft submission or the last submitted one.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/assignment/{{assignmentId}}/current",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "assignment",
+                "{{assignmentId}}",
+                "current"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save Essay Draft Progress",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Auto-save / save draft answers for student. Status remains DRAFT.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/{{submissionId}}/save-draft",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "{{submissionId}}",
+                "save-draft"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"essayContent\": \"Dependency Injection (DI) là một design pattern nhằm giảm sự phụ thuộc lẫn nhau giữa các thành phần phần mềm. Spring Boot sử dụng ApplicationContext để quản lý bean...\",\n  \"fileUrl\": \"https://product-images-hau.s3.ap-southeast-1.amazonaws.com/submissions/my-essay-draft.docx\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Essay Assignment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Finalize draft and submit assignment for teacher review.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/assignment/{{assignmentId}}/submit",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "assignment",
+                "{{assignmentId}}",
+                "submit"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"essayContent\": \"Bản nộp chính thức: Dependency Injection (DI) là một design pattern cốt lõi của Spring Framework...\",\n  \"fileUrl\": \"https://product-images-hau.s3.ap-southeast-1.amazonaws.com/submissions/final-submission.pdf\",\n  \"confirm\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "View My Submission Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Student views their own submission answers and status.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/{{submissionId}}",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "{{submissionId}}"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "View My Received Grade & Feedback",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Student check grade and comments given by teacher.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/{{submissionId}}/grade",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "{{submissionId}}",
+                "grade"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Submission History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get complete submission history for current student account.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/submissions/my-submissions?page=0&size=20",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "submissions",
+                "my-submissions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Student - QuizSpecific (QuizController)",
+      "item": [
+        {
+          "name": "Get Quizzes for My Team",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get lists of all quizzes assigned for student team (from QuizController).",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/quiz/team/{{teamId}}",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quiz",
+                "team",
+                "{{teamId}}"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Quiz Detail (Without answers)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Get questions and choices for quiz. Correct answers are omitted.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/quiz/{{quizAssignmentId}}",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quiz",
+                "{{quizAssignmentId}}"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.questions && jsonData.questions.length > 0) {",
+                  "    var firstQuestion = jsonData.questions[0];",
+                  "    pm.collectionVariables.set(\"questionId\", firstQuestion.id);",
+                  "    console.log(\"Saved questionId from Quiz Detail: \" + firstQuestion.id);",
+                  "    ",
+                  "    if (firstQuestion.options && firstQuestion.options.length > 0) {",
+                  "        pm.collectionVariables.set(\"optionId\", firstQuestion.options[0].id);",
+                  "        console.log(\"Saved optionId from Quiz Detail: \" + firstQuestion.options[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start Quiz Attempt",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Start a quiz attempt. Will create or resume a DRAFT submission.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/quiz/{{quizAssignmentId}}/start",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quiz",
+                "{{quizAssignmentId}}",
+                "start"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {},
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData && jsonData.id) {",
+                  "    pm.collectionVariables.set(\"submissionId\", jsonData.id);",
+                  "    console.log(\"submissionId saved: \" + jsonData.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Existing Quiz Submission",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Check if student already started an active attempt (helps UI to decide whether to show Resume or Start).",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/quiz/{{quizAssignmentId}}/my-submission",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quiz",
+                "{{quizAssignmentId}}",
+                "my-submission"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auto-Save Quiz Answer Selection",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Invoked as student checks/unchecks an answer option. Saves selection immediately to DB.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/quiz/submission/{{submissionId}}/answer",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quiz",
+                "submission",
+                "{{submissionId}}",
+                "answer"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionId\": {{questionId}},\n  \"selectedOptionIds\": [{{optionId}}]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit & Auto-Grade Quiz",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{studentToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Finish the quiz attempt, grade instantly based on correct options, and return score.",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/quiz/submission/{{submissionId}}/submit",
+              "protocol": "",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "quiz",
+                "submission",
+                "{{submissionId}}",
+                "submit"
+              ],
+              "query": [],
+              "variable": []
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "0. Register",
+      "item": [
+        {
+          "name": "1. Register Teacher",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false,
+                "type": "default"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "url": {
+              "raw": "https://localhost:8000/api/core/auth/register",
+              "protocol": "https",
+              "host": [
+                "localhost:8000"
+              ],
+              "path": [
+                "api",
+                "core",
+                "auth",
+                "register"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"teacher@example.com\",\n    \"password\": \"Password123\",\n    \"firstName\": \"Tran Thi\",\n    \"lastName\": \"B\",\n    \"roleName\": \"ROLE_TEACHER\",\n    \"code\": \"GV123456\",\n    \"departmentId\": 1,\n    \"schoolId\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Register Student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false,
+                "type": "default"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "",
+            "url": {
+              "raw": "https://localhost:8000/api/core/auth/register",
+              "protocol": "https",
+              "host": [
+                "localhost:8000"
+              ],
+              "path": [
+                "api",
+                "core",
+                "auth",
+                "register"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"student2@example.com\",\n    \"password\": \"Password123\",\n    \"firstName\": \"Nguyen Van\",\n    \"lastName\": \"An\",\n    \"roleName\": \"ROLE_STUDENT\",\n    \"code\": \"SV1234567\",\n    \"departmentId\": 1,\n    \"schoolId\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": []
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:8000",
+      "type": "default"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "default"
+    },
+    {
+      "key": "teacherEmail",
+      "value": "teacher@example.com",
+      "type": "default"
+    },
+    {
+      "key": "teacherPassword",
+      "value": "sapassword",
+      "type": "default"
+    },
+    {
+      "key": "studentEmail",
+      "value": "student@example.com",
+      "type": "default"
+    },
+    {
+      "key": "studentPassword",
+      "value": "sapassword",
+      "type": "default"
+    },
+    {
+      "key": "teamId",
+      "value": "1",
+      "type": "default"
+    },
+    {
+      "key": "assignmentId",
+      "value": "16",
+      "type": "default"
+    },
+    {
+      "key": "submissionId",
+      "value": "1",
+      "type": "default"
+    },
+    {
+      "key": "questionId",
+      "value": "1",
+      "type": "default"
+    },
+    {
+      "key": "optionId",
+      "value": "1",
+      "type": "default"
+    },
+    {
+      "key": "teacherToken",
+      "value": "",
+      "type": "default"
+    },
+    {
+      "key": "studentToken",
+      "value": "",
+      "type": "default"
+    },
+    {
+      "key": "quizAssignmentId",
+      "value": "",
+      "type": "default"
+    },
+    {
+      "key": "essayAssignmentId",
+      "value": "",
+      "type": "default"
+    }
+  ]
+}

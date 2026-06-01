@@ -1,0 +1,103 @@
+// Quiz and Assignment Types - Based on Database Schema (Class Diagram)
+
+export enum QuestionType {
+  SINGLE_CHOICE = 'SINGLE_CHOICE',
+  MULTI_CHOICE = 'MULTI_CHOICE',
+  TRUE_FALSE = 'TRUE_FALSE',
+}
+
+export enum SubmissionStatus {
+  DRAFT = 'DRAFT',
+  SUBMITTED = 'SUBMITTED',
+  GRADED = 'GRADED',
+}
+
+export enum AssignmentType {
+  QUIZ = 'QUIZ',
+  ESSAY = 'ESSAY',
+}
+
+// AnswerOption - Câu trả lời có thể chọn (Backend: không expose isCorrect)
+export type AnswerOption = {
+  id: number;
+  content: string;
+  displayOrder: number;
+  isCorrect?: boolean;
+};
+
+// Question - Câu hỏi kèm các lựa chọn
+export type Question = {
+  id: number;
+  content: string;
+  type: QuestionType;
+  points: number;
+  displayOrder: number;
+  options: AnswerOption[];
+};
+
+// AssignmentDetail - Chi tiết bài kiểm tra kèm câu hỏi
+export type AssignmentDetail = {
+  id: number;
+  title: string;
+  instructions: string;
+  maxScore: number;
+  dueDate: string; // ISO datetime
+  type: AssignmentType;
+  teamIds: number[];
+  questions: Question[];
+  maxAttempts?: number | null; // For QUIZ - max attempts allowed
+  timeLimit?: number | null;   // For QUIZ - time limit in minutes
+  materialUrls?: string[]; // Reference materials for assignment
+  creatorId?: number; // Teacher who created the assignment
+  /** Whether to allow students to view their total score and teacher feedback */
+  allowViewScore?: boolean | null;
+  /** Whether to allow students to review their selected answers after submission */
+  allowReview?: boolean | null;
+  // Legacy field names (for backward compatibility)
+  showScoreAfterSubmit?: boolean | null;
+  showAnswersAfterSubmit?: boolean | null;
+};
+
+// Assignment - Bài kiểm tra trong danh sách (chưa có câu hỏi)
+export type Assignment = {
+  id: number;
+  title: string;
+  instructions: string;
+  maxScore: number;
+  dueDate: string;
+  type: AssignmentType;
+  teamIds: number[];
+  archivedAt: string | null;
+};
+
+// Submission - Bài nộp của học viên (từ backend)
+export type Submission = {
+  id: number;
+  accountId: number;
+  submittedAt: string;
+  status: SubmissionStatus;
+  assignment: { id: number };
+};
+
+// Grade - Điểm
+export type Grade = {
+  id: number;
+  score: number;
+  maxScore: number;
+  feedback: string;
+  gradedAt: string;
+};
+
+// SubmissionResult - Kết quả sau khi nộp bài
+export type SubmissionResult = {
+  submissionId: number;
+  score: number;
+  maxScore: number;
+  feedback: string;
+  totalQuestions: number;
+  answeredQuestions: number;
+  correctQuestions?: number | null;
+};
+
+// Local state for tracking selected answers during quiz
+export type LocalAnswers = Record<number, number[]>; // questionId -> selectedOptionIds[]

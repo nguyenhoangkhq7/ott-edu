@@ -1,0 +1,95 @@
+import express, { Router } from "express";
+import { ChatController } from "../controllers/chat.controller.ts";
+
+const router = Router();
+
+// ✨ REALTIME EVENTS ENDPOINT - Nhận sự kiện từ Core Service
+router.post("/socket-events/emit", ChatController.emitSocketEvent);
+router.post("/socket-events/qr-success", ChatController.broadcastQrLoginSuccess);
+
+// LƯU Ý: Những routes này nên được định nghĩa phía sau middleware auth.
+// Ví dụ: app.use('/api', authMiddleware, chatRoutes)
+// để đảm bảo mọi request đều có thông tin người dùng.
+
+// Lấy danh sách hộp thoại của user hiện tại
+router.get("/me", ChatController.getCurrentChatUser);
+
+// Lấy danh sách hộp thoại của user hiện tại
+router.get("/conversations", ChatController.getMyConversations);
+
+// Lấy lịch sử cuộc gọi của user hiện tại
+router.get("/calls/history", ChatController.getCallHistory);
+
+// Lấy role/quyền của user trong conversation
+router.get("/conversations/:conversationId/role", ChatController.getConversationRole);
+
+// Cấp / gỡ quyền phó nhóm
+router.post("/conversations/:conversationId/deputy", ChatController.setGroupDeputy);
+
+// Đổi chế độ công khai / riêng tư của nhóm
+router.post("/conversations/:conversationId/join-policy", ChatController.updateJoinPolicy);
+
+// Cập nhật cài đặt nhóm (chỉ admin được gửi tin nhắn)
+router.patch("/conversations/:conversationId/settings", ChatController.updateConversationSettings);
+
+// Mời thành viên hoặc tạo yêu cầu chờ duyệt
+router.post("/conversations/:conversationId/members", ChatController.requestOrAddGroupMember);
+
+// Duyệt / từ chối yêu cầu vào nhóm
+router.post("/conversations/:conversationId/member-requests/:requestId/approve", ChatController.approveGroupMemberRequest);
+router.post("/conversations/:conversationId/member-requests/:requestId/reject", ChatController.rejectGroupMemberRequest);
+
+// Lấy toàn bộ lịch sử tin nhắn của một cuộc trò chuyện
+router.get(
+  "/messages/:conversationId",
+  ChatController.getMessagesInConversation,
+);
+
+// Lấy presigned URL để upload file trực tiếp lên S3
+router.get("/upload-url", ChatController.getPresignedUploadUrl);
+
+// Upload file qua backend để tránh CORS khi upload trực tiếp từ browser lên S3
+router.post(
+  "/upload-file",
+  express.raw({ type: "*/*", limit: "25mb" }),
+  ChatController.uploadFile,
+);
+
+// Gửi tin nhắn mới (hỗ trợ cả 1-1 và group)
+router.post("/messages", ChatController.sendMessage);
+
+// Tạo nhóm (Group Chat) mới
+router.post("/conversations/group", ChatController.createGroup);
+
+// Xóa thành viên khỏi nhóm
+router.post(
+  "/conversations/:conversationId/members/:memberId/remove",
+  ChatController.removeGroupMember,
+);
+
+// Giải tán nhóm
+router.post("/conversations/:conversationId/dissolve", ChatController.dissolveGroup);
+
+// Rời khỏi nhóm, owner có thể chuyển quyền cho member khác trước khi rời
+router.post("/conversations/:conversationId/leave", ChatController.leaveGroup);
+
+// Tự động tham gia nhóm chat qua liên kết
+router.post("/conversations/:conversationId/join", ChatController.joinGroup);
+
+// Đồng bộ conversation của class từ core-service
+router.post("/conversations/class", ChatController.syncClassConversation);
+
+// Tìm kiếm User trong Chat DB
+router.get("/users/search", ChatController.searchUsers);
+
+// Xử lý Lời mời kết bạn
+router.get("/friend-requests", ChatController.getFriendRequests);
+router.post("/friend-requests/send", ChatController.sendFriendRequest);
+router.post("/friend-requests/accept", ChatController.acceptFriendRequest);
+router.post("/friend-requests/reject", ChatController.rejectFriendRequest);
+router.post("/unfriend", ChatController.unfriend);
+
+// Thống kê tin nhắn phục vụ admin
+router.get("/admin/stats/messages", ChatController.getMessageStats);
+
+export default router;

@@ -1,0 +1,39 @@
+name: Assignment Service CI
+
+on:
+  push:
+    paths:
+      - "services/assignment-service/**"
+  pull_request:
+    branches: ["main", "develop"]
+    paths:
+      - "services/assignment-service/**"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: services/assignment-service
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Build and Test
+        run: mvn clean verify
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assignment-service-coverage-report
+          path: services/assignment-service/target/site/jacoco

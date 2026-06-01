@@ -1,47 +1,52 @@
-import mongoose from "mongoose";
+'use client';
 import dotenv from "dotenv";
-import path from "path";
-import app from "./app.js";
+import path, { dirname } from "path";
 import { fileURLToPath } from "url";
-import { dirname } from "path";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-// --- QUAN TRỌNG: Cấu hình để đọc file .env từ Root Project ---
-// Lùi ra 2 cấp thư mục (services -> chat-service -> root)
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
+const { default: app } = await import("./app.ts");
+const { default: socketManager } = await import("./socketManager.ts");
+
 
 const PORT = process.env.CHAT_PORT || 3001;
 
-// Lấy thông tin từ biến môi trường
-const MONGO_HOST = process.env.MONGO_HOST || "localhost"; // Nếu chạy Docker thì là 'mongo-db', chạy tay là 'localhost'
-const MONGO_PORT = process.env.MONGO_PORT || "27017";
-const MONGO_USER = process.env.MONGO_INITDB_ROOT_USERNAME;
-const MONGO_PASS = process.env.MONGO_INITDB_ROOT_PASSWORD;
-const MONGO_DB_NAME = process.env.MONGO_DB_NAME || "chat_db";
+function buildAllowedOrigins(): string[] {
+  const defaults = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    process.env.WEB_APP_URL || "http://localhost:3000",
+  ].filter(Boolean) as string[];
 
-// Tạo chuỗi kết nối
-const mongoURI = `mongodb://${MONGO_USER}:${MONGO_PASS}@${MONGO_HOST}:${MONGO_PORT}/${MONGO_DB_NAME}?authSource=admin`;
+  const fromEnv = (process.env.APP_CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
-const startServer = async () => {
-  try {
-    // 1. Kết nối MongoDB
-    console.log("⏳ Connecting to MongoDB...");
-    console.log(`   Host: ${MONGO_HOST}`);
+  return Array.from(new Set([...defaults, ...fromEnv]));
+}
 
-    await mongoose.connect(mongoURI);
-    console.log("✅ MongoDB Connected Successfully!");
+const allowedOrigins = buildAllowedOrigins();
 
-    // 2. Chạy Server
-    app.listen(PORT, () => {
-      console.log(`=================================`);
-      console.log(`🚀 Chat Service running on Port: ${PORT}`);
-      console.log(`=================================`);
-    });
-  } catch (error) {
-    console.error("❌ Failed to connect to MongoDB:", error);
-    process.exit(1); // Tắt app nếu không nối được DB
-  }
-};
+const httpServer = createServer(app);
 
-startServer();
+const io = new Server(httpServer, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
+socketManager.init(io);
+
+// 🎯 QUAN TRỌNG: Sửa lại listen để Docker container khác có thể gọi vào
+// Thêm '0.0.0.0' để chấp nhận kết nối từ Core Service
+httpServer.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`🔌 Socket.IO is ready for Internal & External requests`);
+});

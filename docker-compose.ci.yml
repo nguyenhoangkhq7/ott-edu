@@ -1,0 +1,5 @@
+services:
+  chat-service:
+    ports: !reset []
+  ollama-server:
+    deploy: !reset {}

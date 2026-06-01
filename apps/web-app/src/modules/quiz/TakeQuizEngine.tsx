@@ -1,0 +1,472 @@
+'use client';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { AssignmentDetail, LocalAnswers, Submission, SubmissionResult } from '@/shared/types/quiz';
+import { quizService } from '@/services/api/quiz.service';
+import { QuestionCard } from '@/shared/components/quiz/QuestionCard';
+import { QuizTimer } from '@/shared/components/quiz/QuizTimer';
+import { QuestionMap } from '@/shared/components/quiz/QuestionMap';
+import { SubmitConfirmModal } from '@/shared/components/quiz/SubmitConfirmModal';
+import { QuizResultScreen } from '@/shared/components/quiz/QuizResultScreen';
+import { QuizReviewModal } from '@/shared/components/quiz/QuizReviewModal';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+
+interface TakeQuizEngineProps {
+  assignment: AssignmentDetail;
+  submission: Submission;
+}
+
+const DEFAULT_DURATION_SECONDS = null; // null means no enforced time limit
+
+export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
+  assignment,
+  submission,
+}) => {
+  const searchParams = useSearchParams();
+  const teamIdParam = searchParams.get('teamId');
+  const teamId = teamIdParam ? Number(teamIdParam) : (assignment.teamIds?.[0] ?? null);
+
+  const questions = assignment.questions ?? [];
+  // Derive duration from assignment.timeLimit (minutes) -> seconds. Null = unlimited.
+  const totalSeconds = assignment.timeLimit ? assignment.timeLimit * 60 : DEFAULT_DURATION_SECONDS;
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState<LocalAnswers>({});
+  const [flaggedIds, setFlaggedIds] = useState<Set<number>>(new Set());
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(totalSeconds);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [result, setResult] = useState<SubmissionResult | null>(null);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+
+  // Anti-cheat mechanism: Disable text selection, context menu, clipboard, developer shortcuts
+  useEffect(() => {
+    // Add select-none to body
+    document.body.classList.add('select-none');
+
+    const triggerWarning = () => {
+      setShowWarning(true);
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      triggerWarning();
+    };
+
+    const handleClipboard = (e: ClipboardEvent) => {
+      e.preventDefault();
+      triggerWarning();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+      const isShift = e.shiftKey;
+      const isAltOrOption = e.altKey;
+
+      // F12
+      if (e.key === 'F12') {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + Shift + I or Cmd + Option + I (DevTools)
+      if (isCtrlOrCmd && (isShift || isAltOrOption) && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + Shift + J or Cmd + Option + J (Console)
+      if (isCtrlOrCmd && (isShift || isAltOrOption) && (e.key === 'j' || e.key === 'J')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + C / Cmd + C (Copy)
+      if (isCtrlOrCmd && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + P / Cmd + P (Print)
+      if (isCtrlOrCmd && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+
+      // Ctrl + S / Cmd + S (Save)
+      if (isCtrlOrCmd && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        triggerWarning();
+        return;
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('copy', handleClipboard);
+    document.addEventListener('cut', handleClipboard);
+    document.addEventListener('paste', handleClipboard);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.classList.remove('select-none');
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('copy', handleClipboard);
+      document.removeEventListener('cut', handleClipboard);
+      document.removeEventListener('paste', handleClipboard);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  // Warning toast auto-dismiss timer
+  useEffect(() => {
+    if (showWarning) {
+      const timer = setTimeout(() => {
+        setShowWarning(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showWarning]);
+
+  const saveDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingAnswerRef = useRef<{ questionId: number; selectedOptionIds: number[] } | null>(null);
+
+  const flushPendingAnswerSave = useCallback(async () => {
+    const pendingAnswer = pendingAnswerRef.current;
+
+    if (saveDebounceRef.current) {
+      clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
+    }
+
+    if (!pendingAnswer) {
+      return;
+    }
+
+    setAutoSaving(true);
+    try {
+      await quizService.saveAnswer(submission.id, pendingAnswer.questionId, pendingAnswer.selectedOptionIds);
+    } catch {
+      // Auto-save silently fails (not critical - we have local state)
+    } finally {
+      setAutoSaving(false);
+      pendingAnswerRef.current = null;
+    }
+  }, [submission.id]);
+
+  const handleForceSubmit = useCallback(async () => {
+    try {
+      await flushPendingAnswerSave();
+      const res = await quizService.submitAssignment(submission.id);
+      const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
+      setResult({ ...res, answeredQuestions: answeredCount });
+    } catch {
+      // Silent
+    }
+  }, [submission.id, answers, flushPendingAnswerSave]);
+
+  // Countdown timer (only active when timeRemaining is not null)
+  useEffect(() => {
+    if (result) return;
+    if (timeRemaining === null) return; // Unlimited time — no countdown
+    const interval = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleForceSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [result, handleForceSubmit, timeRemaining]);
+
+  const handleAnswerChange = useCallback(
+    (questionId: number, selectedOptionIds: number[]) => {
+      setAnswers((prev) => ({ ...prev, [questionId]: selectedOptionIds }));
+      pendingAnswerRef.current = { questionId, selectedOptionIds };
+
+      // Debounced auto-save
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = setTimeout(async () => {
+        await flushPendingAnswerSave();
+      }, 800);
+    },
+    [flushPendingAnswerSave]
+  );
+
+  const handleFlagToggle = () => {
+    const qId = questions[currentIndex]?.id;
+    if (!qId) return;
+    setFlaggedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(qId)) next.delete(qId);
+      else next.add(qId);
+      return next;
+    });
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    try {
+      await flushPendingAnswerSave();
+      const res = await quizService.submitAssignment(submission.id);
+      // Build answeredQuestions count from local state
+      const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
+      setResult({ ...res, answeredQuestions: answeredCount });
+      setShowSubmitModal(false);
+    } catch {
+      alert('Nộp bài thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const answeredCount = Object.values(answers).filter((ids) => ids.length > 0).length;
+  const currentQuestion = questions[currentIndex];
+
+  // Show result screen if submitted
+  if (result) {
+    // Support both new and old field names for backward compatibility
+    const allowViewScore = assignment.allowViewScore ?? assignment.showScoreAfterSubmit ?? true;
+    const allowReview = assignment.allowReview ?? assignment.showAnswersAfterSubmit ?? false;
+
+    // Debug logging
+    if (typeof window !== 'undefined') {
+      console.log('📝 TakeQuizEngine - Assignment Permissions:', {
+        assignmentId: assignment.id,
+        assignmentTitle: assignment.title,
+        allowViewScore,
+        allowReview,
+        rawAssignmentData: {
+          allowViewScore: assignment.allowViewScore,
+          allowReview: assignment.allowReview,
+          showScoreAfterSubmit: assignment.showScoreAfterSubmit,
+          showAnswersAfterSubmit: assignment.showAnswersAfterSubmit,
+        },
+      });
+    }
+
+    return (
+      <>
+        <QuizResultScreen
+          result={result}
+          assignmentTitle={assignment.title}
+          assignmentId={assignment.id}
+          teamId={teamId}
+          allowViewScore={allowViewScore}
+          allowReview={allowReview}
+          onReviewClick={() => setShowReviewModal(true)}
+        />
+        {/* Review Modal */}
+        {showReviewModal && (
+          <QuizReviewModal
+            questions={questions}
+            studentAnswers={answers}
+            assignmentTitle={assignment.title}
+            allowViewScore={allowViewScore}
+            onClose={() => setShowReviewModal(false)}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100 select-none">
+      {/* Anti-cheat Warning Toast */}
+      {showWarning && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] bg-red-600 text-white font-bold px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce border border-red-500">
+          <svg className="w-6 h-6 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <span className="text-sm md:text-base">
+            Cảnh báo: Thao tác này không được phép trong lúc làm bài thi!
+          </span>
+        </div>
+      )}
+
+      {/* Submit modal overlay */}
+      {showSubmitModal && (
+        <SubmitConfirmModal
+          totalQuestions={questions.length}
+          answeredCount={answeredCount}
+          onConfirm={handleSubmit}
+          onCancel={() => setShowSubmitModal(false)}
+          isSubmitting={isSubmitting}
+        />
+      )}
+
+      {/* Main layout: 3 columns */}
+      <div className="flex min-h-screen">
+        {/* ====== Left Sidebar ====== */}
+        <aside className="w-56 shrink-0 bg-white border-r border-slate-200 flex flex-col py-6 px-4 gap-4">
+          <Link
+            href="/assignments"
+            className="flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 transition-colors font-medium mb-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Về danh sách
+          </Link>
+
+          <nav className="flex flex-col gap-1">
+            {[
+              { label: 'Bài kiểm tra', active: true, icon: '📋' },
+              { label: 'Đã hoàn thành', active: false, icon: '✅' },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium cursor-pointer transition-colors ${
+                  item.active
+                    ? 'bg-indigo-50 text-indigo-700'
+                    : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <span>{item.icon}</span>
+                {item.label}
+              </div>
+            ))}
+          </nav>
+
+          {/* Auto-save indicator */}
+          <div className="mt-auto">
+            <div className={`flex items-center gap-2 text-xs transition-opacity ${autoSaving ? 'opacity-100' : 'opacity-0'}`}>
+              <svg className="animate-spin w-3 h-3 text-indigo-500" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-slate-500">Đang lưu...</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* ====== Center: Question Area ====== */}
+        <main className="flex-1 flex flex-col min-w-0">
+          {/* Top bar */}
+          <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+            <div className="text-sm text-slate-500">
+              <span className="font-semibold text-slate-800">{assignment.title}</span>
+            </div>
+            <button
+              onClick={() => setShowSubmitModal(true)}
+              className="px-4 py-2 rounded-xl bg-red-500 text-white text-sm font-semibold
+                hover:bg-red-600 transition-colors"
+            >
+              Nộp bài
+            </button>
+          </div>
+
+          {/* Question content */}
+          <div className="flex-1 overflow-y-auto p-6 lg:p-10">
+            <div className="max-w-2xl mx-auto">
+              {currentQuestion ? (
+                <QuestionCard
+                  question={currentQuestion}
+                  questionIndex={currentIndex}
+                  totalQuestions={questions.length}
+                  answers={answers}
+                  onChange={handleAnswerChange}
+                />
+              ) : (
+                <p className="text-slate-500">Không có câu hỏi nào.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom navigation */}
+          <div className="bg-white border-t border-slate-200 px-6 py-4 flex items-center justify-between">
+            <button
+              onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+              disabled={currentIndex === 0}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-2 border-slate-200
+                text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-colors
+                disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Câu trước
+            </button>
+
+            <span className="text-sm text-slate-500">
+              {currentIndex + 1} / {questions.length}
+            </span>
+
+            {currentIndex < questions.length - 1 ? (
+              <button
+                onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600
+                  text-white font-semibold text-sm hover:bg-indigo-700 transition-colors"
+              >
+                Câu tiếp
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowSubmitModal(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500
+                  text-white font-semibold text-sm hover:bg-red-600 transition-colors"
+              >
+                Nộp bài
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </main>
+
+        {/* ====== Right Sidebar: Timer + Question Map ====== */}
+        <aside className="w-64 shrink-0 bg-slate-50 border-l border-slate-200 flex flex-col p-4 gap-4">
+          {/* Timer */}
+          <QuizTimer timeRemainingSeconds={timeRemaining} />
+
+          {/* Question Map */}
+          <QuestionMap
+            questions={questions}
+            currentIndex={currentIndex}
+            answers={answers}
+            flaggedIds={flaggedIds}
+            onNavigate={setCurrentIndex}
+          />
+
+          {/* Flag & Note buttons */}
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleFlagToggle}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                currentQuestion && flaggedIds.has(currentQuestion.id)
+                  ? 'border-amber-400 bg-amber-50 text-amber-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-amber-300 hover:bg-amber-50'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+              </svg>
+              {currentQuestion && flaggedIds.has(currentQuestion.id)
+                ? 'Bỏ đánh dấu'
+                : 'Đánh dấu câu này'}
+            </button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+};
+
+export default TakeQuizEngine;

@@ -1,0 +1,68 @@
+{
+  "info": {
+    "_postman_id": "d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a",
+    "name": "Toggle Reaction",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Toggle Reaction",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Response time is less than 500ms\", function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(500);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/interact/reactions?targetId=post-123&targetType=POST&reactionType=LIKE",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "interact",
+            "reactions"
+          ],
+          "query": [
+            {
+              "key": "targetId",
+              "value": "post-123"
+            },
+            {
+              "key": "targetType",
+              "value": "POST"
+            },
+            {
+              "key": "reactionType",
+              "value": "LIKE"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

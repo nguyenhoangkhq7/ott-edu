@@ -4,6 +4,10 @@ on:
   push:
     paths:
       - "services/core-service/**"
+  pull_request:
+    branches: ["main", "develop"]
+    paths:
+      - "services/core-service/**"
 
 jobs:
   build-and-test:
@@ -26,3 +30,10 @@ jobs:
 
       - name: Build and Test
         run: mvn clean verify
+
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-service-coverage-report
+          path: services/core-service/target/site/jacoco

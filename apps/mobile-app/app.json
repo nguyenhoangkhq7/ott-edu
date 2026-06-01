@@ -2,6 +2,7 @@
   "expo": {
     "name": "mobile-app",
     "slug": "mobile-app",
+    "scheme": "ottedu",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,18 +14,44 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.iuh.ottedu",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Cho phep ung dung su dung camera de thuc hien cuoc goi video 1-1.",
+        "NSMicrophoneUsageDescription": "Cho phep ung dung su dung microphone de thuc hien cuoc goi video 1-1."
+      }
     },
     "android": {
+      "package": "com.iuh.ottedu",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-router",
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      "@config-plugins/react-native-webrtc",
+      "expo-document-picker"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1ff9e3e3-3343-477f-a099-7902b2bc5188"
+      }
     }
   }
 }

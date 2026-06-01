@@ -156,12 +156,44 @@ The mobile app is **not** in Docker to allow for easier device testing/emulation
 
 | Component      | URL / Port                        | Description                     |
 | :------------- | :-------------------------------- | :------------------------------ |
-| **Gateway**    | `http://localhost:8000`           | Unified entry point.            |
-| **Web App**    | `http://localhost:8000`           | Accessible via Gateway.         |
+| **Gateway**    | `https://localhost:8000`          | Unified secure entry point.     |
+| **Gateway HTTP (Compat)** | `http://localhost:8088` | Temporary redirect to HTTPS 8000. |
+| **Web App**    | `https://localhost:8000`          | Accessible via Gateway.         |
 | **Mobile App** | `exp://<your-ip>:8081`            | Access via Expo Go or Emulator. |
 | **Core API**   | `http://localhost:8000/api/core/` | Spring Boot Swagger/API.        |
 | **Chat API**   | `http://localhost:8000/api/chat/` | Chat Service API.               |
 | **Socket.io**  | `ws://localhost:8000`             | Path: `/socket.io/`             |
+
+For LAN video call testing from other laptops, use HTTPS via `https://<LAN-IP>:8000` so browser camera permission is available in secure context.
+
+See [gateway/certs/README.md](gateway/certs/README.md) for mkcert setup and trust steps.
+
+---
+
+## 🔐 Gateway JWT Authentication
+
+Gateway now enforces JWT access-token validation for backend APIs using Nginx `auth_request`.
+
+- **Protected routes**:
+    - `/api/core/**`
+    - `/api/chat/**`
+- **Public routes (no JWT required)**:
+    - `/api/core/auth/**`
+    - `/api/core/schools/**`
+    - `/api/core/api/schools/**`
+
+Validation flow:
+
+1. Client sends `Authorization: Bearer <access_token>`.
+2. Gateway calls internal auth subrequest to Core Service endpoint `GET /auth/validate`.
+3. If token is valid, request is proxied to target service.
+4. If token is missing/invalid/expired, gateway returns `401`.
+
+Notes:
+
+- Access token source is **Authorization Bearer header only**.
+- In Docker Compose, `core-service` and `chat-service` are no longer published to host ports to reduce gateway bypass risk.
+- `/socket.io/` is unchanged in this phase and should be secured separately at handshake level if required.
 
 ---
 

@@ -9,6 +9,8 @@ on:
 jobs:
   integration-test:
     runs-on: ubuntu-latest
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
 
     steps:
       - name: Checkout code
@@ -17,14 +19,71 @@ jobs:
       - name: Create .env file
         run: echo "${{ secrets.ENV_FILE }}" > .env
 
+      - name: Generate gateway TLS certs for CI
+        run: |
+          mkdir -p gateway/certs
+          openssl req -x509 -nodes -newkey rsa:2048 \
+            -keyout gateway/certs/dev.key \
+            -out gateway/certs/dev.crt \
+            -days 365 \
+            -subj "/CN=localhost"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Start services
         run: docker compose up -d --build
 
-      - name: Wait for services to be ready
-        run: sleep 60
+      - name: Wait for gateway and core readiness
+        run: |
+          set -e
+          echo "Waiting for gateway root..."
+          for i in {1..120}; do
+            code=$(curl -k -s -o /dev/null -w "%{http_code}" https://localhost:8000/ || true)
+            if [ "$code" = "200" ]; then
+              echo "Gateway is ready (200)."
+              break
+            fi
+            if [ "$i" -eq 120 ]; then
+              echo "Gateway did not become ready in time."
+              docker compose logs gateway
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "Waiting for core auth endpoint through gateway (no 502)..."
+          for i in {1..150}; do
+            code=$(curl -k -s -o /dev/null -w "%{http_code}" \
+              -X POST https://localhost:8000/api/core/auth/login \
+              -H "Content-Type: application/json" \
+              -d '{"email":"healthcheck@example.com","password":"invalid"}' || true)
+            if [ "$code" != "502" ] && [ "$code" != "000" ]; then
+              echo "Core upstream is reachable through gateway (HTTP $code)."
+              break
+            fi
+            if [ "$i" -eq 150 ]; then
+              echo "Core upstream still unavailable after retries."
+              docker compose logs core-service gateway
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "Waiting for assignment-service OpenAPI endpoint..."
+          for i in {1..150}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/v3/api-docs || true)
+            if [ "$code" = "200" ]; then
+              echo "Assignment service is ready (HTTP $code)."
+              break
+            fi
+            if [ "$i" -eq 150 ]; then
+              echo "Assignment service did not become ready in time."
+              docker compose logs assignment-service
+              exit 1
+            fi
+            sleep 2
+          done
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -38,5 +97,5 @@ jobs:
         run: |
           for file in tests/postman/*.json; do
             echo "Testing $file..."
-            newman run "$file" --env-var baseUrl=http://localhost:8000 || exit 1
+            newman run "$file" --insecure --env-var baseUrl=https://localhost:8000 --delay-request 200 || exit 1
           done

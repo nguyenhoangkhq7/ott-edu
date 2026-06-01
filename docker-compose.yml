@@ -1,15 +1,34 @@
-version: "3.8"
-
 services:
   mysql-db:
     image: mysql:8.0
     container_name: mysql-db
     restart: always
-    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ott_education_db}
+      MYSQL_ASSIGNMENT_DATABASE: ${MYSQL_ASSIGNMENT_DATABASE:-ott_assignment_db}
     volumes:
       - db_data:/var/lib/mysql
+      - ./gateway/mysql-init:/docker-entrypoint-initdb.d
+    command: --default-authentication-plugin=mysql_native_password
     ports:
-      - "${MYSQL_PORT}:3306"
+      - "3306:3306"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p$${MYSQL_ROOT_PASSWORD}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
     networks:
       - app-network
 
@@ -18,12 +37,12 @@ services:
     container_name: mongo-db
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-secret_mongo_pass}
     volumes:
       - mongo_data:/data/db
     ports:
-      - "${MONGO_PORT}:27017"
+      - "${MONGO_PORT:-27017}:27017"
     networks:
       - app-network
 
@@ -32,10 +51,81 @@ services:
     container_name: core-service
     restart: on-failure
     env_file: .env
-    ports:
-      - "${CORE_PORT}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/${MYSQL_DATABASE:-ott_education_db}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${MONGO_INITDB_ROOT_PASSWORD:-secret_mongo_pass}@mongo-db:27017/${MONGO_DB_NAME:-chat_history_db}?authSource=admin
+      CHAT_SERVICE_BASE_URL: http://chat-service:3001/api
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+      SPRING_FLYWAY_ENABLED: "true"
+      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+      SPRING_FLYWAY_CONNECT_RETRIES: "60"
+    expose:
+      - "8080"
     depends_on:
-      - mysql-db
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  assignment-service:
+    build: ./services/assignment-service
+    container_name: assignment-service
+    restart: on-failure
+    env_file: .env
+    ports:
+      - "${ASSIGNMENT_PORT:-8081}:8080"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-db:3306/${MYSQL_ASSIGNMENT_DATABASE:-ott_assignment_db}?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: none
+    networks:
+      - app-network
+
+  ai-service:
+    build: ./services/ai-service
+    container_name: ai-service
+    restart: on-failure
+    env_file: .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://ai-postgres-db:5432/${AI_POSTGRES_DB:-ai_service_db}
+      SPRING_DATASOURCE_USERNAME: ${AI_POSTGRES_USER:-ai_service}
+      SPRING_DATASOURCE_PASSWORD: ${AI_POSTGRES_PASSWORD:-ai_service}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    depends_on:
+      ai-postgres-db:
+        condition: service_healthy
+      ollama-server:
+        condition: service_started
+    ports:
+      - "${AI_PORT:-8082}:8080"
+    networks:
+      - app-network
+
+  ai-postgres-db:
+    image: postgres:16-alpine
+    container_name: ai-postgres-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_service_db}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-ai_service}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-ai_service}
+    volumes:
+      - ai_pg_data:/var/lib/postgresql/data
+      - ./services/ai-service/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "${AI_POSTGRES_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AI_POSTGRES_USER:-ai_service} -d ${AI_POSTGRES_DB:-ai_service_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
     networks:
       - app-network
 
@@ -47,11 +137,20 @@ services:
     restart: on-failure
     command: npm run dev
     env_file: .env
+    environment:
+      MONGO_CHAT_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${MONGO_INITDB_ROOT_PASSWORD:-secret_mongo_pass}@mongo-db:27017/${MONGO_DB_NAME:-chat_history_db}?authSource=admin
+      MEDIASOUP_LISTEN_IP: 0.0.0.0
+      MEDIASOUP_ANNOUNCED_IP: ${MEDIASOUP_ANNOUNCED_IP:-127.0.0.1}
+      MEDIASOUP_RTC_MIN_PORT: ${MEDIASOUP_RTC_MIN_PORT:-40000}
+      MEDIASOUP_RTC_MAX_PORT: ${MEDIASOUP_RTC_MAX_PORT:-40050}
+      MEDIASOUP_WORKER_COUNT: 1
     volumes:
       - ./services/chat-service:/app
       - /app/node_modules
     ports:
-      - "${CHAT_PORT}:3001"
+      - "${CHAT_PORT:-3001}:3001"
+      - "${MEDIASOUP_RTC_MIN_PORT:-40000}-${MEDIASOUP_RTC_MAX_PORT:-40050}:${MEDIASOUP_RTC_MIN_PORT:-40000}-${MEDIASOUP_RTC_MAX_PORT:-40050}/udp"
+      - "${MEDIASOUP_RTC_MIN_PORT:-40000}-${MEDIASOUP_RTC_MAX_PORT:-40050}:${MEDIASOUP_RTC_MIN_PORT:-40000}-${MEDIASOUP_RTC_MAX_PORT:-40050}/tcp"
     depends_on:
       - mongo-db
     networks:
@@ -66,13 +165,13 @@ services:
     command: npm run dev
     env_file: .env
     environment:
-      - WATCHPACK_POLLING=true
+      AI_SERVICE_INTERNAL_URL: http://ai-service:8080
     volumes:
       - ./apps/web-app:/app
       - /app/node_modules
       - /app/.next
     ports:
-      - "${WEB_PORT}:3000"
+      - "${WEB_PORT:-3000}:3000"
     networks:
       - app-network
 
@@ -82,14 +181,70 @@ services:
     restart: always
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf
+      - ./gateway/certs:/etc/nginx/certs:ro
     ports:
-      - "${GATEWAY_PORT}:80"
+      - "${GATEWAY_PORT:-8000}:443"
+      - "${GATEWAY_COMPAT_HTTP_PORT:-8088}:80"
+    networks:
+      - app-network
+
+  ollama-server:
+    image: ollama/ollama:latest
+    container_name: ollama-server
+    restart: always
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: ${GPU_DRIVER:-}
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "11434:11434"
+    networks:
+      - app-network
+
+  ai-engine-init:
+    image: ollama/ollama:latest
+    container_name: ai-engine-init
+    restart: "no"
+    env_file: .env
+    depends_on:
+      - ollama-server
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        wait_and_pull() {
+          local host=$$1 model=$$2
+          
+          # Trỏ lệnh ollama xuống host của CPU hoặc GPU thay vì localhost
+          export OLLAMA_HOST=http://$$host
+          
+          echo "Waiting for $$host..."
+          # Dùng ollama list để kiểm tra kết nối thay vì curl
+          until ollama list >/dev/null 2>&1; do sleep 2; done
+          echo "$$host is ready"
+          
+          if ollama list | grep -q "$$(echo $$model | cut -d: -f1)"; then
+            echo "Model '$$model' already exists on $$host"
+          else
+            echo "Pulling '$$model' on $$host... (This may take a while)"
+            ollama pull $$model
+          fi
+        }
+        
+        wait_and_pull "ollama-server:11434" "$$OLLAMA_CHAT_MODEL"
+        echo "All models ready!"
     networks:
       - app-network
 
 volumes:
   db_data:
   mongo_data:
+  ai_pg_data:
+  ollama_data:
 
 networks:
   app-network:
