@@ -94,6 +94,10 @@ const nextConfig: NextConfig = {
       {
         source: '/api/assignment/:path*',
         destination: 'http://gateway:80/api/assignment/:path*',
+      },
+      {
+        source: '/api/v1/:path*',
+        destination: 'http://gateway:80/api/v1/:path*',
       }
     ];
   },

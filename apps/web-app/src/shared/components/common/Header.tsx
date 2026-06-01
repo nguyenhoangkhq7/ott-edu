@@ -18,6 +18,7 @@ interface HeaderProps {
   onLogout?: () => Promise<void>;
   isLoggingOut?: boolean;
   schoolName?: string;
+  switchAccount?: (email: string) => Promise<void>;
 }
 
 export default function Header({
@@ -31,6 +32,7 @@ export default function Header({
   onLogout,
   isLoggingOut = false,
   schoolName,
+  switchAccount,
 }: HeaderProps) {
   const router = useRouter();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -146,6 +148,7 @@ export default function Header({
               userAvatarUrl={userAvatarUrl}
               onLogout={onLogout}
               isLoggingOut={isLoggingOut}
+              switchAccount={switchAccount}
             />
           </div>
         </div>

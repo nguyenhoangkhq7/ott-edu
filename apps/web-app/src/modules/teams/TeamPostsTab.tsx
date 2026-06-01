@@ -14,7 +14,9 @@ import {
   useSocketListener,
   useSocketRoomJoin,
 } from "@/shared/hooks/useSocket";
-import Cookies from "js-cookie";
+// Removed js-cookie in favor of isolated sessionStorage
+import { SafeHtml } from "@/shared/utils/security";
+
 
 // ================= API INTERFACES =================
 interface ApiAttachment {
@@ -614,9 +616,10 @@ const MessageItem = ({
             </div>
           </div>
         ) : (
-          <div className="text-slate-800 text-[15px] leading-relaxed max-w-4xl pr-8 whitespace-pre-wrap">
-            {msg.text}
-          </div>
+          <SafeHtml
+            html={msg.text}
+            className="text-slate-800 text-[15px] leading-relaxed max-w-4xl pr-8 whitespace-pre-wrap"
+          />
         )}
 
         {msg.attachments && msg.attachments.length > 0 && (
@@ -1041,7 +1044,7 @@ export default function TeamPostsTab({
 
     try {
       const data = await httpService.get<ApiPost[]>(`/posts/class/${teamId}`);
-      const currentUser = userEmail || Cookies.get("userEmail") || "";
+      const currentUser = userEmail || sessionStorage.getItem("userEmail") || "";
 
       const mappedPosts: Post[] = data.map((p: ApiPost) => {
         const mappedAttachments =
@@ -1133,7 +1136,7 @@ export default function TeamPostsTab({
           `/interact/comments/post/${postId}`,
         );
 
-        const currentUser = userEmail || Cookies.get("userEmail") || "";
+        const currentUser = userEmail || sessionStorage.getItem("userEmail") || "";
 
         const mappedComments = comments.map((c: ApiPost) => {
           const isMyComment =

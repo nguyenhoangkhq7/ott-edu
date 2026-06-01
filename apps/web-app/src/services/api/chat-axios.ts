@@ -3,8 +3,13 @@ import axios, {
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from "axios";
-import { getAccessToken } from "./token-store";
-import { clearAccessToken, setAccessToken } from "./token-store";
+import {
+  getAccessToken,
+  clearAccessToken,
+  updateActiveSessionToken,
+  getActiveUserId
+} from "./token-store";
+import { emitSessionExpired } from "@/services/auth/session-events";
 
 function resolveChatApiBaseUrl(): string {
   const configuredUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL?.trim();
@@ -29,10 +34,6 @@ function resolveChatApiBaseUrl(): string {
 
 const CHAT_API_BASE_URL = resolveChatApiBaseUrl();
 
-type RefreshResponse = {
-  accessToken: string;
-};
-
 declare module "axios" {
   interface InternalAxiosRequestConfig {
     _retry?: boolean;
@@ -48,14 +49,25 @@ export const chatApiClient = axios.create({
   },
 });
 
-const refreshClient = axios.create({
-  baseURL: "/api/core",
-  timeout: 10000,
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+// ==========================================
+// QUEUE LOGIC FOR CHAT SERVICE TOKEN REFRESH
+// ==========================================
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: string | null) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: AxiosError | null, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
 
 // Interceptor: Đính kèm Authorization nếu đã đăng nhập qua AuthProvider
 chatApiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
@@ -76,26 +88,60 @@ chatApiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    if (isRefreshing) {
+      return new Promise(function (resolve, reject) {
+        failedQueue.push({ resolve, reject });
+      })
+        .then((token) => {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return chatApiClient(originalRequest);
+        })
+        .catch((err) => {
+          return Promise.reject(err);
+        });
+    }
+
     originalRequest._retry = true;
+    isRefreshing = true;
 
     try {
-      const refreshResponse = await refreshClient.post<RefreshResponse>(
-        "/auth/refresh",
-        {},
-      );
-      const nextAccessToken = refreshResponse.data.accessToken;
+      const activeUserId = getActiveUserId();
+      const response = await fetch("/api/core/auth/refresh", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: activeUserId }),
+        credentials: "same-origin",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to refresh session via native fetch");
+      }
+
+      const json = await response.json();
+      const nextAccessToken = json.data.accessToken;
+      const nextRefreshToken = json.data.refreshToken;
 
       if (!nextAccessToken) {
         throw new Error("Missing access token after refresh.");
       }
 
-      setAccessToken(nextAccessToken);
+      updateActiveSessionToken(nextAccessToken, nextRefreshToken);
       originalRequest.headers = originalRequest.headers || {};
       originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`;
+
+      processQueue(null, nextAccessToken);
+
       return chatApiClient(originalRequest);
     } catch (refreshError) {
+      processQueue(refreshError as AxiosError, null);
       clearAccessToken();
+      emitSessionExpired();
       return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
     }
   },
 );

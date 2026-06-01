@@ -109,12 +109,26 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
   return httpService.post<LoginResponse>("/auth/login", payload);
 }
 
-export async function refreshSession(): Promise<RefreshResponse> {
-  return httpService.post<RefreshResponse>("/auth/refresh", {});
+export async function refreshSession(userId?: string | null): Promise<RefreshResponse> {
+  const response = await fetch("/api/core/auth/refresh", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+    credentials: "same-origin",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to refresh session");
+  }
+
+  const json = await response.json();
+  return json.data;
 }
 
-export async function logout(): Promise<void> {
-  await httpService.post<void>("/auth/logout", {});
+export async function logout(userId?: string | null): Promise<void> {
+  await httpService.post<void>("/auth/logout", { userId });
 }
 
 export async function getCurrentUser(): Promise<AuthUser> {

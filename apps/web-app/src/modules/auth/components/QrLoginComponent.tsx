@@ -3,10 +3,9 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import Cookies from "js-cookie";
 import { useSocket, useSocketListener } from "@/shared/hooks/useSocket";
 import { useAuth } from "@/shared/providers/AuthProvider";
-import { setAccessToken } from "@/services/api/token-store";
+import { registerSession, setActiveSessionClassId } from "@/services/api/token-store";
 import { initQrSession, getCurrentUser, type AuthUser } from "@/services/auth/auth.service";
 import { Loader2, RefreshCw, CheckCircle2, ShieldAlert } from "lucide-react";
 
@@ -85,24 +84,27 @@ export default function QrLoginComponent() {
         clearInterval(countdownIntervalRef.current);
       }
 
-      // 1. Lưu Access Token vào Local Store
-      setAccessToken(loginResponse.accessToken);
+      // 1. Đăng ký session mới vào pool đa tài khoản
+      registerSession(
+        loginResponse.accessToken,
+        "", // QR login doesn't return refresh token through socket directly
+        loginResponse.user
+      );
 
       // 2. Đồng bộ user lên Auth Context
       setUser(loginResponse.user);
 
-      // 3. Thiết lập thông tin Lớp học (classId) và Email vào Cookie để đồng bộ
+      // 3. Thiết lập thông tin Lớp học (classId) và Email vào sessionStorage để đồng bộ theo tab
       const latestUser = await getCurrentUser();
       const typedUser = latestUser as { email?: string; roles?: string[]; teams?: Array<{ id: number | string }> } | null;
       const userTeams = typedUser?.teams || [];
       const userClassId = userTeams.length > 0 ? userTeams[0].id.toString() : "60d5ecb8b3112a445c742301";
-      const userEmail = typedUser?.email || loginResponse.user?.email;
+      const userEmail = typedUser?.email || loginResponse.user?.email || "";
 
-      Cookies.remove("classId");
+      sessionStorage.setItem("userEmail", userEmail);
       if (userClassId) {
-        Cookies.set("classId", userClassId, { expires: 7 });
+        setActiveSessionClassId(userClassId);
       }
-      Cookies.set("userEmail", userEmail, { expires: 7 });
 
       // 4. Chuyển hướng theo vai trò (Role-based redirect)
       const isAdmin = typedUser?.roles?.some(

@@ -3,6 +3,8 @@ import React, { useEffect, useState } from "react";
 import { Message, User } from "../types";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 import Image from "next/image";
+import { SafeHtml } from "@/shared/utils/security";
+
 import {
   MoreVertical,
   Reply,
@@ -415,7 +417,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 : "rounded-bl-sm bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
             }`}
           >
-            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+            <SafeHtml html={message.content} className="text-sm whitespace-pre-wrap" />
 
             {/* Attachments */}
             {message.attachments && message.attachments.length > 0 && (

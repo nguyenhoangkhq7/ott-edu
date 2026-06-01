@@ -42,6 +42,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.stream.Collectors;
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RestController
 @RequestMapping("/auth")
@@ -56,6 +63,10 @@ public class AuthController {
     private final AuthService authService;
     private final JwtService jwtService;
 
+    // Symmetric key for AES-128 (exactly 16 bytes)
+    private static final String ENCRYPTION_KEY = "OttEduSecretKey_"; 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     @Value("${app.cookie.path:/api/core/auth}")
     private String cookiePath;
 
@@ -65,6 +76,59 @@ public class AuthController {
     @Value("${app.cookie.same-site:Lax}")
     private String cookieSameSite;
 
+    private static String encrypt(String value) {
+        try {
+            SecretKeySpec secretKey = new SecretKeySpec(ENCRYPTION_KEY.getBytes("UTF-8"), "AES");
+            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+            byte[] encryptedBytes = cipher.doFinal(value.getBytes("UTF-8"));
+            return Base64.getUrlEncoder().encodeToString(encryptedBytes);
+        } catch (Exception e) {
+            System.err.println("Cookie encryption failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static String decrypt(String encryptedValue) {
+        try {
+            SecretKeySpec secretKey = new SecretKeySpec(ENCRYPTION_KEY.getBytes("UTF-8"), "AES");
+            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+            cipher.init(Cipher.DECRYPT_MODE, secretKey);
+            byte[] decodedBytes = Base64.getUrlDecoder().decode(encryptedValue);
+            byte[] decryptedBytes = cipher.doFinal(decodedBytes);
+            return new String(decryptedBytes, "UTF-8");
+        } catch (Exception e) {
+            System.err.println("Cookie decryption failed (likely new or invalid cookie): " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static Map<String, String> decryptCookieMap(String cookieValue) {
+        if (cookieValue == null || cookieValue.isBlank()) {
+            return new HashMap<>();
+        }
+        String decryptedJson = decrypt(cookieValue);
+        if (decryptedJson == null) {
+            return new HashMap<>();
+        }
+        try {
+            return objectMapper.readValue(decryptedJson, new TypeReference<Map<String, String>>() {});
+        } catch (Exception e) {
+            System.err.println("Failed to parse decrypted cookie map: " + e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    private static String encryptCookieMap(Map<String, String> map) {
+        try {
+            String json = objectMapper.writeValueAsString(map);
+            return encrypt(json);
+        } catch (Exception e) {
+            System.err.println("Failed to serialize cookie map: " + e.getMessage());
+            return null;
+        }
+    }
+
     @PostMapping("/register")
     public ResponseEntity<ApiSuccessResponse<String>> register(@RequestBody RegisterRequest request) {
         String result = authService.register(request);
@@ -73,10 +137,18 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiSuccessResponse<LoginResponse>> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<ApiSuccessResponse<LoginResponse>> login(
+            @RequestBody LoginRequest request,
+            @CookieValue(value = REFRESH_COOKIE_NAME, required = false) String refreshTokenCookie
+    ) {
         LoginResponse response = authService.login(request);
 
-        ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_COOKIE_NAME, response.getRefreshToken())
+        Map<String, String> tokenMap = decryptCookieMap(refreshTokenCookie);
+        tokenMap.put(response.getUser().getEmail(), response.getRefreshToken());
+
+        String encryptedCookieValue = encryptCookieMap(tokenMap);
+
+        ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_COOKIE_NAME, encryptedCookieValue)
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .sameSite(cookieSameSite)
@@ -86,21 +158,59 @@ public class AuthController {
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-            .body(ApiResponseFactory.success(HttpStatus.OK, "Đăng nhập thành công.", response));
+                .body(ApiResponseFactory.success(HttpStatus.OK, "Đăng nhập thành công.", response));
     }
 
     @PostMapping("/refresh")
-        public ResponseEntity<ApiSuccessResponse<RefreshTokenResponse>> refreshToken(
+    public ResponseEntity<ApiSuccessResponse<RefreshTokenResponse>> refreshToken(
             @RequestBody(required = false) RefreshTokenRequest request,
             @CookieValue(value = REFRESH_COOKIE_NAME, required = false) String refreshTokenCookie
     ) {
-        String refreshToken = extractRefreshToken(request, refreshTokenCookie);
+        String refreshToken = null;
+        String userId = (request != null) ? request.getUserId() : null;
+
+        Map<String, String> tokenMap = decryptCookieMap(refreshTokenCookie);
+
+        if (userId != null && !userId.isBlank()) {
+            refreshToken = tokenMap.get(userId);
+        } else {
+            // Fallback: If no userId was provided, check if there is exactly 1 active session in the map
+            if (tokenMap.size() == 1) {
+                Map.Entry<String, String> entry = tokenMap.entrySet().iterator().next();
+                userId = entry.getKey();
+                refreshToken = entry.getValue();
+            }
+        }
+
+        if (refreshToken == null) {
+            refreshToken = extractRefreshToken(request, refreshTokenCookie);
+        }
+
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new JwtException("Refresh token không hợp lệ hoặc đã hết hạn.");
+        }
 
         RefreshTokenRequest refreshTokenRequest = new RefreshTokenRequest();
         refreshTokenRequest.setRefreshToken(refreshToken);
         RefreshTokenResponse response = authService.refreshToken(refreshTokenRequest);
 
-        ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_COOKIE_NAME, response.getRefreshToken())
+        // Resolve userId from validated token if still unknown (e.g. upgrading an older raw cookie)
+        String resolvedUserId = userId;
+        if (resolvedUserId == null || resolvedUserId.isBlank()) {
+            try {
+                resolvedUserId = jwtService.extractSubject(refreshToken);
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+
+        if (resolvedUserId != null && !resolvedUserId.isBlank()) {
+            tokenMap.put(resolvedUserId, response.getRefreshToken());
+        }
+
+        String encryptedCookieValue = encryptCookieMap(tokenMap);
+
+        ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_COOKIE_NAME, encryptedCookieValue)
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .sameSite(cookieSameSite)
@@ -110,15 +220,25 @@ public class AuthController {
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-            .body(ApiResponseFactory.success(HttpStatus.OK, "Làm mới token thành công.", response));
+                .body(ApiResponseFactory.success(HttpStatus.OK, "Làm mới token thành công.", response));
     }
 
     @PostMapping("/logout")
-        public ResponseEntity<ApiSuccessResponse<Void>> logout(
+    public ResponseEntity<ApiSuccessResponse<Void>> logout(
             @RequestBody(required = false) LogoutRequest request,
             @CookieValue(value = REFRESH_COOKIE_NAME, required = false) String refreshTokenCookie
     ) {
-        String refreshToken = extractRefreshToken(request, refreshTokenCookie);
+        String refreshToken = null;
+        Map<String, String> tokenMap = decryptCookieMap(refreshTokenCookie);
+
+        if (request != null && request.getUserId() != null && !request.getUserId().isBlank()) {
+            refreshToken = tokenMap.get(request.getUserId());
+            tokenMap.remove(request.getUserId());
+        }
+
+        if (refreshToken == null) {
+            refreshToken = extractRefreshToken(request, refreshTokenCookie);
+        }
 
         if (refreshToken != null) {
             LogoutRequest logoutRequest = new LogoutRequest();
@@ -126,17 +246,29 @@ public class AuthController {
             authService.logout(logoutRequest);
         }
 
-        ResponseCookie clearRefreshCookie = ResponseCookie.from(REFRESH_COOKIE_NAME, "")
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .path(cookiePath)
-                .maxAge(0)
-                .build();
+        ResponseCookie clearRefreshCookie;
+        if (tokenMap.isEmpty()) {
+            clearRefreshCookie = ResponseCookie.from(REFRESH_COOKIE_NAME, "")
+                    .httpOnly(true)
+                    .secure(cookieSecure)
+                    .sameSite(cookieSameSite)
+                    .path(cookiePath)
+                    .maxAge(0)
+                    .build();
+        } else {
+            String encryptedCookieValue = encryptCookieMap(tokenMap);
+            clearRefreshCookie = ResponseCookie.from(REFRESH_COOKIE_NAME, encryptedCookieValue)
+                    .httpOnly(true)
+                    .secure(cookieSecure)
+                    .sameSite(cookieSameSite)
+                    .path(cookiePath)
+                    .maxAge(jwtService.getRefreshTokenExpirationMs() / 1000)
+                    .build();
+        }
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, clearRefreshCookie.toString())
-            .body(ApiResponseFactory.success(HttpStatus.OK, "Đăng xuất thành công.", null));
+                .body(ApiResponseFactory.success(HttpStatus.OK, "Đăng xuất thành công.", null));
     }
 
     @PostMapping("/forgot-password")

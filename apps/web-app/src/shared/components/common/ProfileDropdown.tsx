@@ -1,9 +1,10 @@
 "use client";
-
+ 
 import { useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
+import { getSessionsMetadata } from "@/services/api/token-store";
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface ProfileDropdownProps {
   userAvatarUrl?: string;
   onLogout?: () => Promise<void>;
   isLoggingOut?: boolean;
+  switchAccount?: (email: string) => Promise<void>;
 }
 
 export default function ProfileDropdown({
@@ -25,10 +27,12 @@ export default function ProfileDropdown({
   userAvatarUrl,
   onLogout,
   isLoggingOut = false,
+  switchAccount,
 }: ProfileDropdownProps) {
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const initials = getInitialsFromDisplayName(userName);
+  const sessions = getSessionsMetadata().filter((s) => s.email !== userEmail);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -98,6 +102,50 @@ export default function ProfileDropdown({
         </div>
       </div>
 
+      {sessions.length > 0 && (
+        <div className="border-b border-slate-200 py-2 px-2 bg-slate-50/50">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1">Switch Account</p>
+          <div className="max-h-36 overflow-y-auto space-y-0.5">
+            {sessions.map((session) => {
+              const displayInitials = getInitialsFromDisplayName(
+                `${session.firstName ?? ""} ${session.lastName ?? ""}`.trim() || session.email
+              );
+              return (
+                <button
+                  key={session.email}
+                  onClick={() => {
+                    if (switchAccount) {
+                      void switchAccount(session.email);
+                    }
+                  }}
+                  className="flex w-full items-center gap-3 px-3 py-1.5 rounded-lg text-left transition-colors hover:bg-slate-100/80 group"
+                >
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-[10px] font-bold text-[#4b53bc] group-hover:bg-[#4b53bc] group-hover:text-white transition-colors">
+                    {session.avatarUrl ? (
+                      <Image
+                        src={session.avatarUrl}
+                        alt={session.email}
+                        className="h-7 w-7 rounded-full object-cover"
+                        width={28}
+                        height={28}
+                      />
+                    ) : (
+                      displayInitials
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">
+                      {`${session.firstName ?? ""} ${session.lastName ?? ""}`.trim() || session.email}
+                    </p>
+                    <p className="truncate text-[10px] text-slate-400">{session.email}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="py-2">
         <button
           onClick={() => handleNavigate("/profile")}
@@ -121,6 +169,18 @@ export default function ProfileDropdown({
           </svg>
           <span>Account settings</span>
         </button>
+
+        <button
+          onClick={() => handleNavigate("/login")}
+          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-indigo-600 font-semibold transition-colors hover:bg-slate-50"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5 text-indigo-500" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span>Add account</span>
+        </button>
+
+
       </div>
 
       <div className="border-t border-slate-200 py-2">

@@ -1,11 +1,12 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 
-import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
+import {
+  clearAccessToken,
+  getAccessToken,
+  updateActiveSessionToken,
+  getActiveUserId
+} from "@/services/api/token-store";
 import { emitSessionExpired } from "@/services/auth/session-events";
-
-type RefreshResponse = {
-  accessToken: string;
-};
 
 type ApiSuccessEnvelope<T> = {
   timestamp: string;
@@ -147,15 +148,30 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshResponse = await refreshClient.post<RefreshResponse>("/auth/refresh", {});
-      const nextAccessToken = refreshResponse.data.accessToken;
+      const activeUserId = getActiveUserId();
+      const response = await fetch("/api/core/auth/refresh", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId: activeUserId }),
+        credentials: "same-origin",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to refresh session via native fetch");
+      }
+
+      const json = await response.json();
+      const nextAccessToken = json.data.accessToken;
+      const nextRefreshToken = json.data.refreshToken;
 
       if (!nextAccessToken) {
         throw new Error("Missing access token after refresh.");
       }
 
-      // Lưu Token mới
-      setAccessToken(nextAccessToken);
+      // Lưu Token và Refresh Token mới vào Map
+      updateActiveSessionToken(nextAccessToken, nextRefreshToken);
       
       // Gắn token mới vào request đang bị lỗi
       originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`;

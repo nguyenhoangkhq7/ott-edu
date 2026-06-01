@@ -10,7 +10,13 @@ import {
   type AuthUser,
   type LoginPayload,
 } from "@/services/auth/auth.service";
-import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
+import {
+  clearAccessToken,
+  getAccessToken,
+  registerSession,
+  updateActiveSessionToken,
+  getActiveUserId,
+} from "@/services/api/token-store";
 import { subscribeSessionExpired } from "@/services/auth/session-events";
 
 type AuthContextValue = {
@@ -20,6 +26,7 @@ type AuthContextValue = {
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: AuthUser | null) => void;
+  switchAccount: (email: string) => Promise<void>;
 };
 
 const fallbackAuthContext: AuthContextValue = {
@@ -28,16 +35,20 @@ const fallbackAuthContext: AuthContextValue = {
   isInitializing: false,
   login: async (payload: LoginPayload) => {
     const loginResponse = await loginApi(payload);
-    setAccessToken(loginResponse.accessToken);
+    registerSession(loginResponse.accessToken, loginResponse.refreshToken, loginResponse.user);
   },
   logout: async () => {
     try {
       await logoutApi();
     } finally {
       clearAccessToken();
+      window.location.href = "/login";
     }
   },
   setUser: () => {
+    // no-op in fallback mode
+  },
+  switchAccount: async () => {
     // no-op in fallback mode
   },
 };
@@ -52,6 +63,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     const unsubscribe = subscribeSessionExpired(() => {
       clearAccessToken();
       setUser(null);
+      window.location.href = "/login";
     });
 
     return unsubscribe;
@@ -62,16 +74,19 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
     async function bootstrapSession() {
       try {
-        const refreshResult = await refreshSession();
-        setAccessToken(refreshResult.accessToken);
+        const activeUserId = getActiveUserId();
+        const refreshResult = await refreshSession(activeUserId);
+        updateActiveSessionToken(refreshResult.accessToken, refreshResult.refreshToken);
 
         const currentUser = await getCurrentUser();
+        
+        // Full session anchoring: register session context in memory & sessionStorage
+        registerSession(refreshResult.accessToken, refreshResult.refreshToken || "", currentUser);
+
         if (isMounted) {
           setUser(currentUser);
         }
       } catch {
-        // Avoid clobbering a successful manual login that may complete
-        // while the initial bootstrap refresh request is still in flight.
         if (!getAccessToken()) {
           clearAccessToken();
           if (isMounted) {
@@ -99,18 +114,48 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       isInitializing,
       login: async (payload: LoginPayload) => {
         const loginResponse = await loginApi(payload);
-        setAccessToken(loginResponse.accessToken);
+        registerSession(
+          loginResponse.accessToken,
+          loginResponse.refreshToken,
+          loginResponse.user
+        );
         setUser(loginResponse.user);
       },
       logout: async () => {
         try {
-          await logoutApi();
+          const activeUserId = getActiveUserId();
+          await logoutApi(activeUserId);
         } finally {
           clearAccessToken();
           setUser(null);
+          window.location.href = "/login";
         }
       },
       setUser,
+      switchAccount: async (email: string) => {
+        try {
+          setIsInitializing(true);
+          sessionStorage.setItem("active_user_id", email);
+          const refreshResult = await refreshSession(email);
+          updateActiveSessionToken(refreshResult.accessToken, refreshResult.refreshToken);
+
+          const currentUser = await getCurrentUser();
+          registerSession(refreshResult.accessToken, refreshResult.refreshToken || "", currentUser);
+          setUser(currentUser);
+
+          const isAdmin = currentUser.roles?.some(
+            (role) =>
+              role === "ROLE_ADMIN" ||
+              role === "ROLE_SUPER_ADMIN" ||
+              role.includes("ADMIN")
+          );
+
+          window.location.href = isAdmin ? "/admin" : "/calendar";
+        } catch (err) {
+          console.error("Failed to switch account:", err);
+          setIsInitializing(false);
+        }
+      },
     }),
     [isInitializing, user]
   );
