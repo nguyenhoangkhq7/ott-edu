@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
-import { getSessionsMetadata, type UserSessionMetadata } from "@/services/api/token-store";
+import { getSessionsMetadata } from "@/services/api/token-store";
 
 interface ProfileDropdownProps {
   isOpen: boolean;

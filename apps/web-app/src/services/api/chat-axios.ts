@@ -6,8 +6,6 @@ import axios, {
 import {
   getAccessToken,
   clearAccessToken,
-  setAccessToken,
-  getRefreshToken,
   updateActiveSessionToken,
   getActiveUserId
 } from "./token-store";
@@ -36,11 +34,6 @@ function resolveChatApiBaseUrl(): string {
 
 const CHAT_API_BASE_URL = resolveChatApiBaseUrl();
 
-type RefreshResponse = {
-  accessToken: string;
-  refreshToken: string;
-};
-
 declare module "axios" {
   interface InternalAxiosRequestConfig {
     _retry?: boolean;
@@ -60,7 +53,10 @@ export const chatApiClient = axios.create({
 // QUEUE LOGIC FOR CHAT SERVICE TOKEN REFRESH
 // ==========================================
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) => void }> = [];
+let failedQueue: Array<{
+  resolve: (value?: string | null) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
 
 const processQueue = (error: AxiosError | null, token: string | null = null) => {
   failedQueue.forEach((prom) => {

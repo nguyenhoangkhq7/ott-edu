@@ -13,11 +13,8 @@ import {
 import {
   clearAccessToken,
   getAccessToken,
-  setAccessToken,
   registerSession,
   updateActiveSessionToken,
-  getActiveUser,
-  getRefreshToken,
   getActiveUserId,
 } from "@/services/api/token-store";
 import { subscribeSessionExpired } from "@/services/auth/session-events";

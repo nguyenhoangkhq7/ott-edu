@@ -137,6 +137,7 @@ export function setAccessToken(token: string | null): void {
  */
 export function updateActiveSessionToken(newAccessToken: string, newRefreshToken?: string): void {
   inMemoryAccessToken = newAccessToken;
+  void newRefreshToken;
 }
 
 /**
@@ -234,5 +235,6 @@ export function getSessions(): AuthSessionRecord[] {
  * Removes the session context.
  */
 export function removeSession(emailOrSessionId: string): void {
+  void emailOrSessionId;
   clearActiveSession();
 }

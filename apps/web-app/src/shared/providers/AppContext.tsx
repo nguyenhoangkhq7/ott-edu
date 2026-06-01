@@ -4,7 +4,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import {
   getAccessToken,
   clearAccessToken,
-  getActiveUser,
   getActiveSessionClassId,
   setActiveSessionClassId
 } from "@/services/api/token-store"; 
@@ -42,7 +41,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const token = getAccessToken();
         
         if (token) {
-          const activeUser = getActiveUser();
           const savedClassId = getActiveSessionClassId() || localStorage.getItem("classId");
           const latestUser = await getCurrentUser();
           
