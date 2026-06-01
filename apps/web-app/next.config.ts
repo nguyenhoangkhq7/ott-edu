@@ -80,24 +80,24 @@ const nextConfig: NextConfig = {
   
   // Phần rewrites cũ của bạn giữ nguyên:
   async rewrites() {
+    const gatewayUrl = process.env.BACKEND_GATEWAY_URL || 'http://gateway:80';
+
     return [
       {
-        // Khi thấy request bắt đầu bằng /api/core
         source: '/api/core/:path*',
-        // Đẩy sang container gateway, giữ nguyên đường dẫn /api/core/...
-        destination: 'http://gateway:80/api/core/:path*', 
+        destination: `${gatewayUrl}/api/core/:path*`, 
       },
       {
         source: '/api/chat/:path*',
-        destination: 'http://gateway:80/api/chat/:path*',
+        destination: `${gatewayUrl}/api/chat/:path*`,
       },
       {
         source: '/api/assignment/:path*',
-        destination: 'http://gateway:80/api/assignment/:path*',
+        destination: `${gatewayUrl}/api/assignment/:path*`,
       },
       {
         source: '/api/v1/:path*',
-        destination: 'http://gateway:80/api/v1/:path*',
+        destination: `${gatewayUrl}/api/v1/:path*`,
       }
     ];
   },
