@@ -84,3 +84,4 @@ app:
       max-file-size-bytes: ${AWS_S3_AVATAR_MAX_FILE_SIZE_BYTES:5242880}
   chat-service:
     base-url: ${CHAT_SERVICE_BASE_URL:http://localhost:3001/api}
+# Force trigger CI/CD build
