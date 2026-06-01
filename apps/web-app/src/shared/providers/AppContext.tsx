@@ -1,7 +1,13 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { getAccessToken, clearAccessToken } from "@/services/api/token-store"; 
+import {
+  getAccessToken,
+  clearAccessToken,
+  getActiveUser,
+  getActiveSessionClassId,
+  setActiveSessionClassId
+} from "@/services/api/token-store"; 
 import Cookies from "js-cookie"; 
 import { getCurrentUser } from "@/services/auth/auth.service";
 
@@ -36,7 +42,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const token = getAccessToken();
         
         if (token) {
-          const savedClassId = Cookies.get("classId") || localStorage.getItem("classId");
+          const activeUser = getActiveUser();
+          const savedClassId = getActiveSessionClassId() || localStorage.getItem("classId");
           const latestUser = await getCurrentUser();
           
           if (latestUser) {
@@ -49,14 +56,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             if (savedClassId && accessibleTeamIds.has(savedClassId)) {
               setClassId(savedClassId);
+              setActiveSessionClassId(savedClassId);
             } else if (userTeams.length > 0) {
               const firstTeamId = userTeams[0].id.toString();
               setClassId(firstTeamId);
-              Cookies.set("classId", firstTeamId, { expires: 7 });
+              setActiveSessionClassId(firstTeamId);
               localStorage.setItem("classId", firstTeamId);
             } else {
               setClassId(null);
-              Cookies.remove("classId");
+              setActiveSessionClassId(null);
               localStorage.removeItem("classId");
             }
           }
@@ -66,10 +74,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clearAccessToken();
         setUserEmail(null);
         setClassId(null);
-        Cookies.remove("classId");
-        Cookies.remove("userEmail");
         localStorage.removeItem("classId");
-        localStorage.removeItem("userEmail");
       } finally {
         setIsLoaded(true);
       }
@@ -78,18 +83,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     initializeApp();
   }, []);
 
+
+
   // Hàm đăng xuất tiện lợi
   const logout = () => {
     clearAccessToken();
     setUserEmail(null);
     setClassId(null);
     
-    // Xóa luôn cookie/localstorage khi đăng xuất cho sạch sẽ
+    // Clear cookies for legacy fallback support
     Cookies.remove("classId");
     Cookies.remove("userEmail");
     localStorage.removeItem("classId");
     localStorage.removeItem("userEmail");
   };
+
+  // Listen for storage changes across tabs for session synchronization
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key !== "auth_sessions") return;
+
+      const activeId = sessionStorage.getItem("active_session_id");
+      if (!activeId) return;
+
+      try {
+        const nextMap = JSON.parse(event.newValue || "{}");
+        if (!nextMap[activeId]) {
+          // Current tab's session has been deleted/logged out from another tab
+          logout();
+          window.location.href = "/login";
+        }
+      } catch (error) {
+        console.error("Failed to sync cross-tab logout:", error);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
 
   return (
     <AppContext.Provider

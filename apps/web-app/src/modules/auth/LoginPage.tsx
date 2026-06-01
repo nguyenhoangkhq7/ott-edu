@@ -7,8 +7,8 @@ import { useMemo, useState } from "react";
 import { validateLoginForm } from "@/modules/auth/validators";
 import Input from "@/shared/components/ui/Input";
 import { useAuth } from "@/shared/providers/AuthProvider";
-import Cookies from "js-cookie";
 import { getCurrentUser } from "@/services/auth/auth.service";
+import { setActiveSessionClassId } from "@/services/api/token-store";
 import { Mail, LockKeyhole, Eye, EyeOff, Lock, QrCode } from "lucide-react";
 
 import {
@@ -98,14 +98,11 @@ export default function LoginPage() {
       const userClassId = userTeams.length > 0 ? userTeams[0].id.toString() : "60d5ecb8b3112a445c742301";
       const userEmail = typedUser?.email || form.email.trim();
 
-      // 4. CỰC KỲ QUAN TRỌNG: Xóa sạch cookie cũ đang bị kẹt
-      Cookies.remove("classId");
-
-      // 5. Lưu classId (Team ID) thật vào Cookie nếu user có tham gia lớp
+      // 4. Lưu classId và Email vào tab-isolated sessionStorage & session pool
+      sessionStorage.setItem("userEmail", userEmail);
       if (userClassId) {
-        Cookies.set("classId", userClassId, { expires: 7 });
+        setActiveSessionClassId(userClassId);
       }
-      Cookies.set("userEmail", userEmail, { expires: 7 });
 
       setSubmitSuccess("Đăng nhập thành công, đang chuyển hướng...");
       setForm(INITIAL_FORM);

@@ -121,6 +121,8 @@ export default function ProfileDropdown({
           </svg>
           <span>Account settings</span>
         </button>
+
+
       </div>
 
       <div className="border-t border-slate-200 py-2">

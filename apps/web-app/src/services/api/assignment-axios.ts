@@ -1,9 +1,16 @@
 import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
-import { getAccessToken, setAccessToken, clearAccessToken } from "@/services/api/token-store";
+import {
+  getAccessToken,
+  setAccessToken,
+  clearAccessToken,
+  getRefreshToken,
+  updateActiveSessionToken
+} from "@/services/api/token-store";
 import { emitSessionExpired } from "@/services/auth/session-events";
 
 type RefreshResponse = {
   accessToken: string;
+  refreshToken: string;
 };
 
 type ApiSuccessEnvelope<T> = {
@@ -121,14 +128,33 @@ assignmentClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const refreshResponse = await refreshClient.post<RefreshResponse>("/api/core/auth/refresh", {});
-      const nextAccessToken = refreshResponse.data.accessToken;
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) {
+        throw new Error("No active refresh token available in sessionStorage.");
+      }
+
+      const response = await fetch("/api/core/auth/refresh", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refreshToken }),
+        credentials: "omit",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to refresh session via native fetch");
+      }
+
+      const json = await response.json();
+      const nextAccessToken = json.data.accessToken;
+      const nextRefreshToken = json.data.refreshToken;
 
       if (!nextAccessToken) {
         throw new Error("Missing access token after refresh.");
       }
 
-      setAccessToken(nextAccessToken);
+      updateActiveSessionToken(nextAccessToken, nextRefreshToken);
       originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`;
 
       processQueue(null, nextAccessToken);

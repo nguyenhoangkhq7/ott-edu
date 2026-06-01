@@ -109,8 +109,26 @@ export async function login(payload: LoginPayload): Promise<LoginResponse> {
   return httpService.post<LoginResponse>("/auth/login", payload);
 }
 
-export async function refreshSession(): Promise<RefreshResponse> {
-  return httpService.post<RefreshResponse>("/auth/refresh", {});
+export async function refreshSession(refreshToken?: string | null): Promise<RefreshResponse> {
+  if (!refreshToken) {
+    throw new Error("No refresh token available");
+  }
+
+  const response = await fetch("/api/core/auth/refresh", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refreshToken }),
+    credentials: "omit",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to refresh session");
+  }
+
+  const json = await response.json();
+  return json.data;
 }
 
 export async function logout(): Promise<void> {

@@ -10,7 +10,15 @@ import {
   type AuthUser,
   type LoginPayload,
 } from "@/services/auth/auth.service";
-import { clearAccessToken, getAccessToken, setAccessToken } from "@/services/api/token-store";
+import {
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+  registerSession,
+  updateActiveSessionToken,
+  getActiveUser,
+  getRefreshToken,
+} from "@/services/api/token-store";
 import { subscribeSessionExpired } from "@/services/auth/session-events";
 
 type AuthContextValue = {
@@ -28,13 +36,14 @@ const fallbackAuthContext: AuthContextValue = {
   isInitializing: false,
   login: async (payload: LoginPayload) => {
     const loginResponse = await loginApi(payload);
-    setAccessToken(loginResponse.accessToken);
+    registerSession(loginResponse.accessToken, loginResponse.refreshToken, loginResponse.user);
   },
   logout: async () => {
     try {
       await logoutApi();
     } finally {
       clearAccessToken();
+      window.location.href = "/login";
     }
   },
   setUser: () => {
@@ -52,6 +61,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     const unsubscribe = subscribeSessionExpired(() => {
       clearAccessToken();
       setUser(null);
+      window.location.href = "/login";
     });
 
     return unsubscribe;
@@ -62,8 +72,12 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
     async function bootstrapSession() {
       try {
-        const refreshResult = await refreshSession();
-        setAccessToken(refreshResult.accessToken);
+        const token = getRefreshToken();
+        if (!token) {
+          throw new Error("No active refresh token in sessionStorage");
+        }
+        const refreshResult = await refreshSession(token);
+        updateActiveSessionToken(refreshResult.accessToken, refreshResult.refreshToken);
 
         const currentUser = await getCurrentUser();
         if (isMounted) {
@@ -76,6 +90,12 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
           clearAccessToken();
           if (isMounted) {
             setUser(null);
+          }
+        } else {
+          // If we failed to refresh but have an active session in local store, fetch it
+          const activeUser = getActiveUser();
+          if (isMounted && activeUser) {
+            setUser(activeUser);
           }
         }
       } finally {
@@ -99,7 +119,11 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       isInitializing,
       login: async (payload: LoginPayload) => {
         const loginResponse = await loginApi(payload);
-        setAccessToken(loginResponse.accessToken);
+        registerSession(
+          loginResponse.accessToken,
+          loginResponse.refreshToken,
+          loginResponse.user
+        );
         setUser(loginResponse.user);
       },
       logout: async () => {
@@ -108,6 +132,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
         } finally {
           clearAccessToken();
           setUser(null);
+          window.location.href = "/login";
         }
       },
       setUser,

@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import apiClient from '@/services/api/axios';
 import { useAppContext } from '@/shared/providers/AppContext';
 import { useSocket, useSocketListener, useSocketRoomJoin } from '@/shared/hooks/useSocket';
-import Cookies from 'js-cookie';
+// Removed js-cookie in favor of isolated sessionStorage
 
 // --- TYPES FOR LINT FIX ---
 interface BackendAttachment {
@@ -171,7 +171,7 @@ export default function TeamFilesTab({ teamId: routeTeamId }: TeamFilesTabProps)
       setIsLoading(true);
       const response = await apiClient.get<BackendAttachment[]>(`/attachments/class/${classId}`);
       
-      const currentUser = userEmail || Cookies.get('userEmail') || "";
+      const currentUser = userEmail || sessionStorage.getItem('userEmail') || "";
 
       const mappedFiles: MappedFile[] = response.data.map((f) => {
         const displayName = f.authorName || (f.userId || f.authorId || 'User').split('@')[0];
