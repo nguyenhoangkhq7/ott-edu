@@ -31,15 +31,19 @@ public class CalendarServiceImpl implements CalendarService {
             return List.of();
         }
 
-        // Map team IDs to team names for easy lookup
+        // Map team IDs to team names for easy lookup (filter null IDs and handle null names safely)
         Map<Long, String> teamIdToNameMap = teams.stream()
+                .filter(t -> t.getId() != null)
                 .collect(Collectors.toMap(
                         TeamResponseDto::getId,
-                        TeamResponseDto::getName,
+                        t -> t.getName() != null ? t.getName() : "Lớp học",
                         (existing, replacement) -> existing
                 ));
 
         List<Long> teamIds = new ArrayList<>(teamIdToNameMap.keySet());
+        if (teamIds.isEmpty()) {
+            return List.of();
+        }
 
         // 2. Query assignment-service for assignments matching teamIds, month, and year
         List<Assignment> assignments = assignmentRepository.findActiveByTeamIdsAndMonthAndYear(teamIds, month, year);
@@ -52,7 +56,7 @@ public class CalendarServiceImpl implements CalendarService {
                     Long matchedTeamId = null;
                     if (assignment.getTeamIds() != null) {
                         for (Long teamId : assignment.getTeamIds()) {
-                            if (teamIdToNameMap.containsKey(teamId)) {
+                            if (teamId != null && teamIdToNameMap.containsKey(teamId)) {
                                 courseName = teamIdToNameMap.get(teamId);
                                 matchedTeamId = teamId;
                                 break;
@@ -60,7 +64,7 @@ public class CalendarServiceImpl implements CalendarService {
                         }
                     }
 
-                    // Map AssignmentType to 'ASSIGNMENT' | 'QUIZ'
+                    // Map AssignmentType to 'ASSIGNMENT' | 'QUIZ' (safe against null types)
                     String eventType = assignment.getType() == AssignmentType.QUIZ ? "QUIZ" : "ASSIGNMENT";
 
                     return CalendarEventDto.builder()

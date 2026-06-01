@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { validateLoginForm } from "@/modules/auth/validators";
-import Input from "@/shared/components/ui/Input";
 import { useAuth } from "@/shared/providers/AuthProvider";
 import Cookies from "js-cookie";
 import { getCurrentUser } from "@/services/auth/auth.service";

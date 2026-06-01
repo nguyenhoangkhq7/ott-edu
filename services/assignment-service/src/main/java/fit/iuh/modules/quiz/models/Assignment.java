@@ -77,6 +77,14 @@ public class Assignment {
     @Column(name = "time_limit")
     private Integer timeLimit;
 
+    // NEW: showScoreAfterSubmit - có hiển thị điểm cho sinh viên sau khi nộp không (mặc định: true)
+    @Column(name = "show_score_after_submit", nullable = false)
+    private Boolean showScoreAfterSubmit = true;
+
+    // NEW: showAnswersAfterSubmit - có cho phép sinh viên xem lại bài làm sau khi nộp không (mặc định: false)
+    @Column(name = "show_answers_after_submit", nullable = false)
+    private Boolean showAnswersAfterSubmit = false;
+
     @Column(name = "department_id")
     private Long departmentId;
 

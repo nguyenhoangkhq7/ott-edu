@@ -43,7 +43,6 @@ interface AiQuizGeneratorProps {
 
 const AI_BASE_URL = ''; // Proxied via Next.js rewrite: /api/ai/* → http://ai-service:8080/api/ai/*
 const DEFAULT_QUESTION_COUNT = 15;
-const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
 
 // ─── Helper: parse "A. some text" → label + text ────────────────────────────
 

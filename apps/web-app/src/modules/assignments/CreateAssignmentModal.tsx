@@ -48,6 +48,8 @@ export default function CreateAssignmentModal({
       timeLimit: undefined,
       questions: [],
       materialUrls: [],
+      allowViewScore: true,
+      allowReview: false,
     },
   });
 
@@ -97,6 +99,12 @@ export default function CreateAssignmentModal({
         teamIds: data.teamIds && data.teamIds.length > 0 ? data.teamIds : [parseInt(String(teamId), 10)],
         maxAttempts: data.type === AssignmentType.QUIZ && data.maxAttempts ? Number(data.maxAttempts) : undefined,
         timeLimit: data.type === AssignmentType.QUIZ && data.timeLimit ? Number(data.timeLimit) : undefined,
+        // 🔐 Quiz review & scoring permissions - Send both new AND old field names for backward compatibility
+        allowViewScore: data.type === AssignmentType.QUIZ ? (data.allowViewScore ?? true) : undefined,
+        allowReview: data.type === AssignmentType.QUIZ ? (data.allowReview ?? false) : undefined,
+        // Also send old field names if backend still expects them
+        showScoreAfterSubmit: data.type === AssignmentType.QUIZ ? (data.allowViewScore ?? true) : undefined,
+        showAnswersAfterSubmit: data.type === AssignmentType.QUIZ ? (data.allowReview ?? false) : undefined,
         materialUrls: data.type === AssignmentType.ESSAY && data.materialUrls && data.materialUrls.length > 0
           ? data.materialUrls.filter(url => url && url.trim().length > 0)
           : undefined,
@@ -276,6 +284,60 @@ export default function CreateAssignmentModal({
                 />
                 <p className="mt-1 text-xs text-slate-500">Để trống = không giới hạn thời gian</p>
               </div>
+            </div>
+          )}
+
+          {/* QUIZ-Specific: Review & Scoring Permissions */}
+          {assignmentType === AssignmentType.QUIZ && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-6 py-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <h3 className="text-sm font-semibold text-slate-700">Cài đặt sau khi nộp bài</h3>
+              </div>
+
+              {/* Toggle 1: Allow View Score */}
+              <label className="flex items-center justify-between cursor-pointer select-none group">
+                <div>
+                  <p className="text-sm font-medium text-slate-800 group-hover:text-slate-900 transition-colors">
+                    Cho phép sinh viên xem điểm
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Sinh viên sẽ thấy tổng điểm và nhận xét sau khi nộp bài
+                  </p>
+                </div>
+                <div className="relative ml-4 flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    {...register('allowViewScore')}
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-inner" />
+                </div>
+              </label>
+
+              <div className="border-t border-slate-200" />
+
+              {/* Toggle 2: Allow Review */}
+              <label className="flex items-center justify-between cursor-pointer select-none group">
+                <div>
+                  <p className="text-sm font-medium text-slate-800 group-hover:text-slate-900 transition-colors">
+                    Cho phép sinh viên xem lại bài làm
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Sinh viên có thể xem lại các lựa chọn đã chọn sau khi nộp
+                  </p>
+                </div>
+                <div className="relative ml-4 flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    {...register('allowReview')}
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-inner" />
+                </div>
+              </label>
             </div>
           )}
 

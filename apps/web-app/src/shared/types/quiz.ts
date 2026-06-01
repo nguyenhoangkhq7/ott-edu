@@ -22,6 +22,7 @@ export type AnswerOption = {
   id: number;
   content: string;
   displayOrder: number;
+  isCorrect?: boolean;
 };
 
 // Question - Câu hỏi kèm các lựa chọn
@@ -48,6 +49,13 @@ export type AssignmentDetail = {
   timeLimit?: number | null;   // For QUIZ - time limit in minutes
   materialUrls?: string[]; // Reference materials for assignment
   creatorId?: number; // Teacher who created the assignment
+  /** Whether to allow students to view their total score and teacher feedback */
+  allowViewScore?: boolean | null;
+  /** Whether to allow students to review their selected answers after submission */
+  allowReview?: boolean | null;
+  // Legacy field names (for backward compatibility)
+  showScoreAfterSubmit?: boolean | null;
+  showAnswersAfterSubmit?: boolean | null;
 };
 
 // Assignment - Bài kiểm tra trong danh sách (chưa có câu hỏi)

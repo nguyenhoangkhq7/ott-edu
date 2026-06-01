@@ -107,7 +107,6 @@ export default function DashboardLayout({
   const getActivePageId = () => {
     if (pathname.includes('/teams')) return 'teams';
     if (pathname.includes('/chat')) return 'chat';
-    if (pathname.includes('/assignments')) return 'assignments';
     if (pathname.includes('/calendar')) return 'calendar';
     return 'teams'; // default
   };
@@ -147,17 +146,6 @@ export default function DashboardLayout({
         </svg>
       ),
       href: "/chat",
-    },
-    {
-      id: "assignments",
-      label: "Assignments",
-      icon: (
-        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M7 4h10v16H7z" />
-          <path d="M9 8h6M9 12h6" />
-        </svg>
-      ),
-      href: "/assignments",
     },
   ];
 

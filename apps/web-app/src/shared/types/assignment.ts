@@ -15,6 +15,13 @@ export interface CreateAssignmentFormData {
   maxAttempts?: number;
   timeLimit?: number; // Duration in minutes (e.g., 30, 60, 120) - only for QUIZ type
   questions?: QuestionFormData[];
+  /** Whether to allow students to view their score and feedback (default: true) */
+  allowViewScore?: boolean;
+  /** Whether to allow students to review their selected answers after submission (default: false) */
+  allowReview?: boolean;
+  // Legacy field names (for backward compatibility with backend)
+  showScoreAfterSubmit?: boolean;
+  showAnswersAfterSubmit?: boolean;
   
   // ESSAY-specific
   materialUrls?: string[];

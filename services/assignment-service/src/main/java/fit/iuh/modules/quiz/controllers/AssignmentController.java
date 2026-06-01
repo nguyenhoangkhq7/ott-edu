@@ -145,6 +145,31 @@ public class AssignmentController {
                 return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         }
 
+        /**
+         * PATCH /api/v1/assignments/{assignmentId}/permissions
+         * Update review/scoring permission flags (TEACHER only, must be creator)
+         */
+        @PreAuthorize("hasRole('TEACHER')")
+        @PatchMapping("/{assignmentId}/permissions")
+        @Operation(summary = "Update assignment permissions",
+                description = "Patch only the showScoreAfterSubmit and showAnswersAfterSubmit flags. "
+                        + "Only the assignment creator can update permissions.")
+        @ApiResponses(value = {
+                        @ApiResponse(responseCode = "204", description = "Permissions updated successfully"),
+                        @ApiResponse(responseCode = "403", description = "Forbidden - not the assignment creator"),
+                        @ApiResponse(responseCode = "404", description = "Assignment not found")
+        })
+        public ResponseEntity<Void> updatePermissions(
+                        @Parameter(description = "Assignment ID") @PathVariable Long assignmentId,
+                        @RequestBody UpdateAssignmentPermissionsRequest request,
+                        Authentication authentication) {
+
+                Long creatorId = AuthUtil.extractUserId(authentication);
+                assignmentService.updatePermissions(assignmentId, request, creatorId);
+
+                return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        }
+
         // ============== STUDENT Endpoints ==============
 
         /**

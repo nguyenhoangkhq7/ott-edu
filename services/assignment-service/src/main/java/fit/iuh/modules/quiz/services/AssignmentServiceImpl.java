@@ -61,6 +61,10 @@ public class AssignmentServiceImpl implements AssignmentService {
         // Set timeLimit (for QUIZ assignments) - stored in minutes
         assignment.setTimeLimit(request.getTimeLimit());
 
+        // Set permission flags (default to true/false if not provided)
+        assignment.setShowScoreAfterSubmit(request.getShowScoreAfterSubmit() != null ? request.getShowScoreAfterSubmit() : Boolean.TRUE);
+        assignment.setShowAnswersAfterSubmit(request.getShowAnswersAfterSubmit() != null ? request.getShowAnswersAfterSubmit() : Boolean.FALSE);
+
         // Save assignment first
         Assignment saved = assignmentRepository.save(assignment);
 
@@ -123,6 +127,29 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         Assignment updated = assignmentRepository.save(assignment);
         return toSummaryDto(updated);
+    }
+
+    @Override
+    public void updatePermissions(Long assignmentId, UpdateAssignmentPermissionsRequest request, Long creatorId) {
+        Assignment assignment = assignmentRepository.findByIdAndCreatorId(assignmentId, creatorId)
+                .orElseThrow(() -> {
+                    Assignment existing = assignmentRepository.findById(assignmentId).orElse(null);
+                    if (existing != null
+                            && (existing.getCreatorId() == null || !existing.getCreatorId().equals(creatorId))) {
+                        return AccessDeniedException.notAssignmentCreator(creatorId, assignmentId);
+                    }
+                    return ResourceNotFoundException.assignmentNotFound(assignmentId);
+                });
+
+        // Null-safe: only update the field if a value was explicitly provided
+        if (request.getShowScoreAfterSubmit() != null) {
+            assignment.setShowScoreAfterSubmit(request.getShowScoreAfterSubmit());
+        }
+        if (request.getShowAnswersAfterSubmit() != null) {
+            assignment.setShowAnswersAfterSubmit(request.getShowAnswersAfterSubmit());
+        }
+
+        assignmentRepository.save(assignment);
     }
 
     @Override
@@ -191,6 +218,10 @@ public class AssignmentServiceImpl implements AssignmentService {
         dto.setMaterialUrls(assignment.getMaterialUrls());
         dto.setMaxAttempts(assignment.getMaxAttempts());
 
+        // NEW: Set permission flags
+        dto.setShowScoreAfterSubmit(assignment.getShowScoreAfterSubmit());
+        dto.setShowAnswersAfterSubmit(assignment.getShowAnswersAfterSubmit());
+
         return dto;
     }
 
@@ -243,6 +274,10 @@ public class AssignmentServiceImpl implements AssignmentService {
         dto.setMaterialUrls(assignment.getMaterialUrls());
         dto.setMaxAttempts(assignment.getMaxAttempts());
         dto.setTimeLimit(assignment.getTimeLimit());
+
+        // NEW: Set permission flags
+        dto.setShowScoreAfterSubmit(assignment.getShowScoreAfterSubmit());
+        dto.setShowAnswersAfterSubmit(assignment.getShowAnswersAfterSubmit());
 
         // Convert questions to DTOs (without exposing correct answers)
         if (assignment.getQuestions() != null) {

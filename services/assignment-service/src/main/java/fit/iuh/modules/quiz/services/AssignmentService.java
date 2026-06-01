@@ -53,6 +53,16 @@ public interface AssignmentService {
      */
     void archiveAssignment(Long assignmentId, Long creatorId);
 
+    /**
+     * Patch only the review/scoring permission flags of a QUIZ assignment (TEACHER only).
+     * Only the creator can update permissions.
+     *
+     * @param assignmentId The assignment ID
+     * @param request      DTO carrying the two boolean flags
+     * @param creatorId    The teacher's account ID (for authorization check)
+     */
+    void updatePermissions(Long assignmentId, UpdateAssignmentPermissionsRequest request, Long creatorId);
+
     // ============== STUDENT Operations ==============
 
     /**

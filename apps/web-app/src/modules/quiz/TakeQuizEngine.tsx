@@ -8,6 +8,7 @@ import { QuizTimer } from '@/shared/components/quiz/QuizTimer';
 import { QuestionMap } from '@/shared/components/quiz/QuestionMap';
 import { SubmitConfirmModal } from '@/shared/components/quiz/SubmitConfirmModal';
 import { QuizResultScreen } from '@/shared/components/quiz/QuizResultScreen';
+import { QuizReviewModal } from '@/shared/components/quiz/QuizReviewModal';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
@@ -39,6 +40,7 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
   const [result, setResult] = useState<SubmissionResult | null>(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   // Anti-cheat mechanism: Disable text selection, context menu, clipboard, developer shortcuts
   useEffect(() => {
@@ -234,13 +236,48 @@ export const TakeQuizEngine: React.FC<TakeQuizEngineProps> = ({
 
   // Show result screen if submitted
   if (result) {
+    // Support both new and old field names for backward compatibility
+    const allowViewScore = assignment.allowViewScore ?? assignment.showScoreAfterSubmit ?? true;
+    const allowReview = assignment.allowReview ?? assignment.showAnswersAfterSubmit ?? false;
+
+    // Debug logging
+    if (typeof window !== 'undefined') {
+      console.log('📝 TakeQuizEngine - Assignment Permissions:', {
+        assignmentId: assignment.id,
+        assignmentTitle: assignment.title,
+        allowViewScore,
+        allowReview,
+        rawAssignmentData: {
+          allowViewScore: assignment.allowViewScore,
+          allowReview: assignment.allowReview,
+          showScoreAfterSubmit: assignment.showScoreAfterSubmit,
+          showAnswersAfterSubmit: assignment.showAnswersAfterSubmit,
+        },
+      });
+    }
+
     return (
-      <QuizResultScreen
-        result={result}
-        assignmentTitle={assignment.title}
-        assignmentId={assignment.id}
-        teamId={teamId}
-      />
+      <>
+        <QuizResultScreen
+          result={result}
+          assignmentTitle={assignment.title}
+          assignmentId={assignment.id}
+          teamId={teamId}
+          allowViewScore={allowViewScore}
+          allowReview={allowReview}
+          onReviewClick={() => setShowReviewModal(true)}
+        />
+        {/* Review Modal */}
+        {showReviewModal && (
+          <QuizReviewModal
+            questions={questions}
+            studentAnswers={answers}
+            assignmentTitle={assignment.title}
+            allowViewScore={allowViewScore}
+            onClose={() => setShowReviewModal(false)}
+          />
+        )}
+      </>
     );
   }
 

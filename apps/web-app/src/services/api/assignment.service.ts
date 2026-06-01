@@ -46,6 +46,17 @@ export const assignmentApi = {
   },
 
   /**
+   * Patch only the review/scoring permission flags (TEACHER only)
+   * Lightweight PATCH — does not require resending the full assignment payload.
+   */
+  patchPermissions: async (
+    assignmentId: number,
+    data: { showScoreAfterSubmit?: boolean; showAnswersAfterSubmit?: boolean }
+  ): Promise<void> => {
+    await axiosV1.patch(`/api/v1/assignments/${assignmentId}/permissions`, data);
+  },
+
+  /**
    * Get assignments for a team (STUDENT view)
    */
   getByTeam: async (teamId: number, page = 0, size = 20): Promise<unknown> => {
@@ -232,6 +243,16 @@ export const submissionApi = {
   getMySubmissions: async (page = 0, size = 100): Promise<unknown> => {
     const response = await axiosV1.get(
       `/api/v1/submissions/my-submissions?page=${page}&size=${size}`
+    );
+    return response.data;
+  },
+
+  /**
+   * Get student's own submission detail by submissionId (STUDENT view)
+   */
+  getMySubmission: async (submissionId: number): Promise<unknown> => {
+    const response = await axiosV1.get(
+      `/api/v1/submissions/${submissionId}`
     );
     return response.data;
   },

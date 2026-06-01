@@ -24,4 +24,10 @@ public class AssignmentSummaryDto {
 
     // NEW: maxAttempts - quiz attempt limit
     private Integer maxAttempts;
+
+    // NEW: showScoreAfterSubmit - whether students can see their score after submitting
+    private Boolean showScoreAfterSubmit;
+
+    // NEW: showAnswersAfterSubmit - whether students can review their answers after submitting
+    private Boolean showAnswersAfterSubmit;
 }

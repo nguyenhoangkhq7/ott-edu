@@ -64,6 +64,12 @@ public class CreateAssignmentRequest {
     // NEW: questions - for QUIZ assignments (optional, can be created separately)
     private List<QuestionRequest> questions;
 
+    // NEW: showScoreAfterSubmit - whether to show score to student after submission (default: true)
+    private Boolean showScoreAfterSubmit = true;
+
+    // NEW: showAnswersAfterSubmit - whether to allow student to review answers after submission (default: false)
+    private Boolean showAnswersAfterSubmit = false;
+
     // Note: creatorId is NOT accepted here - it will be extracted from
     // SecurityContext
     // Note: departmentId can be added if needed, extracted from teacher's profile

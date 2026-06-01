@@ -227,6 +227,8 @@ export default function AssignmentDetail({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* TEACHER: Quiz Permission Toggles */}
+
             {isTeacher && (
               <button
                 onClick={() => setShowDeleteModal(true)}
@@ -294,6 +296,8 @@ export default function AssignmentDetail({
         <TeacherGradingDashboard
           assignmentId={assignmentId}
           maxScore={assignment.maxScore || 0}
+          initialShowScore={assignment.showScoreAfterSubmit}
+          initialShowAnswers={assignment.showAnswersAfterSubmit}
           onGradeSuccess={() => {
             if (onRefresh) onRefresh();
           }}
@@ -342,8 +346,8 @@ export default function AssignmentDetail({
               {attemptStatus?.canAttempt && (
                 <button
                   onClick={() => {
-                    const url = teamId 
-                      ? `/assignments/${assignmentId}/quiz?teamId=${teamId}` 
+                    const url = teamId
+                      ? `/assignments/${assignmentId}/quiz?teamId=${teamId}`
                       : `/assignments/${assignmentId}/quiz`;
                     router.push(url);
                   }}
@@ -360,6 +364,29 @@ export default function AssignmentDetail({
                 </button>
               )}
 
+              {/* Permissions legend */}
+              {(assignment.showScoreAfterSubmit === false || assignment.showAnswersAfterSubmit === true) && attemptHistory.length > 0 && (
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  {assignment.showScoreAfterSubmit === false && (
+                    <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-full font-medium">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Giáo viên chưa công bố điểm cho bài thi này
+                    </span>
+                  )}
+                  {assignment.showAnswersAfterSubmit === true && (
+                    <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-full font-medium">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      Được phép xem lại bài làm
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Attempt History Table */}
               {attemptHistory.length > 0 ? (
                 <div className="overflow-x-auto">
@@ -371,6 +398,9 @@ export default function AssignmentDetail({
                         <th className="px-4 py-3 text-left font-semibold text-slate-900">Điểm</th>
                         <th className="px-4 py-3 text-left font-semibold text-slate-900">Trạng thái</th>
                         <th className="px-4 py-3 text-left font-semibold text-slate-900">Nhận xét</th>
+                        {assignment.showAnswersAfterSubmit === true && (
+                          <th className="px-4 py-3 text-left font-semibold text-slate-900">Xem lại</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -378,7 +408,23 @@ export default function AssignmentDetail({
                         <tr key={attempt.submissionId} className="border-b border-slate-100 hover:bg-slate-50">
                           <td className="px-4 py-3 text-slate-900">{attempt.attemptNumber}</td>
                           <td className="px-4 py-3 text-slate-600">{formatDate(attempt.submittedAt)}</td>
-                          <td className="px-4 py-3 font-semibold text-slate-900">{formatScore(attempt.score, attempt.maxScore)}</td>
+
+                          {/* Score cell — masked when showScoreAfterSubmit is false */}
+                          <td className="px-4 py-3">
+                            {assignment.showScoreAfterSubmit === false ? (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 bg-amber-100 text-amber-700 rounded-full">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                </svg>
+                                Đã ẩn
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-slate-900">
+                                {formatScore(attempt.score, attempt.maxScore)}
+                              </span>
+                            )}
+                          </td>
+
                           <td className="px-4 py-3">
                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${attempt.status === 'GRADED'
                               ? 'bg-green-100 text-green-700'
@@ -389,7 +435,36 @@ export default function AssignmentDetail({
                               {attempt.status === 'GRADED' ? 'Đã chấm' : attempt.status === 'SUBMITTED' ? 'Đã nộp' : 'Nháp'}
                             </span>
                           </td>
+
                           <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{attempt.feedback || '-'}</td>
+
+                          {/* Review button — only rendered when showAnswersAfterSubmit is true */}
+                          {assignment.showAnswersAfterSubmit === true && (
+                            <td className="px-4 py-3">
+                              {(attempt.status === 'SUBMITTED' || attempt.status === 'GRADED') ? (
+                                <button
+                                  onClick={() => {
+                                    // mode=full: both score & answers visible
+                                    // mode=answers-only: score hidden, only show selected options
+                                    const reviewMode = assignment.showScoreAfterSubmit !== false ? 'full' : 'answers-only';
+                                    const reviewUrl = teamId
+                                      ? `/assignments/${assignmentId}/review/${attempt.submissionId}?teamId=${teamId}&mode=${reviewMode}`
+                                      : `/assignments/${assignmentId}/review/${attempt.submissionId}?mode=${reviewMode}`;
+                                    router.push(reviewUrl);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  Xem lại
+                                </button>
+                              ) : (
+                                <span className="text-xs text-slate-400">-</span>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

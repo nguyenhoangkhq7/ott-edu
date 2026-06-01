@@ -32,6 +32,10 @@ interface TeacherGradingDashboardProps {
   assignmentId: number;
   maxScore: number;
   onGradeSuccess?: () => void;
+  /** Initial value read from AssignmentDetail — controls student score visibility */
+  initialShowScore?: boolean | null;
+  /** Initial value read from AssignmentDetail — controls student answer review */
+  initialShowAnswers?: boolean | null;
 }
 
 /**
@@ -139,12 +143,20 @@ export default function TeacherGradingDashboard({
   assignmentId,
   maxScore,
   onGradeSuccess,
+  initialShowScore = true,
+  initialShowAnswers = false,
 }: TeacherGradingDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // 🔐 Realtime permission state
+  const [showScore, setShowScore] = useState<boolean>(initialShowScore ?? true);
+  const [showAnswers, setShowAnswers] = useState<boolean>(initialShowAnswers ?? false);
+  const [permSaving, setPermSaving] = useState(false);
+  const [permError, setPermError] = useState<string | null>(null);
 
   const [allSubmissions, setAllSubmissions] = useState<PendingSubmission[]>([]);
   const [activeTab, setActiveTab] = useState<GradingTab>('PENDING');
@@ -155,6 +167,29 @@ export default function TeacherGradingDashboard({
   const [assignment, setAssignment] = useState<AssignmentDetail | null>(null);
   const [submissionDetail, setSubmissionDetail] = useState<SubmissionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  /** Toggle a permission flag with optimistic UI + error rollback */
+  const handleTogglePermission = async (
+    field: 'showScoreAfterSubmit' | 'showAnswersAfterSubmit',
+    newValue: boolean
+  ) => {
+    // Optimistic update
+    if (field === 'showScoreAfterSubmit') setShowScore(newValue);
+    else setShowAnswers(newValue);
+
+    setPermSaving(true);
+    setPermError(null);
+    try {
+      await assignmentApi.patchPermissions(assignmentId, { [field]: newValue });
+    } catch {
+      // Rollback on failure
+      if (field === 'showScoreAfterSubmit') setShowScore(!newValue);
+      else setShowAnswers(!newValue);
+      setPermError('Không thể lưu cài đặt. Vui lòng thử lại.');
+    } finally {
+      setPermSaving(false);
+    }
+  };
 
   useEffect(() => {
     const fetchAssignmentDetail = async () => {
@@ -381,6 +416,77 @@ export default function TeacherGradingDashboard({
           </div>
         </div>
       </div>
+
+      {/* 🔐 Permission Settings Card — Realtime Toggles */}
+      {assignment?.type === 'QUIZ' && (
+        <div className="rounded-xl border border-slate-200 bg-white px-6 py-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <h3 className="text-sm font-semibold text-slate-700">Quyền xem của sinh viên</h3>
+            </div>
+            {permSaving && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                <div className="w-3 h-3 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+                Đang lưu...
+              </span>
+            )}
+            {permError && (
+              <span className="text-xs text-red-600 font-medium">{permError}</span>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {/* Toggle 1: Show Score */}
+            <label className="flex items-center justify-between cursor-pointer select-none group">
+              <div>
+                <p className="text-sm font-medium text-slate-800">Hiển thị điểm sau khi nộp</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {showScore
+                    ? 'Sinh viên đang thấy điểm số sau khi nộp bài'
+                    : 'Sinh viên đang bị ẩn điểm số'}
+                </p>
+              </div>
+              <div className="relative ml-6 flex-shrink-0">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={showScore}
+                  disabled={permSaving}
+                  onChange={(e) => handleTogglePermission('showScoreAfterSubmit', e.target.checked)}
+                />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-inner disabled:opacity-60" />
+              </div>
+            </label>
+
+            <div className="border-t border-slate-100" />
+
+            {/* Toggle 2: Show Answers */}
+            <label className="flex items-center justify-between cursor-pointer select-none group">
+              <div>
+                <p className="text-sm font-medium text-slate-800">Cho phép xem lại bài làm</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {showAnswers
+                    ? 'Sinh viên có thể xem lại các lựa chọn đã chọn'
+                    : 'Sinh viên không được phép xem lại bài làm'}
+                </p>
+              </div>
+              <div className="relative ml-6 flex-shrink-0">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={showAnswers}
+                  disabled={permSaving}
+                  onChange={(e) => handleTogglePermission('showAnswersAfterSubmit', e.target.checked)}
+                />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-inner disabled:opacity-60" />
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">

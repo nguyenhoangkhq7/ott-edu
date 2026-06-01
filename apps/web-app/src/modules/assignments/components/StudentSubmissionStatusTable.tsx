@@ -18,6 +18,12 @@ interface StudentSubmissionStatusTableProps {
     score?: number;
     feedback?: string;
   };
+  /** Whether to allow students to view their score and feedback (default: true) */
+  allowViewScore?: boolean;
+  /** Whether to allow students to review their selected answers (default: false) */
+  allowReview?: boolean;
+  /** Callback when student clicks "Xem lại" button */
+  onReviewClick?: () => void;
 }
 
 /**
@@ -27,6 +33,9 @@ interface StudentSubmissionStatusTableProps {
 export default function StudentSubmissionStatusTable({
   assignment,
   submission,
+  allowViewScore = true,
+  allowReview = false,
+  onReviewClick,
 }: StudentSubmissionStatusTableProps) {
   const statusInfo = useMemo(() => {
     const dueDate = new Date(assignment.dueDate);
@@ -188,31 +197,58 @@ export default function StudentSubmissionStatusTable({
           </div>
         </div>
 
-        {/* Row 6: Feedback */}
+        {/* Row 6: Feedback & Review Actions */}
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900">Bình luận / Nhận xét</p>
             <p className="text-xs text-slate-500 mt-1">Nhận xét từ giáo viên</p>
           </div>
-          <div className="flex-shrink-0 max-w-xs text-right">
+          <div className="flex-shrink-0 max-w-xs text-right flex flex-col items-end gap-3">
+            {/* Score & Feedback - Controlled by allowViewScore */}
             {statusInfo.isGraded ? (
               <div className="space-y-2">
-                <div className="inline-block">
-                  <p className="text-2xl font-bold text-blue-600">
-                    {submission.score}
-                    <span className="text-lg text-slate-600">/
+                {allowViewScore ? (
+                  <>
+                    <div className="inline-block">
+                      <p className="text-2xl font-bold text-blue-600">
+                        {submission.score}
+                        <span className="text-lg text-slate-600">/
 {assignment.maxScore}</span>
-                  </p>
-                </div>
-                {submission.feedback && (
-                  <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-200 mt-2 text-left">
-                    <p className="font-semibold text-slate-700 mb-1">Nhận xét:</p>
-                    <p className="whitespace-pre-wrap">{submission.feedback}</p>
+                      </p>
+                    </div>
+                    {submission.feedback && (
+                      <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-200 mt-2 text-left">
+                        <p className="font-semibold text-slate-700 mb-1">Nhận xét:</p>
+                        <p className="whitespace-pre-wrap">{submission.feedback}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold bg-slate-100 text-slate-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803c1.079-2.57 3.47-4.521 6.356-4.713a4.971 4.971 0 00-.572-1.003H5a2 2 0 00-2 2v12a2 2 0 002 2h14a2 2 0 002-2v-2.05A4.993 4.993 0 0015.875 15.075z" />
+                    </svg>
+                    Đã ẩn
                   </div>
                 )}
               </div>
             ) : (
               <p className="text-slate-500 text-sm italic">Đang chờ chấm điểm...</p>
+            )}
+
+            {/* Review Button - Controlled by allowReview */}
+            {allowReview && (
+              <button
+                onClick={onReviewClick}
+                type="button"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Xem lại
+              </button>
             )}
           </div>
         </div>

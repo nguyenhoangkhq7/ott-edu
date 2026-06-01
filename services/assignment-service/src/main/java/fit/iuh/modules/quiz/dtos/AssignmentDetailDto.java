@@ -25,4 +25,10 @@ public class AssignmentDetailDto {
 
     // NEW: timeLimit - quiz time limit in minutes (null = unlimited)
     private Integer timeLimit;
+
+    // NEW: showScoreAfterSubmit - whether students can see their score after submitting
+    private Boolean showScoreAfterSubmit;
+
+    // NEW: showAnswersAfterSubmit - whether students can review their answers after submitting
+    private Boolean showAnswersAfterSubmit;
 }
