@@ -1,8 +1,8 @@
-# --- 1. Base Stage (Dùng chung cho cả Dev và Prod) ---
+# --- 1. Base Stage (Dùng để cài đặt và compile Mediasoup bằng các công cụ dịch C++) ---
 FROM node:24-slim AS base
 WORKDIR /app
 
-# Install build dependencies for mediasoup on Debian/Ubuntu
+# Cài đặt các công cụ biên dịch C++ cần thiết cho mediasoup
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -17,26 +17,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
+# Cài đặt toàn bộ dependencies (bao gồm cả compiler dependencies)
+RUN npm install
 
-# --- 2. Dependencies Stage (Dùng cho DEV) ---
-# Đặt tên stage này là 'dev' để docker-compose trỏ vào
+# --- 2. Dev Stage (Dùng cho môi trường Development) ---
 FROM base AS dev
-# Cài TOÀN BỘ thư viện (bao gồm cả nodemon, ts-node)
-RUN npm install 
 COPY . .
-# Lệnh mặc định nếu chạy lẻ (Docker Compose sẽ ghi đè lệnh này bằng 'npm run dev')
 CMD ["npm", "run", "dev"]
 
-# --- 3. Builder Stage (Dùng cho PROD) ---
-FROM base AS builder
-RUN npm install
-COPY . .
-RUN npm run build
-
-# --- 4. Production Stage (Chạy thật) ---
+# --- 3. Production Stage (Chạy thật - Tận dụng tính năng Native TS của Node 24!) ---
+# Sử dụng ảnh node-slim siêu nhẹ (không có compiler tools nặng nề) cho Production
 FROM node:24-slim AS production
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --only=production
-COPY --from=builder /app/dist ./dist
-CMD ["node", "dist/server.js"]
+
+# Copy node_modules (đã được compile thành công mediasoup) từ base stage sang
+COPY --from=base /app/node_modules ./node_modules
+
+# Dọn dẹp devDependencies để thu nhỏ tối đa dung lượng container
+RUN npm prune --production
+
+# Copy mã nguồn TypeScript (.ts) để chạy trực tiếp
+COPY . .
+
+# Khởi chạy trực tiếp file .ts bằng tính năng Native TypeScript của Node 24!
+# Cờ --experimental-strip-types giúp chạy file .ts trực tiếp với hiệu năng tối đa mà không cần build tsc
+CMD ["node", "--experimental-strip-types", "--max-old-space-size=120", "src/server.ts"]
