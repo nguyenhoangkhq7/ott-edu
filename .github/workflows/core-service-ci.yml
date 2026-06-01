@@ -24,12 +24,9 @@ jobs:
           cache: 'maven'
           cache-dependency-path: 'services/core-service/pom.xml'
 
-      - name: Make Maven Wrapper Executable
-        run: chmod +x mvnw
-        working-directory: services/core-service
-
+      # Tối ưu: Dùng trực tiếp 'mvn' thay vì './mvnw' vì thư mục '.mvn/' bị gitignore chặn không đẩy lên GitHub
       - name: Build with Maven
-        run: ./mvnw clean package -DskipTests
+        run: mvn clean package -DskipTests
         working-directory: services/core-service
 
       - name: Set up Docker Buildx
