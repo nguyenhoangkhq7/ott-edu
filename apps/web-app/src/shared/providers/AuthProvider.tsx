@@ -16,6 +16,7 @@ import {
   registerSession,
   updateActiveSessionToken,
   getActiveUserId,
+  getSessionsMetadata,
 } from "@/services/api/token-store";
 import { subscribeSessionExpired } from "@/services/auth/session-events";
 
@@ -135,20 +136,17 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       switchAccount: async (email: string) => {
         try {
           setIsInitializing(true);
-          sessionStorage.setItem("active_user_id", email);
-          const refreshResult = await refreshSession(email);
-          updateActiveSessionToken(refreshResult.accessToken, refreshResult.refreshToken);
+          localStorage.setItem("active_user_id", email);
 
-          const currentUser = await getCurrentUser();
-          registerSession(refreshResult.accessToken, refreshResult.refreshToken || "", currentUser);
-          setUser(currentUser);
+          // Get target role from saved session metadata in localStorage to route correctly
+          const sessions = getSessionsMetadata();
+          const targetSession = sessions.find((s) => s.email === email);
+          const role = targetSession?.role || "ROLE_STUDENT";
 
-          const isAdmin = currentUser.roles?.some(
-            (role) =>
-              role === "ROLE_ADMIN" ||
-              role === "ROLE_SUPER_ADMIN" ||
-              role.includes("ADMIN")
-          );
+          const isAdmin =
+            role === "ROLE_ADMIN" ||
+            role === "ROLE_SUPER_ADMIN" ||
+            role.includes("ADMIN");
 
           window.location.href = isAdmin ? "/admin" : "/calendar";
         } catch (err) {

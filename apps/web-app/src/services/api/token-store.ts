@@ -141,16 +141,16 @@ export function updateActiveSessionToken(newAccessToken: string, newRefreshToken
 }
 
 /**
- * Retrieves the active user's ID/email from sessionStorage.
+ * Retrieves the active user's ID/email from localStorage.
  * Safe for Next.js SSR.
  */
 export function getActiveUserId(): string | null {
   try {
     if (typeof window !== "undefined") {
-      return sessionStorage.getItem("active_user_id");
+      return localStorage.getItem("active_user_id");
     }
   } catch (error) {
-    console.error("Failed to read active_user_id from sessionStorage:", error);
+    console.error("Failed to read active_user_id from localStorage:", error);
   }
   return null;
 }
@@ -171,11 +171,12 @@ export function registerSession(
   }
   try {
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("active_user_id", user.email);
+      localStorage.setItem("active_user_id", user.email);
+      sessionStorage.setItem("userEmail", user.email);
       saveSessionMetadata(user);
     }
   } catch (error) {
-    console.error("Failed to save active_user_id in sessionStorage:", error);
+    console.error("Failed to save active_user_id in localStorage:", error);
   }
 }
 
@@ -189,13 +190,14 @@ export function clearActiveSession(): void {
   inMemoryClassId = null;
   try {
     if (typeof window !== "undefined") {
-      sessionStorage.removeItem("active_user_id");
+      localStorage.removeItem("active_user_id");
+      sessionStorage.removeItem("userEmail");
       if (email) {
         removeSessionMetadata(email);
       }
     }
   } catch (error) {
-    console.error("Failed to clear active_user_id from sessionStorage:", error);
+    console.error("Failed to clear active_user_id from localStorage:", error);
   }
 }
 
