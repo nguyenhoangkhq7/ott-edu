@@ -13,6 +13,9 @@ import {
  * 💬 Group Chat API Client
  * Cắm thẳng vào CHAT_API_URL, dùng chung Header x-user-email
  */
+import { getSharedChatConfig } from "./axiosClient";
+import { getAccessToken } from "../../modules/api/token-store";
+
 export const groupChatApiClient = axios.create({
   baseURL: CHAT_API_URL,
   headers: {
@@ -20,6 +23,33 @@ export const groupChatApiClient = axios.create({
   },
   timeout: 15000,
 });
+
+groupChatApiClient.interceptors.request.use(async (config) => {
+  try {
+    const token = await getAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (error) {
+    console.error("Lỗi lấy token:", error);
+  }
+
+  const sharedConfig = getSharedChatConfig();
+  if (sharedConfig) {
+    config.headers["x-user-email"] = sharedConfig.email || "";
+    config.headers["x-user-code"] = sharedConfig.code || "";
+    if (sharedConfig.fullName) {
+      config.headers["x-user-name"] = encodeURIComponent(sharedConfig.fullName);
+    }
+    if (sharedConfig.avatarUrl) {
+      config.headers["x-user-avatar"] = sharedConfig.avatarUrl;
+    } else {
+      delete config.headers["x-user-avatar"];
+    }
+  }
+
+  return config;
+}, (error) => Promise.reject(error));
 
 // Hàm xử lý lỗi dùng chung (Copy từ chat api)
 function toErrorMessage(error: unknown): string {

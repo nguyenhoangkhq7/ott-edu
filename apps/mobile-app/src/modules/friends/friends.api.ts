@@ -10,12 +10,29 @@ const friendClient = axios.create({
   timeout: 15000,
 });
 
+import { getSharedChatConfig } from "../chat/axiosClient";
+
 // Interceptor gắn token
 friendClient.interceptors.request.use(async (config) => {
   try {
     const token = await getAccessToken();
     if (token) config.headers.Authorization = `Bearer ${token}`;
   } catch (error) { console.error("Lỗi lấy token:", error); }
+
+  const sharedConfig = getSharedChatConfig();
+  if (sharedConfig) {
+    config.headers["x-user-email"] = sharedConfig.email || "";
+    config.headers["x-user-code"] = sharedConfig.code || "";
+    if (sharedConfig.fullName) {
+      config.headers["x-user-name"] = encodeURIComponent(sharedConfig.fullName);
+    }
+    if (sharedConfig.avatarUrl) {
+      config.headers["x-user-avatar"] = sharedConfig.avatarUrl;
+    } else {
+      delete config.headers["x-user-avatar"];
+    }
+  }
+
   return config;
 }, (error) => Promise.reject(error));
 

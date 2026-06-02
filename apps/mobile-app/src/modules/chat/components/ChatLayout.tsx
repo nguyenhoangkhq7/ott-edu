@@ -25,6 +25,8 @@ import { Attachment } from "../types";
 
 import { API_URL, getAccessToken } from "../../api";
 import { useSocket } from '../../../shared/hooks/useSocket';
+import { useAuth } from '../../auth/AuthProvider';
+import { setSharedChatConfig } from '../axiosClient';
 
 const CHAT_SERVICE_URL = API_URL;
 
@@ -33,6 +35,22 @@ interface ChatLayoutProps {
 }
 
 export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email.split("@")[0] || "User";
+      setSharedChatConfig({
+        email: user.email,
+        code: user.code || undefined,
+        fullName,
+        avatarUrl: user.avatarUrl || undefined,
+      });
+    } else {
+      setSharedChatConfig(null);
+    }
+  }, [user]);
+
   // Mobile specific state to track which view is active
   const [activeView, setActiveView] = useState<"sidebar" | "chat">("sidebar");
   const socket = useSocket();
