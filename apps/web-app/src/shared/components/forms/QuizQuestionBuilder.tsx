@@ -209,9 +209,10 @@ function QuestionCard({
                 type="number"
                 {...register(`questions.${questionIndex}.points` as const, {
                   required: 'Nhập số điểm',
-                  min: { value: 1, message: 'Phải >= 1' },
+                  min: { value: 0.01, message: 'Phải > 0' },
                 })}
-                min={1}
+                min={0.01}
+                step="any"
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:border-blue-500 focus:outline-none"
               />
               {errors.questions?.[questionIndex]?.points && (

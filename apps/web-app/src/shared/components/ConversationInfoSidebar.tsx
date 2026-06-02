@@ -202,18 +202,24 @@ const ConversationInfoSidebar: React.FC<ConversationInfoSidebarProps> = ({
     (participant) => participant._id === conversationInfo?.deputyId,
   );
 
-  // For 1-1 chat, get the OTHER participant (not the owner/self)
+  // For 1-1 chat, get the OTHER participant (not the current user/self)
   const otherParticipantIn1v1 = () => {
     if (!isPrivateChat || !conversationInfo?.participants || conversationInfo.participants.length < 2) {
       return null;
     }
 
-    // In 1-1 chat, return the participant that is not the owner
+    // Ưu tiên dùng currentUserId để loại bỏ chính mình, lấy người đang nhắn chuyện
+    if (currentUserId) {
+      const other = conversationInfo.participants.find(p => p._id !== currentUserId);
+      if (other) return other;
+    }
+
+    // Fallback: dùng ownerId nếu không có currentUserId
     if (conversationInfo.ownerId) {
       return conversationInfo.participants.find(p => p._id !== conversationInfo.ownerId);
     }
 
-    // If no owner set, return the second participant
+    // Cuối cùng: trả về participant thứ hai
     return conversationInfo.participants[1];
   };
 
