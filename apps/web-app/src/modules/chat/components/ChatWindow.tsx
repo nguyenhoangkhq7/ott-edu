@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState } from "react";
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 import {
   ActiveVideoCall,
   Attachment,
@@ -37,6 +38,19 @@ import { AddMemberModal } from "./AddMemberModal";
 
 import { requestOrAddGroupMember, sendFriendRequestApi, searchUsersApi, unfriendApi } from "../chatApi";
 import { VideoCallOverlay } from "./VideoCallOverlay";
+
+const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) && parsed.hostname !== "via.placeholder.com";
+  } catch {
+    return false;
+  }
+};
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -589,7 +603,7 @@ if (conversation.type === "private" && currentUser) {
     
     // Logic lấy tên an toàn
     displayName = peer.fullName || peer.name || (peer.email ? peer.email.split('@')[0] : "Người dùng");
-    displayAvatar = peer.avatarUrl || `https://i.pravatar.cc/150?u=${peer.email}`;
+    displayAvatar = peer.avatarUrl || "";
     subStatus = peer.isOnline ? "● Đang hoạt động" : "Ngoại tuyến";
   }
 }
@@ -683,15 +697,19 @@ if (conversation.type === "private" && currentUser) {
       {renderFullScreenCallOverlay()}
       <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
         <div className="flex items-center gap-3">
-          <Image
-            src={
-              displayAvatar || `https://i.pravatar.cc/150?u=${conversation.id}`
-            }
-            alt="Avatar"
-            width={40}
-            height={40}
-            className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
-          />
+          {isSafeAvatarUrl(displayAvatar) ? (
+            <Image
+              src={displayAvatar}
+              alt="Avatar"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+            />
+          ) : (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-sm font-extrabold text-[#4b53bc] ring-1 ring-slate-200 shadow-sm">
+              {getInitialsFromDisplayName(displayName || 'U')}
+            </div>
+          )}
           <div>
             <h2 className="text-sm font-semibold text-slate-900">
               {displayName || "Unknown"}

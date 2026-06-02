@@ -1,8 +1,22 @@
 import React, { useState, useEffect } from "react";
 import { X, Search, Check } from "lucide-react";
 import Image from "next/image";
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 import { User } from "../types";
 import { searchUsersApi } from "../chatApi"; 
+
+const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) && parsed.hostname !== "via.placeholder.com";
+  } catch {
+    return false;
+  }
+};
 
 interface CreateGroupModalProps {
   isOpen: boolean;
@@ -184,13 +198,19 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                   className="flex cursor-pointer items-center justify-between rounded-xl p-2 hover:bg-slate-50 transition"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <Image 
-                      src={user.avatarUrl || `https://i.pravatar.cc/150?u=${user.email}`} 
-                      alt={displayName} 
-                      width={40} 
-                      height={40} 
-                      className="h-10 w-10 shrink-0 rounded-full object-cover" 
-                    />
+                    {isSafeAvatarUrl(user.avatarUrl) ? (
+                      <Image 
+                        src={user.avatarUrl} 
+                        alt={displayName} 
+                        width={40} 
+                        height={40} 
+                        className="h-10 w-10 shrink-0 rounded-full object-cover" 
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-sm font-extrabold text-[#4b53bc]">
+                        {getInitialsFromDisplayName(displayName || 'U')}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-800">{displayName}</p>
                       <p className="truncate text-xs text-slate-500">

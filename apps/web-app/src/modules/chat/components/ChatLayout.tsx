@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { getAccessToken } from "@/services/api/token-store";
+import { useAuth } from "@/shared/providers/AuthProvider";
 import { Sidebar } from "./Sidebar";
 import { ChatWindow } from "./ChatWindow";
 import { ForwardMessageModal } from "./ForwardMessageModal";
@@ -142,6 +143,7 @@ interface ChatLayoutProps {
 }
 
 export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
+  const { user: authUser } = useAuth();
   const [currentMode, setCurrentMode] = useState<ChatMode>("private");
   const [searchQuery, setSearchQuery] = useState("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -174,23 +176,31 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     setGroupInfoRefreshTick((prev) => prev + 1);
   }, []);
 
-  // ── Tạo User hiện tại từ danh sách conversations ─────────────────────────
+  // ── Tạo User hiện tại từ danh sách conversations hoặc authUser ─────────────
   const currentUser: User | null = React.useMemo(
-    () =>
-      conversations.length > 0
-        ? conversations[0].participants.find((p) => p.id === currentUserId) || {
+    () => {
+      if (authUser) {
+        const fullName = [authUser.firstName, authUser.lastName].filter(Boolean).join(" ") || authUser.email.split("@")[0] || "Bạn";
+        return {
           id: currentUserId,
-          name: "Bạn",
-          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
+          name: fullName,
+          avatarUrl: authUser.avatarUrl || "",
           isOnline: true,
-        }
-        : {
-          id: currentUserId,
-          name: "Bạn",
-          avatarUrl: `https://i.pravatar.cc/150?u=${currentUserId}`,
-          isOnline: true,
-        },
-    [conversations, currentUserId],
+        };
+      }
+
+      const found = conversations.length > 0
+        ? conversations[0].participants.find((p) => p.id === currentUserId)
+        : null;
+
+      return found || {
+        id: currentUserId,
+        name: "Bạn",
+        avatarUrl: "",
+        isOnline: true,
+      };
+    },
+    [conversations, currentUserId, authUser],
   );
 
   const socketRef = useRef<Socket | null>(null);

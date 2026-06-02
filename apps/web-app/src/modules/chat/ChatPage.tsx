@@ -31,8 +31,14 @@ export default function ChatPage() {
 
     chatApiClient.defaults.headers.common["x-user-email"] = identity.email;
     chatApiClient.defaults.headers.common["x-user-code"] = identity.code || "";
-    delete chatApiClient.defaults.headers.common["x-user-name"];
-    delete chatApiClient.defaults.headers.common["x-user-avatar"];
+    
+    const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email?.split("@")[0] || "User";
+    chatApiClient.defaults.headers.common["x-user-name"] = encodeURIComponent(fullName);
+    if (user?.avatarUrl) {
+      chatApiClient.defaults.headers.common["x-user-avatar"] = user.avatarUrl;
+    } else {
+      delete chatApiClient.defaults.headers.common["x-user-avatar"];
+    }
 
     const resolveChatUser = async () => {
       queueMicrotask(() => {

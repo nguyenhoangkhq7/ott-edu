@@ -399,7 +399,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
           </div>
         ) : isOneOnOne ? (
           /* ── 1-1 Layout: remote fills full space, local is PiP ── */
-          <div className="relative min-h-0 flex-1 flex items-center justify-center bg-slate-950">
+          <div className="relative min-h-0 flex-1 w-full h-full flex items-center justify-center bg-slate-950">
             {remoteStreamsList.length > 0 ? (
               (() => {
                 const [userId, stream] = remoteStreamsList[0]!;
@@ -440,7 +440,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                       stream={stream}
                       autoPlay
                       playsInline
-                      className="relative z-10 max-h-full max-w-full object-contain shadow-2xl"
+                      className="relative z-10 w-full h-full object-contain shadow-2xl"
                     />
                     {/* Shadow overlay to make controls/text pop */}
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-slate-950/30 pointer-events-none z-10" />
@@ -492,7 +492,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                           stream={stream}
                           autoPlay
                           playsInline
-                          className="relative z-10 max-h-full max-w-full object-contain"
+                          className="relative z-10 w-full h-full object-contain"
                         />
                       </div>
                     ) : (

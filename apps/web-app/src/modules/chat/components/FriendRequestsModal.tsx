@@ -2,7 +2,21 @@ import React, { useEffect, useState } from "react";
 import { User } from "../types";
 import { X, Check, Trash2 } from "lucide-react";
 import Image from "next/image";
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 import { fetchFriendRequests, acceptFriendRequest, rejectFriendRequest } from "../chatApi"; // Đường dẫn tuỳ project
+
+const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) && parsed.hostname !== "via.placeholder.com";
+  } catch {
+    return false;
+  }
+};
 
 interface FriendRequestsModalProps {
   isOpen: boolean;
@@ -58,7 +72,13 @@ export const FriendRequestsModal: React.FC<FriendRequestsModalProps> = ({ isOpen
            requests.map((user) => (
             <div key={user.id} className="flex items-center justify-between p-3 border-b border-slate-100 last:border-0">
               <div className="flex items-center gap-3">
-                <Image src={user.avatarUrl} alt={user.name || "User"} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                {isSafeAvatarUrl(user.avatarUrl) ? (
+                  <Image src={user.avatarUrl} alt={user.name || "User"} width={40} height={40} className="w-10 h-10 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-sm font-extrabold text-[#4b53bc]">
+                    {getInitialsFromDisplayName(user.name || "U")}
+                  </div>
+                )}
                 <div>
                   <p className="font-semibold text-sm text-slate-800">{user.name}</p>
                   <p className="text-xs text-slate-500">{user.email || user.code}</p>

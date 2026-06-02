@@ -2,6 +2,7 @@ import React from "react";
 import { Conversation, ChatMode, User } from "../types";
 import { SidebarTabs } from "./SidebarTabs";
 import { ConversationItem } from "./ConversationItem";
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 import { RefreshCw, Users, UserPlus, UserCheck, Check } from "lucide-react";
 import Image from "next/image";
 import { CreateGroupModal } from "./CreateGroupModal";
@@ -14,6 +15,19 @@ import {
 } from "../chatApi";
 import { useState, useEffect } from "react";
 import { Socket } from "socket.io-client";
+
+const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["http:", "https:"].includes(parsed.protocol) && parsed.hostname !== "via.placeholder.com";
+  } catch {
+    return false;
+  }
+};
 
 interface SidebarProps {
   currentMode: ChatMode;
@@ -349,16 +363,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           onClick={() => onStartPrivateChat(user)}
                           className="flex flex-1 items-center gap-3 min-w-0"
                         >
-                          <Image
-                            src={
-                              user.avatarUrl ||
-                              `https://i.pravatar.cc/150?u=${user.email}`
-                            }
-                            alt={displayName}
-                            width={36}
-                            height={36}
-                            className="h-9 w-9 shrink-0 rounded-full object-cover"
-                          />
+                          {isSafeAvatarUrl(user.avatarUrl) ? (
+                            <Image
+                              src={user.avatarUrl}
+                              alt={displayName}
+                              width={36}
+                              height={36}
+                              className="h-9 w-9 shrink-0 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#d1d2eb] text-xs font-extrabold text-[#4b53bc]">
+                              {getInitialsFromDisplayName(displayName || 'U')}
+                            </div>
+                          )}
                           <div className="min-w-0 text-left">
                             {/* HIỂN THỊ TÊN CHUẨN */}
                             <p className="truncate text-sm font-medium text-slate-800">

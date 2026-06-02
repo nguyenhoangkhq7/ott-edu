@@ -1761,7 +1761,8 @@ console.log(`[DEBUG_REJECT] User ${userId} từ chối ${requesterId} -> Emit 'f
       const email = (coreUser.email || coreUser.account?.email || "").toLowerCase();
       // Ưu tiên lấy ID từ Java trả về, nếu không có mới dùng targetId
       const id = coreUser.id || coreUser.accountId; 
-      const fullName = coreUser.fullName || (coreUser.firstName ? `${coreUser.firstName} ${coreUser.lastName}` : "Người dùng");
+      const fullName = coreUser.fullName || (coreUser.firstName ? `${coreUser.firstName} ${coreUser.lastName}` : "") || "Người dùng";
+      const avatarUrl = coreUser.avatarUrl || "";
 
       if (!email) {
           console.error(`[SyncError] Core Service trả về user nhưng thiếu EMAIL!`);
@@ -1771,20 +1772,35 @@ console.log(`[DEBUG_REJECT] User ${userId} từ chối ${requesterId} -> Emit 'f
       // 🚀 BÍ KÍP CHỐNG LỖI E11000
       let existingUser = await User.findOne({ email: email });
       if (existingUser) {
-          console.log(`[DEBUG] User ${email} đã có trong Mongo, cập nhật lại ID...`);
+          console.log(`[DEBUG] User ${email} đã có trong Mongo, cập nhật lại ID và avatarUrl...`);
+          let hasChanges = false;
           // Cập nhật ID từ Java cho nó chuẩn (Chỉ cập nhật nếu id là số)
           if (id && !isNaN(Number(id)) && (existingUser as any).id !== Number(id)) {
               (existingUser as any).id = Number(id);
+              hasChanges = true;
+          }
+          // Cập nhật avatarUrl từ Core Service nếu khác nhau
+          if (avatarUrl !== undefined && existingUser.avatarUrl !== avatarUrl) {
+              existingUser.avatarUrl = avatarUrl;
+              hasChanges = true;
+          }
+          // Cập nhật fullName nếu khác nhau
+          if (fullName && existingUser.fullName !== fullName) {
+              existingUser.fullName = fullName;
+              hasChanges = true;
+          }
+          if (hasChanges) {
               await existingUser.save();
           }
           return existingUser;
       }
 
-      console.log(`[DEBUG] Đang tạo mới user vào Mongo: ${email}`);
+      console.log(`[DEBUG] Đang tạo mới user vào Mongo: ${email} với avatarUrl: ${avatarUrl}`);
       const newUser = await User.create({
         id: id && !isNaN(Number(id)) ? Number(id) : undefined, // Đảm bảo không bao giờ lưu NaN vào DB
         email: email,
         fullName: fullName,
+        avatarUrl: avatarUrl,
       } as any);
       
       return newUser;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Conversation, User } from '../types';
 import Image from 'next/image';
+import { getInitialsFromDisplayName } from "@/shared/utils/user-display";
 
 const isSafeAvatarUrl = (value: string | null | undefined): value is string => {
   if (!value) return false;
@@ -67,8 +68,8 @@ export const ConversationItem: React.FC<ConversationItemProps> = ({
             className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
           />
         ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-purple-600 text-sm font-semibold text-white ring-1 ring-slate-200">
-            {(displayName || 'U').charAt(0).toUpperCase()}
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#d1d2eb] text-sm font-extrabold text-[#4b53bc] ring-1 ring-slate-200">
+            {getInitialsFromDisplayName(displayName || 'U')}
           </div>
         )}
         {conversation.type === 'private' && isOnline && (

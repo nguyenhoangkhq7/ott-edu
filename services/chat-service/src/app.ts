@@ -71,7 +71,12 @@ app.use(async (req: any, res: Response, next: NextFunction) => {
     const rawUserEmail = toSingleHeaderValue(req.headers["x-user-email"])
       .trim()
       .toLowerCase();
-    const rawUserName = toSingleHeaderValue(req.headers["x-user-name"]).trim();
+    let rawUserName = toSingleHeaderValue(req.headers["x-user-name"]).trim();
+    try {
+      rawUserName = decodeURIComponent(rawUserName);
+    } catch (e) {
+      // ignore
+    }
     const rawAvatarUrl = toSingleHeaderValue(req.headers["x-user-avatar"]).trim();
     const rawUserCode = toSingleHeaderValue(req.headers["x-user-code"]).trim();
 

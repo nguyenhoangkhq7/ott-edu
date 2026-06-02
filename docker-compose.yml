@@ -194,13 +194,13 @@ services:
     restart: always
     volumes:
       - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: ${GPU_DRIVER:-}
-              count: all
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: ${GPU_DRIVER:-}
+    #           count: all
+    #           capabilities: [gpu]
     ports:
       - "11434:11434"
     networks:
