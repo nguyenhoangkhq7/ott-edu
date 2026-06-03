@@ -178,10 +178,10 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
   const getParticipantName = (userId: string) => {
     if (!conversation?.participants) return userId.slice(-6).toUpperCase();
     const p = conversation.participants.find(
-      (part) => part.id === userId || (part as any)._id === userId
+      (part) => part.id === userId || (part as { _id?: string })._id === userId
     );
     if (!p) return userId.slice(-6).toUpperCase();
-    return (p as any).fullName || p.name || p.email?.split("@")[0] || userId.slice(-6).toUpperCase();
+    return (p as { fullName?: string }).fullName || p.name || p.email?.split("@")[0] || userId.slice(-6).toUpperCase();
   };
 
   // Responsive dynamic grid for group layout
