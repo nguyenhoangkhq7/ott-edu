@@ -1751,34 +1751,44 @@ class SocketManager {
         }) => {
           try {
             const { messageId, conversationId, emoji } = data;
+            console.log("[REACT_DEBUG] Received reactMessage event:", { messageId, conversationId, emoji, userId });
 
             if (!messageId || !conversationId || !emoji || !userId) {
-              console.warn("Invalid reaction data:", data);
+              console.warn("[REACT_DEBUG] Invalid reaction data (missing fields):", data, "userId:", userId);
               return;
             }
 
             if (!mongoose.Types.ObjectId.isValid(userId)) {
-              console.warn("Invalid userId for reaction:", userId);
+              console.warn("[REACT_DEBUG] Invalid userId format (not a valid ObjectId):", userId);
               return;
             }
 
             // Update message with reaction
             const message = await Message.findById(messageId);
             if (!message) {
-              console.warn("Message not found:", messageId);
+              console.warn("[REACT_DEBUG] Message not found:", messageId);
               return;
             }
 
+            console.log("[REACT_DEBUG] Found message. Current reactions:", message.reactions);
+
             // Check if user already reacted with this emoji
             const existingReactionIndex = message.reactions.findIndex(
-              (r: any) =>
-                r.userId.toString() === userId.toString() && r.emoji === emoji,
+              (r: any) => {
+                if (!r.userId) {
+                  console.warn("[REACT_DEBUG] Found reaction without userId:", r);
+                  return false;
+                }
+                return r.userId.toString() === userId.toString() && r.emoji === emoji;
+              }
             );
 
             if (existingReactionIndex !== -1) {
+              console.log("[REACT_DEBUG] Removing existing reaction at index:", existingReactionIndex);
               // Remove reaction if it already exists
               message.reactions.splice(existingReactionIndex, 1);
             } else {
+              console.log("[REACT_DEBUG] Adding new reaction for userId:", userId);
               // Add new reaction
               message.reactions.push({
                 userId: new mongoose.Types.ObjectId(userId),
@@ -1786,15 +1796,17 @@ class SocketManager {
               });
             }
 
-            await message.save();
+            const saved = await message.save();
+            console.log("[REACT_DEBUG] Message saved successfully. Updated reactions:", saved.reactions);
 
             // Emit updated message to all clients in the room
             this.io?.to(conversationId).emit("messageReacted", {
               messageId,
-              reactions: message.reactions,
+              reactions: saved.reactions,
             });
+            console.log("[REACT_DEBUG] Emitted messageReacted to room:", conversationId);
           } catch (error) {
-            console.error("Error handling reaction:", error);
+            console.error("[REACT_DEBUG] Error handling reaction:", error);
           }
         },
       );

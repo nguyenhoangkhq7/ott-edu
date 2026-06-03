@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Message, User } from "../types";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 import Image from "next/image";
@@ -177,6 +177,34 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [now, setNow] = useState(0);
+
+  const menuRef = useRef<HTMLDivElement>(null);
+  const isLong = (message.content?.length ?? 0) > 30 || 
+                 (message.attachments && message.attachments.length > 0) || 
+                 !!message.linkPreview || 
+                 !!message.replyTo;
+  const [menuAlign, setMenuAlign] = useState<"left" | "right">(
+    isOwnMessage || isLong ? "right" : "left"
+  );
+
+  useEffect(() => {
+    if (showMenu) {
+      const defaultAlign = isOwnMessage || isLong ? "right" : "left";
+      setMenuAlign(defaultAlign);
+      
+      const timer = setTimeout(() => {
+        if (menuRef.current) {
+          const rect = menuRef.current.getBoundingClientRect();
+          if (rect.left < 8) {
+            setMenuAlign("left");
+          } else if (rect.right > window.innerWidth - 8) {
+            setMenuAlign("right");
+          }
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [showMenu, isOwnMessage, isLong]);
 
   // Cập nhật thời gian hiện tại mỗi phút
   useEffect(() => {
@@ -514,7 +542,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {/* Context Menu */}
         {showMenu && (
-          <div className="absolute right-0 top-full z-20 mt-1 min-w-55 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          <div
+            ref={menuRef}
+            className={`absolute ${menuAlign === "right" ? "right-0" : "left-0"} top-full z-20 mt-1 min-w-55 rounded-xl border border-slate-200 bg-white py-1 shadow-lg`}
+          >
             {/* Phản ứng */}
             <button
               type="button"

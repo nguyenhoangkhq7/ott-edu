@@ -160,18 +160,10 @@ export default function CreateClassForm({ onBack }: CreateClassFormProps) {
             {/* Cụm Nút bấm */}
             <button
               onClick={() => router.push('/teams')}
-              className="w-full bg-[#1868f0] hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 mb-3 transition-colors"
+              className="w-full bg-[#1868f0] hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 mb-6 transition-colors"
             >
               Go to Class
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-            </button>
-
-            <button
-              onClick={() => alert('Chức năng thêm thành viên đang phát triển!')}
-              className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 mb-6 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" /></svg>
-              Add Members now
             </button>
 
             <div className="text-center">
