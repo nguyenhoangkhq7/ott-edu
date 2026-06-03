@@ -152,7 +152,7 @@ export async function importUsersFromExcel(file: File): Promise<void> {
   formData.append("file", file);
   return httpService.post<void>("/admin/users/import", formData, {
     headers: {
-      "Content-Type": "multipart/form-data",
+      "Content-Type": undefined as any,
     },
   });
 }

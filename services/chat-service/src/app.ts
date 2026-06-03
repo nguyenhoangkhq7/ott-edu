@@ -22,6 +22,7 @@ function buildAllowedOrigins(): string[] {
   const defaults = [
     "http://localhost:3000",
     "http://localhost:8000",
+    "http://web-app:3000",
     process.env.WEB_APP_URL || "http://localhost:3000",
   ].filter(Boolean) as string[];
 

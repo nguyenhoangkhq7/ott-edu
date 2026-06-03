@@ -182,7 +182,7 @@ export async function uploadAvatar(file: File): Promise<UploadAvatarResult> {
 
   return httpService.post<UploadAvatarResult>("/auth/me/avatar", formData, {
     headers: {
-      "Content-Type": "multipart/form-data",
+      "Content-Type": undefined as any,
     },
   });
 }

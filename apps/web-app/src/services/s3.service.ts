@@ -22,7 +22,7 @@ export const uploadFileToS3 = async (file: File): Promise<string> => {
     formData,
     {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined as any,
       },
     }
   );

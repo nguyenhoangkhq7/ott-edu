@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:8000}")
+    @Value("${app.cors.allowed-origins:http://localhost:3000,http://localhost:8000,http://web-app:3000}")
     private String allowedOrigins;
 
         @Value("${app.cors.allowed-origin-patterns:}")

@@ -9,11 +9,6 @@ import React, {
 import Image from "next/image";
 import { httpService } from "@/services/api/http.service";
 import { useAppContext } from "@/shared/providers/AppContext";
-import {
-  useSocket,
-  useSocketListener,
-  useSocketRoomJoin,
-} from "@/shared/hooks/useSocket";
 // Removed js-cookie in favor of isolated sessionStorage
 import { SafeHtml } from "@/shared/utils/security";
 
@@ -1035,9 +1030,7 @@ export default function TeamPostsTab({
   const { userEmail, isLoaded, classId: contextClassId } = useAppContext();
   const teamId = routeTeamId?.toString() ?? contextClassId ?? null;
 
-  // ✨ SOCKET.IO SETUP - Real-time Posts Updates
-  const socket = useSocket();
-  useSocketRoomJoin(socket, teamId);
+
 
   const fetchPosts = useCallback(async () => {
     if (!isLoaded || !teamId) return;
@@ -1108,26 +1101,7 @@ export default function TeamPostsTab({
     }
   }, [teamId, userEmail, isLoaded]);
 
-  useEffect(() => {
-    const load = async () => {
-      await fetchPosts();
-    };
-    load();
-  }, [fetchPosts]);
 
-  // ✨ SOCKET LISTENERS - Real-time Updates for Posts, Comments, Reactions
-  useSocketListener(
-    socket,
-    "post_updated",
-    async (data: { action?: string; id?: string }) => {
-      console.log("[Socket] post_updated event received:", data);
-      if (data.action === "created" || data.action === "updated") {
-        await fetchPosts();
-      } else if (data.action === "deleted") {
-        setPosts((prev) => prev.filter((p) => p.id !== data.id));
-      }
-    },
-  );
 
   const loadCommentsForPost = useCallback(
     async (postId: string) => {
@@ -1205,29 +1179,21 @@ export default function TeamPostsTab({
     [userEmail],
   );
 
-  useSocketListener(
-    socket,
-    "comment_updated",
-    async (data: { postId?: string }) => {
-      console.log("[Socket] comment_updated event received:", data);
-
-      if (data.postId) {
-        await loadCommentsForPost(data.postId);
+  // ✨ 15-Second Polling for Posts, Comments, and Reactions to ensure stable updates
+  useEffect(() => {
+    const load = async () => {
+      await fetchPosts();
+      if (expandedPostIds.length > 0) {
+        await Promise.all(
+          expandedPostIds.map((postId) => loadCommentsForPost(postId))
+        );
       }
-    },
-  );
+    };
+    load();
 
-  useSocketListener(
-    socket,
-    "reaction_updated",
-    async (data: { targetId?: string }) => {
-      console.log("[Socket] reaction_updated event received:", data);
-
-      if (data.targetId) {
-        await fetchPosts();
-      }
-    },
-  );
+    const intervalId = setInterval(load, 15000);
+    return () => clearInterval(intervalId);
+  }, [fetchPosts, loadCommentsForPost, expandedPostIds]);
 
   const scrollToTop = () =>
     feedStartRef.current?.scrollIntoView({ behavior: "smooth" });
