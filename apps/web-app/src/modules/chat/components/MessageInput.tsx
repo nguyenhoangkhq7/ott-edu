@@ -449,6 +449,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   key={index}
                   className="relative group h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm transition-all hover:shadow-md"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={attachment.url}
                     alt={attachment.fileName}
@@ -561,6 +562,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {participant.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={participant.avatarUrl}
                           alt={participant.name}

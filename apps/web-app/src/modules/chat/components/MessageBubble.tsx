@@ -181,7 +181,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isMentionedMe = React.useMemo(() => {
     if (isOwnMessage || !currentUserId || !message.mentions) return false;
     return message.mentions.some(
-      (m) => m.id === currentUserId || (m as any)._id === currentUserId
+      (m) => m.id === currentUserId || (m as unknown as { _id?: string })._id === currentUserId
     );
   }, [message.mentions, isOwnMessage, currentUserId]);
 
@@ -191,7 +191,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
     if (message.mentions && message.mentions.length > 0) {
       message.mentions.forEach((mentionUser) => {
-        const mentionName = mentionUser.name || (mentionUser as any).fullName;
+        const mentionName = mentionUser.name || (mentionUser as unknown as { fullName?: string }).fullName;
         if (mentionName) {
           const escapedName = mentionName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
           const regex = new RegExp(`@${escapedName}\\b`, 'g');

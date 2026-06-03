@@ -91,7 +91,6 @@ export default function QrLoginComponent() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ──────────────────────────────────────────
@@ -126,7 +125,6 @@ export default function QrLoginComponent() {
     return () => {
       socket.off("connect", handleConnect);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, sessionId]);
 
   // ──────────────────────────────────────────

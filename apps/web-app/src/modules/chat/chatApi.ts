@@ -48,7 +48,7 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     reactions: apiMsg.reactions || [],
     type: apiMsg.type || "text",
     mentions: apiMsg.mentions
-      ? apiMsg.mentions.map((m: any) =>
+      ? apiMsg.mentions.map((m: ApiUser | string) =>
           typeof m === "string"
             ? { id: m, name: "Người dùng", avatarUrl: "", isOnline: false }
             : mapApiUserToUser(m)

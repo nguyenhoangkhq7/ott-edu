@@ -15,6 +15,7 @@ import { ForwardMessageModal } from "./ForwardMessageModal";
 import { ChatUserProfileModal } from "./ChatUserProfileModal";
 import { ChatGroupManageModal } from "./ChatGroupManageModal";
 import {
+  ApiMessage,
   CallHistoryItem,
   ChatMode,
   Conversation,
@@ -480,10 +481,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     };
 
     const handleMentionNotification = (data: {
-      message: any;
+      message: Omit<ApiMessage, "senderId"> & {
+        senderId?: { fullName?: string };
+      };
       conversationId: string;
     }) => {
-      const incoming = mapApiMessageToMessage(data.message);
+      const incoming = mapApiMessageToMessage(data.message as unknown as ApiMessage);
       const isActive = activeConversationIdRef.current === data.conversationId;
       if (isActive) return;
 
