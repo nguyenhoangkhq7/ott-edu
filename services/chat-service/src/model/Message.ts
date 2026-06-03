@@ -35,6 +35,7 @@ export interface IMessage extends Document {
   /** Đánh dấu tin nhắn chuyển tiếp */
   isForwarded?: boolean;
   reactions: Reaction[];
+  mentions: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -145,6 +146,13 @@ const messageSchema: Schema = new Schema(
       default: false,
     },
     reactions: [reactionSchema],
+    mentions: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        default: [],
+      },
+    ],
   },
   {
     timestamps: true,

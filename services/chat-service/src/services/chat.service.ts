@@ -325,6 +325,10 @@ export class ChatService {
         path: "replyTo",
         select: "content senderId isRevoked revokedFor attachments",
       })
+      .populate({
+        path: "mentions",
+        select: "fullName avatarUrl email code role",
+      })
       .lean();
 
     if (!requestingUserId) return messages;
@@ -358,6 +362,7 @@ export class ChatService {
     attachments?: any[],
     replyTo?: string,
     isForwarded?: boolean,
+    mentions?: string[],
   ) {
     // 1. Tìm xem giữa 2 người dã có phòng chat private chưa
     let conversation = await Conversation.findOne({
@@ -379,7 +384,12 @@ export class ChatService {
       senderId,
       content,
       reactions: [],
+      mentions: [],
     };
+
+    if (mentions && mentions.length > 0) {
+      messagePayload.mentions = mentions.map((m: string) => new mongoose.Types.ObjectId(m));
+    }
 
     if (attachments && attachments.length > 0) {
       messagePayload.attachments = attachments;
@@ -417,6 +427,14 @@ export class ChatService {
       await message.populate("replyTo");
     }
 
+    // Populate mentions
+    if (mentions && mentions.length > 0) {
+      await message.populate({
+        path: "mentions",
+        select: "fullName avatarUrl email code role",
+      });
+    }
+
     // 4. Cập nhật lastMessage cho parent là conversation
     conversation.lastMessage = message._id as any;
     await conversation.save();
@@ -432,6 +450,7 @@ export class ChatService {
     attachments?: any[],
     replyTo?: string,
     isForwarded?: boolean,
+    mentions?: string[],
   ) {
     const conversation = await Conversation.findById(conversationId);
     if (!conversation) {
@@ -473,7 +492,12 @@ export class ChatService {
       senderId,
       content,
       reactions: [],
+      mentions: [],
     };
+
+    if (mentions && mentions.length > 0) {
+      messagePayload.mentions = mentions.map((m: string) => new mongoose.Types.ObjectId(m));
+    }
 
     if (attachments && attachments.length > 0) {
       messagePayload.attachments = attachments;
@@ -505,6 +529,14 @@ export class ChatService {
     // Populate replyTo if it exists
     if (replyTo) {
       await message.populate("replyTo");
+    }
+
+    // Populate mentions
+    if (mentions && mentions.length > 0) {
+      await message.populate({
+        path: "mentions",
+        select: "fullName avatarUrl email code role",
+      });
     }
 
     conversation.lastMessage = message._id as any;

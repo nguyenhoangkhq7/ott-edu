@@ -34,6 +34,7 @@ public class SubmitAssignmentRequest {
      * Optional: For file submissions (essays with attachments)
      */
     private String fileUrl;
+    private String fileName;
 
     /**
      * Optional: Confirmation flag for explicit submission intent

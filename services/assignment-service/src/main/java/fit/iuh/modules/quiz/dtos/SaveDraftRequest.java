@@ -33,6 +33,7 @@ public class SaveDraftRequest {
      * Optional: For future use - file upload URLs
      */
     private String fileUrl;
+    private String fileName;
 
     // Note: submissionId is passed as path parameter:
     // /submissions/{submissionId}/save-draft

@@ -178,6 +178,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [now, setNow] = useState(0);
 
+  const isMentionedMe = React.useMemo(() => {
+    if (isOwnMessage || !currentUserId || !message.mentions) return false;
+    return message.mentions.some(
+      (m) => m.id === currentUserId || (m as unknown as { _id?: string })._id === currentUserId
+    );
+  }, [message.mentions, isOwnMessage, currentUserId]);
+
+  const highlightedContent = React.useMemo(() => {
+    let content = message.content;
+    if (!content) return "";
+
+    if (message.mentions && message.mentions.length > 0) {
+      message.mentions.forEach((mentionUser) => {
+        const mentionName = mentionUser.name || (mentionUser as unknown as { fullName?: string }).fullName;
+        if (mentionName) {
+          const escapedName = mentionName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+          const regex = new RegExp(`@${escapedName}\\b`, 'g');
+          
+          const highlightClass = isOwnMessage
+            ? "text-blue-100 font-bold bg-blue-800/40 px-1.5 py-0.5 rounded-md inline-block"
+            : "text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded-md inline-block";
+
+          content = content.replace(
+            regex,
+            `<span class="${highlightClass}">@${mentionName}</span>`
+          );
+        }
+      });
+    }
+    return content;
+  }, [message.content, message.mentions, isOwnMessage]);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const isLong = (message.content?.length ?? 0) > 30 || 
                  (message.attachments && message.attachments.length > 0) || 
@@ -439,13 +471,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           })()
         ) : (
           <div
-            className={`w-full max-w-full rounded-2xl px-4 py-2 ${
+            className={`w-full max-w-full rounded-2xl px-4 py-2 transition-all duration-150 ${
               isOwnMessage
                 ? "rounded-br-sm bg-blue-600 text-white"
-                : "rounded-bl-sm bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
+                : isMentionedMe
+                  ? "rounded-bl-sm bg-amber-50/70 text-slate-900 shadow-xs ring-1 ring-amber-200 border-l-4 border-amber-500"
+                  : "rounded-bl-sm bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
             }`}
           >
-            <SafeHtml html={message.content} className="text-sm whitespace-pre-wrap" />
+            <SafeHtml html={highlightedContent} className="text-sm whitespace-pre-wrap" />
 
             {/* Attachments */}
             {message.attachments && message.attachments.length > 0 && (

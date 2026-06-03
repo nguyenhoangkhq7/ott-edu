@@ -38,6 +38,9 @@ public class AssignmentServiceImpl implements AssignmentService {
     @Autowired
     private SubmissionRepository submissionRepository;
 
+    @Autowired
+    private SocketEventService socketEventService;
+
     // ============== TEACHER Operations ==============
 
     @Override
@@ -126,6 +129,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         assignment.setMaxAttempts(request.getMaxAttempts());
 
         Assignment updated = assignmentRepository.save(assignment);
+        socketEventService.emitAssignmentUpdated(updated.getId(), updated.getTeamIds());
         return toSummaryDto(updated);
     }
 
@@ -150,6 +154,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         }
 
         assignmentRepository.save(assignment);
+        socketEventService.emitAssignmentUpdated(assignment.getId(), assignment.getTeamIds());
     }
 
     @Override
@@ -172,6 +177,7 @@ public class AssignmentServiceImpl implements AssignmentService {
 
         assignment.setArchivedAt(LocalDateTime.now());
         assignmentRepository.save(assignment);
+        socketEventService.emitAssignmentUpdated(assignment.getId(), assignment.getTeamIds());
     }
 
     // ============== STUDENT Operations ==============

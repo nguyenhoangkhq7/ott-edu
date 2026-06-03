@@ -27,6 +27,7 @@ public class ViewSubmissionDto {
     private LocalDateTime submittedAt;
     private boolean isLate;
     private String fileUrl; // For essay submissions - allows student to download their file
+    private String originalFilename;
 
     // Assignment context
     private String assignmentTitle;

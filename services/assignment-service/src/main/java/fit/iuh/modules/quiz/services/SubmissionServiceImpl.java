@@ -165,7 +165,7 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw AccessDeniedException.notSubmissionOwner(studentAccountId, submissionId);
         }
 
-        return toViewSubmissionDto(submission);
+        return toViewSubmissionDto(submission, true);
     }
 
     @Override
@@ -183,13 +183,18 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw ResourceNotFoundException.gradeNotFound(submissionId);
         }
 
-        return toGradeDetailsDto(grade);
+        GradeDetailsDto gradeDto = toGradeDetailsDto(grade);
+        if (Boolean.FALSE.equals(submission.getAssignment().getShowScoreAfterSubmit())) {
+            gradeDto.setScore(null);
+            gradeDto.setFeedback(sanitizeFeedback(gradeDto.getFeedback()));
+        }
+        return gradeDto;
     }
 
     @Override
     public Page<ViewSubmissionDto> getMySubmissions(Long studentAccountId, Pageable pageable) {
         Page<Submission> submissions = submissionRepository.findByAccountId(studentAccountId, pageable);
-        return submissions.map(this::toViewSubmissionDto);
+        return submissions.map(s -> toViewSubmissionDto(s, true));
     }
 
     // ============== Helper Methods ==============
@@ -206,6 +211,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         dto.setSubmittedAt(submission.getSubmittedAt());
         dto.setLate(submission.isLate());
         dto.setFileUrl(submission.getFileUrl()); // For essay submissions
+        dto.setOriginalFilename(submission.getOriginalFilename());
 
         if (submission.getGrade() != null) {
             dto.setGraded(true);
@@ -222,6 +228,10 @@ public class SubmissionServiceImpl implements SubmissionService {
      * Convert Submission entity to view DTO (for student viewing their submission)
      */
     private ViewSubmissionDto toViewSubmissionDto(Submission submission) {
+        return toViewSubmissionDto(submission, false);
+    }
+
+    private ViewSubmissionDto toViewSubmissionDto(Submission submission, boolean isStudent) {
         ViewSubmissionDto dto = new ViewSubmissionDto();
         dto.setId(submission.getId());
         dto.setSubmissionId(submission.getId());
@@ -232,6 +242,7 @@ public class SubmissionServiceImpl implements SubmissionService {
         dto.setSubmittedAt(submission.getSubmittedAt());
         dto.setLate(submission.isLate());
         dto.setFileUrl(submission.getFileUrl()); // For essay submissions
+        dto.setOriginalFilename(submission.getOriginalFilename());
 
         // Assignment context
         dto.setAssignmentTitle(submission.getAssignment().getTitle());
@@ -260,10 +271,22 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         // Grade information (if graded)
         if (submission.getGrade() != null) {
-            dto.setGrade(toGradeDetailsDto(submission.getGrade()));
+            GradeDetailsDto gradeDto = toGradeDetailsDto(submission.getGrade());
+            if (isStudent && Boolean.FALSE.equals(submission.getAssignment().getShowScoreAfterSubmit())) {
+                gradeDto.setScore(null);
+                gradeDto.setFeedback(sanitizeFeedback(gradeDto.getFeedback()));
+            }
+            dto.setGrade(gradeDto);
         }
 
         return dto;
+    }
+
+    private String sanitizeFeedback(String feedback) {
+        if (feedback == null) {
+            return null;
+        }
+        return feedback.replaceAll("(?i)\\s*Bạn đạt \\d+(?:\\.\\d+)?/\\d+(?:\\.\\d+)? điểm\\.??", "").trim();
     }
 
     /**
@@ -317,7 +340,10 @@ public class SubmissionServiceImpl implements SubmissionService {
 
         // Update file URL if provided
         if (request.getFileUrl() != null) {
-            // Store file URL for reference (optional file uploads)
+            submission.setFileUrl(request.getFileUrl());
+        }
+        if (request.getFileName() != null) {
+            submission.setOriginalFilename(request.getFileName());
         }
 
         // Keep status as DRAFT - not submitting yet
@@ -374,6 +400,9 @@ public class SubmissionServiceImpl implements SubmissionService {
         if (request.getFileUrl() != null && !request.getFileUrl().isEmpty()) {
             submission.setFileUrl(request.getFileUrl());
         }
+        if (request.getFileName() != null && !request.getFileName().isEmpty()) {
+            submission.setOriginalFilename(request.getFileName());
+        }
 
         // Mark as SUBMITTED
         submission.setStatus(SubmissionStatus.SUBMITTED);
@@ -417,8 +446,13 @@ public class SubmissionServiceImpl implements SubmissionService {
 
             // Set score from grade if available
             if (submission.getGrade() != null) {
-                dto.setScore(submission.getGrade().getScore());
-                dto.setFeedback(submission.getGrade().getFeedback());
+                if (Boolean.FALSE.equals(assignment.getShowScoreAfterSubmit())) {
+                    dto.setScore(null);
+                    dto.setFeedback(sanitizeFeedback(submission.getGrade().getFeedback()));
+                } else {
+                    dto.setScore(submission.getGrade().getScore());
+                    dto.setFeedback(submission.getGrade().getFeedback());
+                }
             }
 
             result.add(dto);
@@ -476,6 +510,14 @@ public class SubmissionServiceImpl implements SubmissionService {
             return;
         }
 
+        // Kiểm tra số lần làm bài tối đa (maxAttempts)
+        if (assignment.getMaxAttempts() != null && assignment.getMaxAttempts() > 0) {
+            Long completedAttempts = submissionRepository.countCompletedAttempts(studentAccountId, assignmentId);
+            if (completedAttempts >= assignment.getMaxAttempts()) {
+                throw new AccessDeniedException("Bạn đã hết số lần làm bài");
+            }
+        }
+
         // Create new DRAFT submission
         Submission submission = new Submission();
         submission.setAccountId(studentAccountId);
@@ -501,6 +543,6 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
 
         // Convert to DTO
-        return toViewSubmissionDto(submission.get());
+        return toViewSubmissionDto(submission.get(), true);
     }
 }

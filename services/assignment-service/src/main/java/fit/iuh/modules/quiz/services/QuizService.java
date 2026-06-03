@@ -1,5 +1,6 @@
 package fit.iuh.modules.quiz.services;
 
+import fit.iuh.common.exceptions.AccessDeniedException;
 import fit.iuh.modules.quiz.dtos.*;
 import fit.iuh.modules.quiz.models.*;
 import fit.iuh.modules.quiz.repositories.AssignmentRepository;
@@ -55,6 +56,14 @@ public class QuizService {
         Optional<Submission> existing = submissionRepository.findByAccountIdAndAssignmentId(accountId, assignmentId);
         if (existing.isPresent()) {
             return existing.get();
+        }
+
+        // Kiểm tra số lần làm bài tối đa (maxAttempts)
+        if (assignment.getMaxAttempts() != null && assignment.getMaxAttempts() > 0) {
+            Long completedAttempts = submissionRepository.countCompletedAttempts(accountId, assignmentId);
+            if (completedAttempts >= assignment.getMaxAttempts()) {
+                throw new AccessDeniedException("Bạn đã hết số lần làm bài");
+            }
         }
 
         // Kiểm tra deadline
@@ -162,7 +171,7 @@ public class QuizService {
         grade.setGradedAt(LocalDateTime.now());
         grade.setRevision(1);
         grade.setGradedBy(0L); // 0 = auto-graded by system
-        grade.setFeedback(buildFeedback(totalScore, submission.getAssignment().getMaxScore()));
+        grade.setFeedback(buildFeedback(totalScore, submission.getAssignment().getMaxScore(), submission.getAssignment().getShowScoreAfterSubmit()));
         grade.setSubmission(submission);
 
         submission.setGrade(grade);
@@ -278,9 +287,16 @@ public class QuizService {
         return correctQuestions;
     }
 
-    private String buildFeedback(double score, Double maxScore) {
+    private String buildFeedback(double score, Double maxScore, Boolean showScoreAfterSubmit) {
         if (maxScore == null || maxScore == 0) return "Đã chấm điểm tự động.";
         double pct = (score / maxScore) * 100;
+        if (Boolean.FALSE.equals(showScoreAfterSubmit)) {
+            if (pct >= 50) {
+                return "Đã nộp bài thành công.";
+            } else {
+                return "Cần cố gắng thêm.";
+            }
+        }
         if (pct >= 90) return String.format("Xuất sắc! Bạn đạt %.1f/%.1f điểm.", score, maxScore);
         if (pct >= 75) return String.format("Giỏi! Bạn đạt %.1f/%.1f điểm.", score, maxScore);
         if (pct >= 60) return String.format("Khá! Bạn đạt %.1f/%.1f điểm.", score, maxScore);

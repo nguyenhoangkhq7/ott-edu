@@ -411,6 +411,7 @@ export class ChatController {
         attachments,
         replyTo,
         isForwarded,
+        mentions,
       } = req.body;
       const normalizedContent =
         typeof content === "string" ? content.trim() : "";
@@ -437,6 +438,7 @@ export class ChatController {
           attachments,
           replyTo,
           isForwarded,
+          mentions,
         );
       }
       // Nếu gửi theo receiverId -> Gửi 1-1 (Private Chat)
@@ -448,6 +450,7 @@ export class ChatController {
           attachments,
           replyTo,
           isForwarded,
+          mentions,
         );
       } else {
         return res
@@ -464,6 +467,19 @@ export class ChatController {
       // ngay cả khi chưa join room
       if (receiverId) {
         socketManager.emitToUserTarget(receiverId, "newMessage", message);
+      }
+
+      // Phát sự kiện notification:mention riêng biệt cho người được tag
+      if (message.mentions && message.mentions.length > 0) {
+        message.mentions.forEach((mention: any) => {
+          const mentionedUserId = mention._id ? mention._id.toString() : mention.toString();
+          if (mentionedUserId !== senderId.toString()) {
+            socketManager.emitToUserTarget(mentionedUserId, "notification:mention", {
+              message,
+              conversationId: conversation._id.toString(),
+            });
+          }
+        });
       }
 
       return res.status(201).json({ data: message });

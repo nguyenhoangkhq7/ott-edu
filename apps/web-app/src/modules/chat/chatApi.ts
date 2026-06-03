@@ -47,6 +47,13 @@ export function mapApiMessageToMessage(apiMsg: ApiMessage): Message {
     isForwarded: apiMsg.isForwarded || false,
     reactions: apiMsg.reactions || [],
     type: apiMsg.type || "text",
+    mentions: apiMsg.mentions
+      ? apiMsg.mentions.map((m: ApiUser | string) =>
+          typeof m === "string"
+            ? { id: m, name: "Người dùng", avatarUrl: "", isOnline: false }
+            : mapApiUserToUser(m)
+        )
+      : [],
   };
 }
 
@@ -221,6 +228,7 @@ export async function sendMessage(
   attachments?: Attachment[],
   replyToMessageId?: string,
   isForwarded?: boolean,
+  mentions?: string[],
 ): Promise<Message> {
   const data = await chatHttpService.post<{ data: ApiMessage }>("/messages", {
     receiverId,
@@ -229,6 +237,7 @@ export async function sendMessage(
     attachments,
     replyTo: replyToMessageId,
     isForwarded,
+    mentions,
   });
   return mapApiMessageToMessage(data.data);
 }

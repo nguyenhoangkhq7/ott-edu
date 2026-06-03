@@ -26,6 +26,7 @@ public class SubmissionGradingListDto {
     private LocalDateTime submittedAt;
     private boolean isLate;
     private String fileUrl; // For essay submissions - allows teacher to download/view file
+    private String originalFilename;
 
     // Grade status
     private boolean isGraded;

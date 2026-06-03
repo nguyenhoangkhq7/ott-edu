@@ -54,6 +54,7 @@ export interface Message {
   isForwarded?: boolean;
   reactions: Reaction[];
   type?: 'text' | 'system';
+  mentions?: User[];
 }
 
 export interface Conversation {
@@ -72,6 +73,7 @@ export interface Conversation {
   canManageGroup?: boolean;
   onlyAdminCanMessage?: boolean;
   otherParticipant?: User | null;
+  hasMention?: boolean;
 }
 
 export interface PendingMemberRequest {
@@ -171,6 +173,7 @@ export interface ApiMessage {
   isForwarded?: boolean;
   reactions: ApiReaction[];
   type?: 'text' | 'system';
+  mentions?: ApiUser[];
 }
 
 export interface ApiConversation {

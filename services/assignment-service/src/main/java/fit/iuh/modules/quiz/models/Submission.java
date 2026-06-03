@@ -43,6 +43,9 @@ public class Submission {
     @Column(name = "file_url", length = 2048)
     private String fileUrl; // For essay submissions
 
+    @Column(name = "original_filename", length = 255)
+    private String originalFilename;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SubmissionStatus status;

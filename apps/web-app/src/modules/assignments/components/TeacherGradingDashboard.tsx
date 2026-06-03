@@ -59,6 +59,7 @@ interface PendingSubmission {
   // File attachment — backend field name is `fileUrl`
   fileUrl?: string;
   attachmentUrl?: string;
+  originalFilename?: string;
   // Broad fallback: any extra fields the backend might add in the future
   [key: string]: unknown;
 }
@@ -635,7 +636,7 @@ export default function TeacherGradingDashboard({
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
                           )}
-                          {downloading ? 'Đang tải...' : getFileName(resolveFileUrl(selectedSubmission))}
+                          {downloading ? 'Đang tải...' : selectedSubmission.originalFilename || getFileName(resolveFileUrl(selectedSubmission))}
                         </button>
                       ) : (
                         <span className="text-slate-500">Không có tập tin</span>

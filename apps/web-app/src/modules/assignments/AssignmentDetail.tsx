@@ -11,6 +11,7 @@ import TeacherGradingDashboard from './components/TeacherGradingDashboard';
 import EssaySubmissionZone from './components/EssaySubmissionZone';
 import StudentSubmissionStatusTable from './components/StudentSubmissionStatusTable';
 import { formatDisplayFileName } from '@/shared/utils/file';
+import { useSocket, useSocketListener, useSocketRoomJoin } from '@/shared/hooks/useSocket';
 
 interface AssignmentDetailProps {
   assignmentId: number;
@@ -22,6 +23,7 @@ interface StudentSubmission {
   id: number;
   status: string;
   fileUrl: string;
+  originalFilename?: string;
   submittedAt: string;
   gradedAt?: string;
   score?: number;
@@ -46,6 +48,18 @@ export default function AssignmentDetail({
   const [attemptHistory, setAttemptHistory] = useState<AttemptHistory[]>([]);
   const [attemptStatus, setAttemptStatus] = useState<AttemptStatus | null>(null);
   const [currentSubmission, setCurrentSubmission] = useState<StudentSubmission | null>(null);
+
+  // Real-time updates via Socket.io
+  const socket = useSocket();
+  useSocketRoomJoin(socket, teamId ? String(teamId) : null);
+
+  useSocketListener<{ assignmentId: number; action: string }>(socket, 'assignment_updated', (data) => {
+    console.log('[Socket] assignment_updated event received:', data);
+    if (data && Number(data.assignmentId) === Number(assignmentId)) {
+      console.log('[Socket] Refreshing assignment details...');
+      void loadAssignmentDetail();
+    }
+  });
 
   // Feature 1: Delete modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -157,6 +171,7 @@ export default function AssignmentDetail({
       id: currentSubmission.id,
       status: currentSubmission.status,
       fileUrl: currentSubmission.fileUrl || '',
+      originalFilename: currentSubmission.originalFilename || '',
       submittedAt: currentSubmission.submittedAt,
       gradedAt: (currentSubmission as unknown as { grade?: { gradedAt?: string } })?.grade?.gradedAt,
       score: (currentSubmission as unknown as { grade?: { score?: number } })?.grade?.score,
@@ -343,7 +358,7 @@ export default function AssignmentDetail({
               </div>
 
               {/* Start Quiz Button */}
-              {attemptStatus?.canAttempt && (
+              {attemptStatus && (
                 <button
                   onClick={() => {
                     const url = teamId
@@ -351,8 +366,8 @@ export default function AssignmentDetail({
                       : `/assignments/${assignmentId}/quiz`;
                     router.push(url);
                   }}
-                  disabled={isDueDate}
-                  className={`w-full py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 mb-6 ${isDueDate
+                  disabled={isDueDate || !attemptStatus.canAttempt}
+                  className={`w-full py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 mb-6 ${(isDueDate || !attemptStatus.canAttempt)
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
@@ -360,7 +375,11 @@ export default function AssignmentDetail({
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  {isDueDate ? 'Quá hạn nộp' : 'Bắt đầu làm bài'}
+                  {isDueDate
+                    ? 'Quá hạn nộp'
+                    : !attemptStatus.canAttempt
+                      ? 'Đã hết số lần làm bài'
+                      : 'Bắt đầu làm bài'}
                 </button>
               )}
 
@@ -489,6 +508,15 @@ export default function AssignmentDetail({
                 <StudentSubmissionStatusTable
                   assignment={assignment}
                   submission={getSubmissionForDisplay()!}
+                  allowViewScore={assignment.showScoreAfterSubmit !== false}
+                  allowReview={assignment.showAnswersAfterSubmit === true}
+                  onReviewClick={() => {
+                    const reviewMode = assignment.showScoreAfterSubmit !== false ? 'full' : 'answers-only';
+                    const reviewUrl = teamId
+                      ? `/assignments/${assignmentId}/review/${currentSubmission.id}?teamId=${teamId}&mode=${reviewMode}`
+                      : `/assignments/${assignmentId}/review/${currentSubmission.id}?mode=${reviewMode}`;
+                    router.push(reviewUrl);
+                  }}
                 />
               ) : (
                 // Show upload zone if not yet submitted

@@ -60,6 +60,7 @@ interface ChatWindowProps {
     text: string,
     attachments?: Attachment[],
     replyToId?: string,
+    mentions?: string[],
   ) => Promise<void>;
   isLoadingMessages?: boolean;
   isSending?: boolean;
@@ -620,9 +621,10 @@ if (conversation.type === "private" && currentUser) {
     text: string,
     attachments?: Attachment[],
     replyToId?: string,
+    mentions?: string[],
   ) => {
     try {
-      await onSendMessage(text, attachments, replyToId);
+      await onSendMessage(text, attachments, replyToId, mentions);
       setReplyingTo(null);
     } catch (error) {
       console.error("Error sending message:", error);
@@ -987,6 +989,8 @@ if (conversation.type === "private" && currentUser) {
             socket={socket}
             conversationId={conversation?.id}
             isReadOnly={isReadOnly}
+            participants={conversation?.participants || []}
+            currentUser={currentUser}
           />
         </div>
 

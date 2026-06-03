@@ -74,6 +74,7 @@ export default function EssaySubmissionZone({
       // Submit assignment
       const submitData: Record<string, unknown> = {
         fileUrl,
+        fileName: file.name,
         confirm: true,
       };
       

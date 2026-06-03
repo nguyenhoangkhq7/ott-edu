@@ -15,6 +15,7 @@ import { ForwardMessageModal } from "./ForwardMessageModal";
 import { ChatUserProfileModal } from "./ChatUserProfileModal";
 import { ChatGroupManageModal } from "./ChatGroupManageModal";
 import {
+  ApiMessage,
   CallHistoryItem,
   ChatMode,
   Conversation,
@@ -180,6 +181,24 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
   );
   const [groupDeputyTarget, setGroupDeputyTarget] = useState<User | null>(null);
   const [groupInfoRefreshTick, setGroupInfoRefreshTick] = useState(0);
+  const [toast, setToast] = useState<{
+    message: string;
+    content: string;
+    conversationId: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const handleToastClick = () => {
+    if (toast) {
+      handleSelectConversation(toast.conversationId);
+      setToast(null);
+    }
+  };
 
   const refreshGroupInfoSidebar = useCallback(() => {
     setGroupInfoRefreshTick((prev) => prev + 1);
@@ -461,12 +480,47 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       });
     };
 
+    const handleMentionNotification = (data: {
+      message: Omit<ApiMessage, "senderId"> & {
+        senderId?: { fullName?: string };
+      };
+      conversationId: string;
+    }) => {
+      const incoming = mapApiMessageToMessage(data.message as unknown as ApiMessage);
+      const isActive = activeConversationIdRef.current === data.conversationId;
+      if (isActive) return;
+
+      const senderName = data.message.senderId?.fullName || "Một thành viên";
+
+      setToast({
+        message: `${senderName} đã nhắc đến bạn!`,
+        content: incoming.content,
+        conversationId: data.conversationId,
+      });
+
+      setConversations((prev) => {
+        const index = prev.findIndex((c) => c.id === data.conversationId);
+        if (index === -1) return prev;
+
+        const updatedConv = {
+          ...prev[index],
+          hasMention: true,
+          unreadCount: prev[index].unreadCount + 1,
+          lastMessage: incoming,
+        };
+
+        const otherConvs = prev.filter((_, i) => i !== index);
+        return [updatedConv, ...otherConvs];
+      });
+    };
+
     nextSocket.on("newMessage", handleNewMessage);
     // XÓA DÒNG LẶP NEW MESSAGE CỦA HẬU Ở ĐÂY ĐỂ TRÁNH NHẬN 2 LẦN TIN NHẮN
     nextSocket.on("messageRevoked", handleMessageRevoked);
     nextSocket.on("userStatusChanged", handleUserStatusChanged);
     nextSocket.on("userTyping", handleUserTyping);
     nextSocket.on("userStoppedTyping", handleUserStoppedTyping);
+    nextSocket.on("notification:mention", handleMentionNotification);
 
     // Group & Friend Realtime Listeners
     nextSocket.on("friend_status_updated", () => {
@@ -585,6 +639,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
       nextSocket.off("userStatusChanged", handleUserStatusChanged);
       nextSocket.off("userTyping", handleUserTyping);
       nextSocket.off("userStoppedTyping", handleUserStoppedTyping);
+      nextSocket.off("notification:mention", handleMentionNotification);
 
       nextSocket.off("friend_status_updated");
       nextSocket.off("new_group_created");
@@ -634,12 +689,12 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     }
   }, [activeConversationId, conversations, incomingCall]);
 
-  // Handle khi click đổi cuộc trò chuyện: Reset số đếm unread về 0
+  // Handle khi click đổi cuộc trò chuyện: Reset số đếm unread về 0 và clear mention
   const handleSelectConversation = useCallback((id: string) => {
     setDraftReceiver(null);
     setActiveConversationId(id);
     setConversations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
+      prev.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasMention: false } : c)),
     );
   }, []);
 
@@ -1010,6 +1065,7 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
     text: string,
     attachments?: Array<{ url: string; fileType: string; fileName: string }>,
     replyToId?: string,
+    mentions?: string[],
   ) => {
     if (!currentUserId || isSending) return;
 
@@ -1059,6 +1115,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           activeConversation.id,
           attachments,
           replyToId,
+          undefined,
+          mentions,
         );
       } else {
         savedMessage = await sendMessage(
@@ -1067,6 +1125,8 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           undefined,
           attachments,
           replyToId,
+          undefined,
+          mentions,
         );
       }
 
@@ -1321,6 +1381,40 @@ export const ChatLayout: React.FC<ChatLayoutProps> = ({ currentUserId }) => {
           onDissolveGroup={handleDissolveGroup}
           onLeaveGroup={handleLeaveGroup}
         />
+      )}
+
+      {toast && (
+        <div
+          onClick={handleToastClick}
+          className="fixed right-6 top-6 z-50 flex w-80 cursor-pointer items-start gap-3.5 rounded-2xl border border-slate-100 bg-slate-900/95 p-4 text-white shadow-2xl backdrop-blur-md transition-all hover:bg-slate-950 hover:scale-102 duration-200 animate-in slide-in-from-right-8"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-500 text-sm font-extrabold text-white animate-bounce">
+            @
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold truncate text-rose-300">
+              {toast.message}
+            </p>
+            <p className="mt-1 text-xs text-slate-300 line-clamp-2 leading-relaxed">
+              {toast.content}
+            </p>
+            <p className="mt-2 text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+              Nhấp để xem ngay
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setToast(null);
+            }}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       )}
     </div>
   );
