@@ -14,6 +14,7 @@ public interface TeamMapper {
     @Mapping(target = "departmentId", source = "department.id")
     @Mapping(target = "isActive", source = "active")
     @Mapping(target = "isApprovalRequired", source = "approvalRequired")
+    @Mapping(target = "creatorRole", ignore = true)
     TeamResponse toResponse(Team team);
 
     List<TeamResponse> toResponseList(List<Team> teams);

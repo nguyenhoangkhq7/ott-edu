@@ -11,6 +11,7 @@ export interface Team {
   active?: boolean;
   isApprovalRequired?: boolean;
   members?: TeamMember[];
+  creatorRole?: string;
 }
 
 export interface JoinRequest {

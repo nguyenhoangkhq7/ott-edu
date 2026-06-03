@@ -78,7 +78,7 @@ public class TeamServiceImpl implements TeamService {
                 !syncedTeam.isActive(),
                 teamMemberRepository.findAllByTeamId(savedTeam.getId()));
 
-        return teamMapper.toResponse(syncedTeam);
+        return enrichTeamResponse(teamMapper.toResponse(syncedTeam), syncedTeam);
     }
 
     @Override
@@ -87,7 +87,7 @@ public class TeamServiceImpl implements TeamService {
         requireTeamMembership(teamId, account.getId());
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Team not found with id: " + teamId));
-        return teamMapper.toResponse(team);
+        return enrichTeamResponse(teamMapper.toResponse(team), team);
     }
 
     @Override
@@ -99,7 +99,7 @@ public class TeamServiceImpl implements TeamService {
                 .collect(Collectors.toMap(Team::getId, team -> team, (left, right) -> left, LinkedHashMap::new))
                 .values()
                 .stream()
-                .map(teamMapper::toResponse)
+                .map(t -> enrichTeamResponse(teamMapper.toResponse(t), t))
                 .toList();
     }
 
@@ -112,7 +112,7 @@ public class TeamServiceImpl implements TeamService {
 
         return teamRepository.findByDepartmentId(departmentId).stream()
                 .filter(team -> accessibleTeamIds.contains(team.getId()))
-                .map(teamMapper::toResponse)
+                .map(t -> enrichTeamResponse(teamMapper.toResponse(t), t))
                 .toList();
     }
 
@@ -136,7 +136,7 @@ public class TeamServiceImpl implements TeamService {
                 syncedTeam,
                 !syncedTeam.isActive(),
                 teamMemberRepository.findAllByTeamId(updatedTeam.getId()));
-        return teamMapper.toResponse(syncedTeam);
+        return enrichTeamResponse(teamMapper.toResponse(syncedTeam), syncedTeam);
     }
 
     @Override
@@ -161,7 +161,7 @@ public class TeamServiceImpl implements TeamService {
     public TeamResponse getTeamByJoinCode(String joinCode) {
         Team team = teamRepository.findByJoinCode(joinCode)
                 .orElseThrow(() -> new RuntimeException("Team not found with joinCode: " + joinCode));
-        return teamMapper.toResponse(team);
+        return enrichTeamResponse(teamMapper.toResponse(team), team);
     }
 
     @Override
@@ -312,7 +312,7 @@ public class TeamServiceImpl implements TeamService {
                 syncedTeam,
                 !syncedTeam.isActive(),
                 teamMemberRepository.findAllByTeamId(updatedTeam.getId()));
-        return teamMapper.toResponse(syncedTeam);
+        return enrichTeamResponse(teamMapper.toResponse(syncedTeam), syncedTeam);
     }
 
     @Override
@@ -368,7 +368,7 @@ public class TeamServiceImpl implements TeamService {
                 !team.isActive(),
                 teamMemberRepository.findAllByTeamId(team.getId()));
 
-        return teamMapper.toResponse(team);
+        return enrichTeamResponse(teamMapper.toResponse(team), team);
     }
 
     @Override
@@ -534,5 +534,25 @@ public class TeamServiceImpl implements TeamService {
             throw new AccessDeniedException("Chỉ trưởng lớp mới có quyền thực hiện thao tác này.");
         }
         return member;
+    }
+
+    private TeamResponse enrichTeamResponse(TeamResponse response, Team team) {
+        if (response == null || team == null) {
+            return response;
+        }
+
+        // Find the creator (first LEADER of the team)
+        TeamMember creator = team.getMembers().stream()
+                .filter(m -> m.getRole() == TeamMemberRole.LEADER)
+                .min(java.util.Comparator.comparing(TeamMember::getJoinedAt)
+                        .thenComparing(TeamMember::getId))
+                .orElse(null);
+
+        if (creator != null && creator.getAccount() != null && creator.getAccount().getRole() != null) {
+            response.setCreatorRole(creator.getAccount().getRole().name());
+        } else {
+            response.setCreatorRole("ROLE_STUDENT"); // default fallback
+        }
+        return response;
     }
 }

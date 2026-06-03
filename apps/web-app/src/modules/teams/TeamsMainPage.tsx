@@ -83,7 +83,44 @@ export default function TeamsMainPage() {
   // Chuyển đổi Team từ backend thành TeamSection format
   const teamSections: TeamSection[] = useMemo(
     () => {
-      if (teams.length === 0) {
+      const classesTeams = teams.filter(team => team.creatorRole === "ROLE_TEACHER");
+      const teamsTeams = teams.filter(team => team.creatorRole !== "ROLE_TEACHER");
+
+      const sections: TeamSection[] = [];
+
+      if (classesTeams.length > 0) {
+        sections.push({
+          id: "classes",
+          title: "Classes",
+          items: classesTeams.map((team, index) => ({
+            id: team.id.toString(),
+            name: team.name,
+            subtitle: team.description || "Lớp học",
+            initials: team.name.substring(0, 2).toUpperCase(),
+            accentColor: ["#8269db", "#ff6b6b", "#2ecc71", "#3498db"][index % 4],
+            meta: `${team.joinCode} · ${team.isActive === false || team.active === false ? 'Bị khóa' : 'Lớp đang hoạt động'}`,
+            isActive: team.isActive !== false && team.active !== false,
+          })),
+        });
+      }
+
+      if (teamsTeams.length > 0) {
+        sections.push({
+          id: "teams",
+          title: "Teams",
+          items: teamsTeams.map((team, index) => ({
+            id: team.id.toString(),
+            name: team.name,
+            subtitle: team.description || "Nhóm học tập",
+            initials: team.name.substring(0, 2).toUpperCase(),
+            accentColor: ["#ff6b6b", "#2ecc71", "#3498db", "#8269db"][index % 4],
+            meta: `${team.joinCode} · ${team.isActive === false || team.active === false ? 'Bị khóa' : 'Nhóm đang hoạt động'}`,
+            isActive: team.isActive !== false && team.active !== false,
+          })),
+        });
+      }
+
+      if (sections.length === 0) {
         return [
           {
             id: "classes",
@@ -93,21 +130,7 @@ export default function TeamsMainPage() {
         ];
       }
 
-      return [
-        {
-          id: "classes",
-          title: "Classes",
-          items: teams.map((team, index) => ({
-            id: team.id.toString(),
-            name: team.name,
-            subtitle: team.description || "Lớp học",
-            initials: team.name.substring(0, 2).toUpperCase(),
-            accentColor: ["#8269db", "#ff6b6b", "#2ecc71", "#3498db"][index % 4],
-            meta: `${team.joinCode} · ${team.isActive === false || team.active === false ? 'Bị khóa' : 'Lớp đang hoạt động'}`,
-            isActive: team.isActive !== false && team.active !== false, 
-          })),
-        },
-      ];
+      return sections;
     },
     [teams]
   );

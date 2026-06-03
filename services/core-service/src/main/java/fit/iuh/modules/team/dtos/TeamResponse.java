@@ -27,8 +27,6 @@ public class TeamResponse {
         return isApprovalRequired;
     }
 
-    public void setIsApprovalRequired(boolean isApprovalRequired) {
-        this.isApprovalRequired = isApprovalRequired;
-    }
+    private String creatorRole;
     private List<TeamMemberResponse> members;
 }
