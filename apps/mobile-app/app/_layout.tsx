@@ -1,7 +1,8 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet } from "react-native";
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../src/modules/auth/AuthProvider";
 
 function RootNavigator() {
@@ -52,9 +53,12 @@ function RootNavigator() {
 
 export default function RootLayout() {
     return (
-        <AuthProvider>
-            <RootNavigator />
-        </AuthProvider>
+        <SafeAreaProvider>
+            <AuthProvider>
+                <RootNavigator />
+                <StatusBar style="dark" />
+            </AuthProvider>
+        </SafeAreaProvider>
     );
 }
 

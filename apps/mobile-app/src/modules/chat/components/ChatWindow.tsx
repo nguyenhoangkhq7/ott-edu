@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, Image, FlatList,
   KeyboardAvoidingView, Platform, ActivityIndicator, StyleSheet, Alert
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Socket } from 'socket.io-client';
 import { CallHistoryItem, Conversation, Message, User, Attachment, Reaction } from '../types';
@@ -72,6 +73,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   typingUsers = {},
   onTyping,
 }) => {
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
@@ -321,7 +323,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 8) }]}>
         <TouchableOpacity onPress={onBack} style={styles.headerBtn}>
           <Ionicons name="chevron-back" size={26} color="#0f172a" />
         </TouchableOpacity>

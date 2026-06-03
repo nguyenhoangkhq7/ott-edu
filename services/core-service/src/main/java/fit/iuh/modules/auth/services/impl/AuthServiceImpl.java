@@ -120,11 +120,15 @@ public class AuthServiceImpl implements AuthService {
             throw new RuntimeException("Khoa được chọn không thuộc về Trường này!");
         }
 
+        if (StringUtils.hasText(request.getCode()) && profileRepository.existsByCode(request.getCode().trim())) {
+            throw new RuntimeException("Mã số sinh viên/giảng viên đã tồn tại!");
+        }
+
         Profile newProfile = Profile.builder()
                 .account(newAccount)
                 .firstName(request.getFirstName())
                 .lastName(request.getLastName())
-                .code(request.getCode())
+                .code(request.getCode() != null ? request.getCode().trim() : null)
                 .school(selectedSchool)
                 .department(selectedDepartment)
                 .build();

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { View, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { io, type Socket } from "socket.io-client";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../src/modules/auth/AuthProvider';
 import { CHAT_SERVICE_URL } from '../../../src/modules/chat/chat.config';
 // 🚀 Nhớ thêm hàm fetchMessages vào phần import từ chat.service của ông nhé
@@ -13,6 +14,7 @@ export default function ChatRoomRoute() {
   const { id: conversationId } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // --- State quản lý dữ liệu ---
   const [conversation, setConversation] = useState<Conversation | null>(null);

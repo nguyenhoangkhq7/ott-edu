@@ -347,11 +347,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     remoteStreamsList.length > 0;
   const showInlineCallPanel = !showFullScreenCall && Boolean(callError);
 
+  const resolvedConversationName = React.useMemo(() => {
+    if (!conversation) return "Cuộc gọi";
+    let name = conversation.name || "Người dùng";
+    if (conversation.type === "private" && currentUser) {
+      const self = currentUser as User & { _id?: string };
+      const selfId = self.id || self._id;
+      const otherParticipant = conversation.participants?.find((p) => {
+        const pId = p.id || (p as User & { _id?: string })._id;
+        return pId !== selfId;
+      });
+      if (otherParticipant) {
+        const peer = otherParticipant as User & { fullName?: string };
+        name = peer.fullName || peer.name || (peer.email ? peer.email.split('@')[0] : "Người dùng");
+      }
+    }
+    return name;
+  }, [conversation, currentUser]);
+
   const renderFullScreenCallOverlay = () => {
     return (
       <VideoCallOverlay
         showFullScreenCall={showFullScreenCall}
         conversation={conversation}
+        conversationName={resolvedConversationName}
         incomingCall={incomingCall}
         incomingCallerName={incomingCallerName}
         incomingCallTypeLabel={incomingCallTypeLabel}

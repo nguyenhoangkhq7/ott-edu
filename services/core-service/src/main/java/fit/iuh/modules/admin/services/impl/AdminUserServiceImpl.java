@@ -402,6 +402,7 @@ public class AdminUserServiceImpl implements AdminUserService {
              Workbook workbook = new XSSFWorkbook(is)) {
             
             Sheet sheet = workbook.getSheetAt(0);
+            List<String> importedCodes = new ArrayList<>();
 
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
@@ -448,6 +449,11 @@ public class AdminUserServiceImpl implements AdminUserService {
 
                 if (code.isEmpty()) {
                     code = "USER" + account.getId();
+                } else {
+                    if (profileRepository.existsByCode(code) || importedCodes.contains(code)) {
+                        throw new RuntimeException("Mã số sinh viên/giảng viên '" + code + "' đã tồn tại trong hệ thống hoặc bị trùng lặp trong file nhập!");
+                    }
+                    importedCodes.add(code);
                 }
 
                 School foundSchool = null;

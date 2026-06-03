@@ -8,4 +8,9 @@ export const CHAT_SERVICE_URL =
   ENV_CHAT_SERVICE_URL ||
   (localHost ? `http://${localHost}:3001` : "http://localhost:3001");
 
-export const CHAT_API_URL = `${CHAT_SERVICE_URL.replace(/\/$/, "")}/api`;
+const cleanedChatUrl = CHAT_SERVICE_URL.replace(/\/$/, "");
+const isGateway = !cleanedChatUrl.includes(":3001");
+
+export const CHAT_API_URL = isGateway
+  ? `${cleanedChatUrl}/api/chat`
+  : `${cleanedChatUrl}/api`;

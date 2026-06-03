@@ -19,6 +19,8 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
 
     Optional<Profile> findByAccount_Email(String email);
 
+    boolean existsByCode(String code);
+
     // 🚀 QUERY NÂNG CẤP: Chỉ lấy người cùng Department HOẶC cùng Team
     // File: fit.iuh.modules.auth.repositories.ProfileRepository.java
     // Sửa p.id thành p.account_id

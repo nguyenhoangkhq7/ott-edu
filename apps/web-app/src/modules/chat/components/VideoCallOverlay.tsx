@@ -116,6 +116,7 @@ const LocalVideo: React.FC<LocalVideoProps> = ({ stream, ...props }) => {
 interface VideoCallOverlayProps {
   showFullScreenCall: boolean;
   conversation: Conversation | null;
+  conversationName?: string;
   incomingCall: IncomingVideoCall | null;
   incomingCallerName: string;
   incomingCallTypeLabel: string;
@@ -143,6 +144,7 @@ interface VideoCallOverlayProps {
 export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
   showFullScreenCall,
   conversation,
+  conversationName,
   incomingCall,
   incomingCallerName,
   incomingCallTypeLabel,
@@ -170,38 +172,31 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
     return null;
   }
 
-  const callTitle = conversation?.name || incomingCallerName || "Cuộc gọi";
+  const callTitle = conversationName || incomingCallerName || "Cuộc gọi";
   const isOneOnOne = remoteStreamsList.length <= 1;
+
+  const getParticipantName = (userId: string) => {
+    if (!conversation?.participants) return userId.slice(-6).toUpperCase();
+    const p = conversation.participants.find(
+      (part) => part.id === userId || (part as { _id?: string })._id === userId
+    );
+    if (!p) return userId.slice(-6).toUpperCase();
+    return (p as { fullName?: string }).fullName || p.name || p.email?.split("@")[0] || userId.slice(-6).toUpperCase();
+  };
 
   // Responsive dynamic grid for group layout
   const gridCols =
     remoteStreamsList.length <= 1
       ? "grid-cols-1 max-w-3xl"
       : remoteStreamsList.length <= 3
-      ? "grid-cols-1 md:grid-cols-2 max-w-5xl"
-      : remoteStreamsList.length <= 5
-      ? "grid-cols-2 lg:grid-cols-3 max-w-6xl"
-      : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-w-7xl";
+        ? "grid-cols-1 md:grid-cols-2 max-w-5xl"
+        : remoteStreamsList.length <= 5
+          ? "grid-cols-2 lg:grid-cols-3 max-w-6xl"
+          : "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 max-w-7xl";
 
-  const renderLocalPreview = () => {
+   const renderLocalPreview = () => {
     if (isAudioCall) {
-      return (
-        <div className="absolute bottom-6 right-6 z-20 flex w-52 items-center gap-3.5 rounded-2xl border border-white/10 bg-slate-900/90 px-4 py-3.5 shadow-2xl backdrop-blur-xl ring-1 ring-white/5 animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white ring-2 ${
-            isMicrophoneEnabled 
-              ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20" 
-              : "bg-rose-500/10 text-rose-400 ring-rose-500/20"
-          }`}>
-            {isMicrophoneEnabled ? <Mic size={18} /> : <MicOff size={18} />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold text-white">Bạn</p>
-            <p className="text-[10px] text-slate-400">
-              {isMicrophoneEnabled ? "Đang nói" : "Đã tắt mic"}
-            </p>
-          </div>
-        </div>
-      );
+      return null;
     }
 
     return (
@@ -237,7 +232,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
       {/* Dynamic Animated Ambient Background */}
       <div className="absolute inset-0 bg-slate-950" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(99,102,241,0.12),transparent_50%),radial-gradient(circle_at_70%_70%,rgba(14,165,233,0.1),transparent_50%),radial-gradient(circle_at_50%_10%,rgba(244,63,94,0.05),transparent_40%)]" />
-      
+
       {/* Top Ambient Light */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[350px] bg-indigo-500/5 blur-[120px] rounded-full pointer-events-none" />
 
@@ -322,7 +317,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
               <p className="mt-1.5 text-xs text-slate-400 leading-relaxed">
                 Đang gọi {incomingCallTypeLabel === "am thanh" ? "âm thanh" : "video"} cho bạn...
               </p>
-              
+
               <div className="mt-8 flex items-center justify-center gap-4">
                 <button
                   type="button"
@@ -343,10 +338,12 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
               </div>
             </div>
           </div>
+
         ) : isAudioCall ? (
           /* ── Audio Layout: premium minimal layout ── */
-          <div className="relative min-h-0 flex-1 overflow-hidden flex flex-col justify-center items-center">
-            <div className="flex flex-col items-center gap-6 text-center z-10">
+          <div className="min-h-0 flex-1 flex flex-col justify-center items-center p-6 gap-8 select-none">
+            {/* Center Area: pulsing avatar and title */}
+            <div className="flex flex-col items-center gap-6 text-center">
               {/* Outer pulsing ring */}
               <div className="relative flex h-32 w-32 items-center justify-center">
                 <div className="absolute inset-0 rounded-full bg-indigo-500/10 ring-1 ring-indigo-500/20 animate-ping duration-1000" />
@@ -355,48 +352,54 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                   <Users size={44} className="text-indigo-400" />
                 </div>
               </div>
-              
+
               <div>
-                <h3 className="text-xl font-bold text-slate-100 tracking-tight">
-                  {conversation?.name || callTitle}
+                <h3 className="text-2xl font-bold text-slate-100 tracking-tight">
+                  {callTitle}
                 </h3>
-                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1 justify-center">
+                <p className="text-xs text-slate-400 mt-2 flex items-center gap-1.5 justify-center">
                   <Volume2 size={13} className="text-indigo-400 animate-pulse" />
                   Cuộc gọi thoại đang hoạt động
                 </p>
               </div>
             </div>
 
-            {remoteStreamsList.length > 0 ? (
-              <>
-                {/* Invisible audio elements */}
-                {remoteStreamsList.map(([userId, stream]) => (
-                  <RemoteAudio key={userId} stream={stream} />
-                ))}
-                
-                {/* Visual grid of audio members */}
-                <div className="absolute inset-x-0 bottom-28 flex justify-center gap-3 px-6 flex-wrap z-10 max-w-xl mx-auto">
-                  {remoteStreamsList.map(([userId]) => (
-                    <div
-                      key={userId}
-                      className="flex items-center gap-2 rounded-2xl border border-white/5 bg-slate-900/60 pl-3 pr-4 py-2.5 text-xs text-slate-200 backdrop-blur-md shadow-lg ring-1 ring-white/5 hover:bg-slate-900/80 transition"
-                    >
-                      <div className="h-2 w-2 rounded-full bg-indigo-400 animate-pulse" />
-                      <span className="font-medium">
-                        {userId.slice(-6).toUpperCase()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="absolute inset-x-0 bottom-28 flex justify-center z-10">
-                <p className="text-xs text-slate-500">Đang đợi người khác tham gia...</p>
+            {/* Grid of audio members (including self) */}
+            <div className="flex justify-center gap-3 px-6 flex-wrap max-w-xl mx-auto">
+              {/* Local Participant chip */}
+              <div
+                className={`flex items-center gap-2 rounded-2xl border pl-3 pr-4 py-2.5 text-xs backdrop-blur-md shadow-lg ring-1 transition duration-300 ${
+                  isMicrophoneEnabled
+                    ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                    : "border-rose-500/30 bg-rose-500/20 text-rose-400 ring-rose-500/35"
+                }`}
+              >
+                <div className={`h-2 w-2 rounded-full ${isMicrophoneEnabled ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+                <span className="font-semibold">
+                  Bạn {isMicrophoneEnabled ? "" : "(Tắt mic)"}
+                </span>
               </div>
-            )}
 
-            {renderLocalPreview()}
+              {/* Remote Participants */}
+              {remoteStreamsList.map(([userId]) => (
+                <div
+                  key={userId}
+                  className="flex items-center gap-2 rounded-2xl border border-white/5 bg-slate-900/60 pl-3 pr-4 py-2.5 text-xs text-slate-200 backdrop-blur-md shadow-lg ring-1 ring-white/5 hover:bg-slate-900/80 transition duration-300"
+                >
+                  <div className="h-2 w-2 rounded-full bg-indigo-400 animate-pulse" />
+                  <span className="font-medium">
+                    {getParticipantName(userId)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Invisible audio elements */}
+            {remoteStreamsList.map(([userId, stream]) => (
+              <RemoteAudio key={userId} stream={stream} />
+            ))}
           </div>
+
         ) : isOneOnOne ? (
           /* ── 1-1 Layout: remote fills full space, local is PiP ── */
           <div className="relative min-h-0 flex-1 w-full h-full flex items-center justify-center bg-slate-950">
@@ -415,7 +418,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-300">
-                          {userId.slice(-6).toUpperCase()}
+                          {getParticipantName(userId)}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">Camera tắt · Đang nghe</p>
                       </div>
@@ -453,9 +456,9 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-indigo-500/5 ring-1 ring-indigo-500/10 shadow-lg">
                   <Users size={36} className="text-indigo-400/50 animate-pulse" />
                 </div>
-                <p className="text-xs tracking-wider text-slate-400 font-medium">
+                {/* <p className="text-xs tracking-wider text-slate-400 font-medium">
                   Đang đợi kết nối cuộc gọi...
-                </p>
+                </p> */}
               </div>
             )}
 
@@ -506,12 +509,12 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                         <RemoteAudio key={userId} stream={stream} />
                       </div>
                     )}
-                    
+
                     {/* Dark gradient overlay on bottom of tile */}
                     <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
 
                     <div className="absolute bottom-2.5 left-2.5 rounded-lg bg-black/60 px-2 py-1 text-[10px] font-semibold text-slate-200 backdrop-blur-md border border-white/5">
-                      {userId.slice(-6).toUpperCase()}
+                      {getParticipantName(userId)}
                     </div>
                   </div>
                 );
@@ -547,7 +550,7 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                     <span>Camera tắt</span>
                   </div>
                 )}
-                
+
                 {/* Dark gradient overlay on bottom of tile */}
                 <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
 
@@ -567,11 +570,10 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
               type="button"
               onClick={onToggleMicrophone}
               disabled={!localStream}
-              className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 ${
-                isMicrophoneEnabled
-                  ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                  : "border-rose-500/30 bg-rose-500/20 text-rose-400 hover:bg-rose-500/35"
-              }`}
+              className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 ${isMicrophoneEnabled
+                ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                : "border-rose-500/30 bg-rose-500/20 text-rose-400 hover:bg-rose-500/35"
+                }`}
               title={isMicrophoneEnabled ? "Tắt micro" : "Bật micro"}
             >
               {isMicrophoneEnabled ? <Mic size={18} /> : <MicOff size={18} />}
@@ -584,11 +586,10 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                   type="button"
                   onClick={onToggleCamera}
                   disabled={!localStream}
-                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 ${
-                    isCameraEnabled
-                      ? "border-indigo-500/25 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
-                      : "border-rose-500/30 bg-rose-500/20 text-rose-400 hover:bg-rose-500/35"
-                  }`}
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 ${isCameraEnabled
+                    ? "border-indigo-500/25 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
+                    : "border-rose-500/30 bg-rose-500/20 text-rose-400 hover:bg-rose-500/35"
+                    }`}
                   title={isCameraEnabled ? "Tắt camera" : "Bật camera"}
                 >
                   {isCameraEnabled ? (
@@ -603,11 +604,10 @@ export const VideoCallOverlay: React.FC<VideoCallOverlayProps> = ({
                   type="button"
                   onClick={onToggleScreenShare}
                   disabled={!localStream}
-                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 ${
-                    isScreenSharing
-                      ? "border-sky-500/30 bg-sky-500/25 text-sky-300"
-                      : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
-                  }`}
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border transition duration-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 ${isScreenSharing
+                    ? "border-sky-500/30 bg-sky-500/25 text-sky-300"
+                    : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                    }`}
                   title={isScreenSharing ? "Dừng chia sẻ" : "Chia sẻ màn hình"}
                 >
                   <Share2 size={18} />
